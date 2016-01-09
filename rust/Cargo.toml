@@ -1,0 +1,4 @@
+[package]
+name = "needletail"
+version = "0.1.0"
+authors = ["Roderick Bovee <roderick@onecodex.com>"]
