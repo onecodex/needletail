@@ -1,0 +1,15 @@
+checkout:
+  post:
+    - git config --global --unset url.ssh://git@github.com:.insteadof
+
+dependencies:
+  override:
+    - curl -sS https://static.rust-lang.org/rustup.sh > rustup.sh && chmod +x ./rustup.sh && ./rustup.sh --yes
+
+  cache_directories:
+    - "~/.cargo"
+
+test:
+  override:
+    - cargo build -v --color never
+    - cargo test -v --color never
