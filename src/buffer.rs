@@ -1,6 +1,7 @@
 use std::error;
 use std::fmt;
 use std::io;
+use std::mem;
 
 
 /// Errors returned during parsing/reading buffers
@@ -95,8 +96,8 @@ impl<'a> RecBuffer<'a> {
         Ok(amt_read == 0)
     }
 
-    pub fn mark_field<F>(&mut self, rec_fn: F) -> Result<usize, ParseError>
-        where F: Fn(&[u8], bool) -> Result<usize, ParseError>
+    pub fn mark_field<F>(&mut self, mut rec_fn: F) -> Result<usize, ParseError>
+        where F: FnMut(&[u8], bool) -> Result<usize, ParseError>
     {
         let mut eof = false;
         loop {
@@ -122,17 +123,19 @@ impl<'a> RecBuffer<'a> {
         }
     }
 
-    pub fn fields(&mut self) -> Vec<&[u8]> {
-        let mut slices = Vec::with_capacity(self.marks.len());
+    pub fn fields<'b>(&'b mut self, fields: &mut [&'b [u8]]) {
+        // TODO: it would be nice if this could just return the array so we don't
+        // have to have an unsafe mem::uninitialized to set up for this
         let mut cum_pos = self.record_start;
+        let mut i = 0;
         for mark in &self.marks {
-            slices.push(&self.buf[cum_pos..cum_pos + *mark]);
+            fields[i] = &self.buf[cum_pos..cum_pos + *mark];
             cum_pos += *mark;
+            i += 1;
         }
 
         self.marks.clear();
         self.record_start = self.offset;
-        slices
     }
 }
 
@@ -171,7 +174,11 @@ fn test_buffer() {
     });
     assert_eq!(field_len.unwrap(), 3);
 
-    let records = b.fields();
-    assert_eq!(records[0], &[1]);
-    assert_eq!(records[1], &[2, 3, 4]);
+    let mut fields: [&[u8]; 2];
+    unsafe {
+        fields = mem::uninitialized();
+    }
+    b.fields(&mut fields);
+    assert_eq!(fields[0], &[1]);
+    assert_eq!(fields[1], &[2, 3, 4]);
 }
