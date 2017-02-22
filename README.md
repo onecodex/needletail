@@ -2,12 +2,21 @@
 
 # Needletail
 
-Needletail is a MIT-licensed, minimal-copying FASTA/FASTQ parser and k-mer processing library.
+Needletail is a MIT-licensed, minimal-copying FASTA/FASTQ parser and _k_-mer processing library for Rust.
 
-The goal is to write a fast *and* well-tested set of functions that more-specialized bioinformatics programs can use.
-Needletail's goal is to be as fast as the `readfq` C library at parsing FASTX files and much (i.e. 25 times) faster than equivalent Python implementations at k-mer counting.
+The goal is to write a fast *and* well-tested set of functions that more specialized bioinformatics programs can use.
+Needletail's goal is to be as fast as the [readfq](https://github.com/lh3/readfq) C library at parsing FASTX files and much (i.e. 25 times) faster than equivalent Python implementations at _k_-mer counting.
 
-For example, a simple Needletail script can count all the bases in a 2.1 gigabyte FASTQ file in 2.75 seconds while a comparable parser with `readfq` takes 3.52 seconds (see `bench` folder; measured with `%timeit -r 3 -n 3` on an Early 2015 MacBook Pro).
+For example, a simple Needletail script can count all the bases in a [2.1 gigabyte HiSeq 2500 FASTQ file](https://trace.ncbi.nlm.nih.gov/Traces/sra/?run=SRR1749083) in 1.1 seconds while a comparable parser with `readfq` takes 2.6 seconds and Biopython takes over one minute (see `bench` folder; measured with `%timeit -r 3 -n 3`, `%timeit -r 3 -n 1` for Biopython). These speed improvements hold for [large FASTQ files](http://www.ebi.ac.uk/ena/data/view/ERX150470) as well.
+
+|                            | needletail  | readfq  | Biopython  |
+|----------------------------|---|---|---|
+| Mid 2012 MacBook Pro (2GB FASTQ) | 1.83s   | 2.48s  | 2m43s   |
+| AWS EC2 r3.xlarge (2GB FASTQ)    | 1.10s  | 2.59s  | 1m47s  |
+| AWS EC2 d2.2xlarge (2GB FASTQ)   | 0.93s   | 2.56s  | 1m24s  |
+| AWS EC2 d2.2xlarge (55GB FASTQ)   | 34.7s   | 1m6s  | &mdash;  |
+
+_Note: `gcc` with the `-O3` flag was used for `readfq` (`clang -O3` was slower on all tested machines and not used). `rustc` 1.15.1 was used on all machines._
 
 # Example
 
@@ -43,10 +52,8 @@ cargo test  # to run tests
 
 # Getting Help
 
-Questions are best directed as GitHub issues.
-
-Hopefully I'll compile the documentation and put it up as a webpage soon too.
+Questions are best directed as GitHub issues. We plan to add more documentation soon, but in the meantime doc comments are included in the source.
 
 # Contributing
 
-Please do! We're happy to discuss/mentor possible additions and/or accept pull requests.
+Please do! We're happy to discuss possible additions and/or accept pull requests.
