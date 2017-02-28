@@ -253,15 +253,26 @@ fn fastq_record<'a>(rb: &'a mut RecBuffer, validate: bool) -> Result<SeqRecord<'
 
 
 /// Internal function abstracting over byte and file FASTX parsing
-fn fastx_reader<'b, F, T>(reader: &'b mut T, ref mut callback: F) -> Result<(), ParseError>
+fn fastx_reader<'b, F, R, T>(reader: &'b mut R, ref mut callback: F, type_callback: Option<&mut T>) -> Result<(), ParseError>
     where F: for<'a> FnMut(SeqRecord<'a>) -> (),
-          T: Read,
+          R: Read,
+          T: ?Sized + FnMut(&'static str) -> (),
 {
     let mut first = vec![0];
     reader.read(&mut first)?;
     let parser = match first[0] {
-        b'>' => Ok(fasta_record as for<'a> fn(&'a mut RecBuffer, bool) -> Result<SeqRecord<'a>, ParseError>),
-        b'@' => Ok(fastq_record as for<'a> fn(&'a mut RecBuffer, bool) -> Result<SeqRecord<'a>, ParseError>),
+        b'>' => {
+            if let Some(f) = type_callback {
+                f("FASTA");
+            }
+            Ok(fasta_record as for<'a> fn(&'a mut RecBuffer, bool) -> Result<SeqRecord<'a>, ParseError>)
+        },
+        b'@' => {
+            if let Some(f) = type_callback {
+                f("FASTQ");
+            }
+            Ok(fastq_record as for<'a> fn(&'a mut RecBuffer, bool) -> Result<SeqRecord<'a>, ParseError>)
+        },
         _ => Err(ParseError::Invalid(String::from("Bad starting byte"))),
     }?;
 
@@ -288,7 +299,7 @@ pub fn fastx_bytes<'b, F>(bytes: &'b [u8], ref mut callback: F) -> Result<(), Pa
     where F: for<'a> FnMut(SeqRecord<'a>) -> (),
 {
     let mut cursor = Cursor::new(bytes);
-    fastx_reader(&mut cursor, callback)
+    fastx_reader(&mut cursor, callback, None::<&mut FnMut(&'static str) -> ()>)
 }
 
 
@@ -301,7 +312,7 @@ pub fn fastx_stdin<F>(ref mut callback: F) -> Result<(), ParseError>
 
     let sin = stdin();
     let mut lock = sin.lock();
-    fastx_reader(&mut lock, callback)
+    fastx_reader(&mut lock, callback, None::<&mut FnMut(&'static str) -> ()>)
 }
 
 
@@ -320,9 +331,9 @@ pub fn fastx_file<F>(filename: &str, ref mut callback: F) -> Result<(), ParseErr
     let _ = f.seek(SeekFrom::Start(0));
     if first[0] == 0x1F && first[1] == 0x8B {
         let mut gz_reader = GzDecoder::new(f)?;
-        fastx_reader(&mut gz_reader, callback)
+        fastx_reader(&mut gz_reader, callback, None::<&mut FnMut(&'static str) -> ()>)
     } else {
-        fastx_reader(&mut f, callback)
+        fastx_reader(&mut f, callback, None::<&mut FnMut(&'static str) -> ()>)
     }
 }
 
@@ -333,7 +344,36 @@ pub fn fastx_file<F>(filename: &str, ref mut callback: F) -> Result<(), ParseErr
     //! Parse a file (given its name) into FASTX records and calls `callback` on each.
     let mut f = File::open(&Path::new(filename))?;
 
-    fastx_reader(&mut f, callback)
+    fastx_reader(&mut f, callback, None::<&mut FnMut(&'static str) -> ()>)
+}
+
+
+#[cfg(feature = "gz")]
+pub fn fastx_cli<F, T>(filename: &str, ref mut callback: F, ref mut type_callback: T) -> Result<(), ParseError>
+    where F: for<'a> FnMut(SeqRecord<'a>) -> (),
+          T: FnMut(&'static str) -> (),
+{
+    //! Opens files (or stdin, if a dash is provided instead) and reads FASTX records out. Also
+    //! takes a "type_callback" that gets called as soon as we determine if the records are FASTA
+    //! or FASTQ.  If a file starts with a gzip header, transparently decompress it.
+    if filename == "-" {
+        use std::io::{Read, stdin};
+
+        let sin = stdin();
+        let mut lock = sin.lock();
+        return fastx_reader(&mut lock, callback, Some(type_callback))
+    }
+
+    let mut f = File::open(&Path::new(filename))?;
+    let mut first = vec![0, 0];
+    f.read(&mut first)?;
+    let _ = f.seek(SeekFrom::Start(0));
+    if first[0] == 0x1F && first[1] == 0x8B {
+        let mut gz_reader = GzDecoder::new(f)?;
+        fastx_reader(&mut gz_reader, callback, Some(type_callback))
+    } else {
+        fastx_reader(&mut f, callback, Some(type_callback))
+    }
 }
 
 

@@ -8,7 +8,7 @@ fn count_bases(filename: String) {
     let mut n_bases = 0;
     fastx::fastx_file(&filename[..], |seq| {
         n_bases += seq.1.len();
-    }).unwrap();
+    }, |_| ()).unwrap();
     println!("{:?}", n_bases);
 }
 
