@@ -108,7 +108,7 @@ fn test_memchr_both() {
 
 /// Given a RecBuffer, pull out one FASTA record
 fn fasta_record<'a>(rb: &'a mut RecBuffer, validate: bool) -> Result<SeqRecord<'a>, ParseError> {
-    let _ = rb.mark_field(|buf: &[u8], eof: bool| {
+    let _ = rb.mark_field(|buf: &[u8], _| {
         if validate && buf[0] != b'>' {
             return Err(ParseError::Invalid(String::from("Bad FASTA record")));
         }
@@ -175,7 +175,7 @@ fn fastq_record<'a>(rb: &'a mut RecBuffer, validate: bool) -> Result<SeqRecord<'
     })?;
 
     let mut newlines = false;
-    let seq_len = rb.mark_field(|buf: &[u8], eof: bool| {
+    let seq_len = rb.mark_field(|buf: &[u8], _| {
         match memchr_both(b'\n', b'+', &buf) {
             (None, _) => Err(ParseError::NeedMore),
             (Some(pos_end), has_newline) => {
@@ -185,7 +185,7 @@ fn fastq_record<'a>(rb: &'a mut RecBuffer, validate: bool) -> Result<SeqRecord<'
         }
     })?;
 
-    let _ = rb.mark_field(|buf: &[u8], eof: bool| {
+    let _ = rb.mark_field(|buf: &[u8], _| {
         // the quality header
         match memchr(b'\n', &buf) {
             None => Err(ParseError::NeedMore),

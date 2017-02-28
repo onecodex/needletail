@@ -1,4 +1,4 @@
-use bitkmer::{BitNuclKmer, BitPlusNuclKmer};
+use bitkmer::BitNuclKmer;
 use kmer::{is_good_base, complement};
 
 
@@ -39,10 +39,6 @@ impl<'a> Seq<'a> {
 
     pub fn canonical_bit_kmers(&'a self, k: u8) -> BitNuclKmer<'a> {
         BitNuclKmer::new(self.seq, k, true)
-    }
-
-    pub fn bit_plus_kmers(&'a self, k: u8, canonical: bool) -> BitPlusNuclKmer<'a> {
-        BitPlusNuclKmer::new(self.seq, k, canonical)
     }
 }
 
@@ -95,9 +91,9 @@ impl<'a> NuclKmer<'a> {
 }
 
 impl<'a> Iterator for NuclKmer<'a> {
-    type Item = &'a [u8];
+    type Item = (&'a [u8], bool);
 
-    fn next(&mut self) -> Option<&'a [u8]> {
+    fn next(&mut self) -> Option<(&'a [u8], bool)> {
         if !update_position(&mut self.start_pos, self.k, self.buffer, false) {
             return None;
         }
@@ -106,13 +102,13 @@ impl<'a> Iterator for NuclKmer<'a> {
 
         let result = &self.buffer[pos..pos + self.k as usize];
         match self.rc_buffer {
-            None => Some(result),
+            None => Some((result, false)),
             Some(rc_buffer) => {
                 let rc_result = &rc_buffer[rc_buffer.len() - pos - self.k as usize..rc_buffer.len() - pos];
                 if result < rc_result {
-                    Some(result)
+                    Some((result, false))
                 } else {
-                    Some(rc_result)
+                    Some((rc_result, true))
                 }
             }
         }
@@ -124,7 +120,7 @@ impl<'a> Iterator for NuclKmer<'a> {
 fn can_kmerize() {
     // test general function
     let mut i = 0;
-    for k in Seq::new(b"AGCT").valid_kmers(1) {
+    for (k, _) in Seq::new(b"AGCT").valid_kmers(1) {
         match i {
             0 => assert_eq!(k, &b"A"[..]),
             1 => assert_eq!(k, &b"G"[..]),
@@ -137,7 +133,7 @@ fn can_kmerize() {
 
     // test that we skip over N's
     i = 0;
-    for k in Seq::new(b"ACNGT").valid_kmers(2) {
+    for (k, _) in Seq::new(b"ACNGT").valid_kmers(2) {
         match i {
             0 => assert_eq!(k, &b"AC"[..]),
             1 => assert_eq!(k, &b"GT"[..]),
@@ -148,7 +144,7 @@ fn can_kmerize() {
 
     // test that we skip over N's and handle short kmers
     i = 0;
-    for k in Seq::new(b"ACNG").valid_kmers(2) {
+    for (k, _) in Seq::new(b"ACNG").valid_kmers(2) {
         match i {
             0 => assert_eq!(k, &b"AC"[..]),
             _ => assert!(false),
@@ -157,7 +153,7 @@ fn can_kmerize() {
     }
 
     // test that the minimum length works
-    for k in Seq::new(b"AC").valid_kmers(2) {
+    for (k, _) in Seq::new(b"AC").valid_kmers(2) {
         assert_eq!(k, &b"AC"[..]);
     }
 }
@@ -166,19 +162,31 @@ fn can_kmerize() {
 fn can_canonicalize() {
     // test general function
     let mut i = 0;
-    for k in Seq::new(b"AGCT").canonical_kmers(1) {
+    for (k, is_c) in Seq::new(b"AGCT").canonical_kmers(1) {
         match i {
-            0 => assert_eq!(k, &b"A"[..]),
-            1 => assert_eq!(k, &b"C"[..]),
-            2 => assert_eq!(k, &b"C"[..]),
-            3 => assert_eq!(k, &b"A"[..]),
+            0 => {
+                assert_eq!(k, &b"A"[..]);
+                assert_eq!(is_c, false);
+            },
+            1 => {
+                assert_eq!(k, &b"C"[..]);
+                assert_eq!(is_c, true);
+            },
+            2 => {
+                assert_eq!(k, &b"C"[..]);
+                assert_eq!(is_c, false);
+            },
+            3 => {
+                assert_eq!(k, &b"A"[..]);
+                assert_eq!(is_c, true);
+            },
             _ => assert!(false),
         }
         i += 1;
     }
 
     let mut i = 0;
-    for k in Seq::new(b"AGCTA").canonical_kmers(2) {
+    for (k, _) in Seq::new(b"AGCTA").canonical_kmers(2) {
         match i {
             0 => assert_eq!(k, &b"AG"[..]),
             1 => assert_eq!(k, &b"GC"[..]),
