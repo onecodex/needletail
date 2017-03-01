@@ -349,7 +349,7 @@ pub fn fastx_file<F>(filename: &str, ref mut callback: F) -> Result<(), ParseErr
 
 
 #[cfg(feature = "gz")]
-pub fn fastx_cli<F, T>(filename: &str, ref mut callback: F, ref mut type_callback: T) -> Result<(), ParseError>
+pub fn fastx_cli<F, T>(filename: &str, ref mut type_callback: T, ref mut callback: F) -> Result<(), ParseError>
     where F: for<'a> FnMut(SeqRecord<'a>) -> (),
           T: FnMut(&'static str) -> (),
 {

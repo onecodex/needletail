@@ -6,9 +6,9 @@ use needletail::{fastx, kmer};
 
 fn count_bases(filename: String) {
     let mut n_bases = 0;
-    fastx::fastx_file(&filename[..], |seq| {
+    fastx::fastx_cli(&filename[..], |_| (), |seq| {
         n_bases += seq.1.len();
-    }, |_| ()).unwrap();
+    }).unwrap();
     println!("{:?}", n_bases);
 }
 
