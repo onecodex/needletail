@@ -1,6 +1,3 @@
-use std::borrow::Cow;
-use kmer;
-
 pub type BitKmerSeq = u64;
 pub type BitKmer = (BitKmerSeq, u8);
 
@@ -72,9 +69,9 @@ impl<'a> BitNuclKmer<'a> {
 }
 
 impl<'a> Iterator for BitNuclKmer<'a> {
-    type Item = BitKmer;
+    type Item = (BitKmer, bool);
 
-    fn next(&mut self) -> Option<BitKmer> {
+    fn next(&mut self) -> Option<(BitKmer, bool)> {
         if !update_position(&mut self.start_pos, &mut self.cur_kmer, self.buffer, false) {
             return None;
         }
@@ -82,7 +79,7 @@ impl<'a> Iterator for BitNuclKmer<'a> {
         if self.canonical {
             Some(canonical(self.cur_kmer))
         } else {
-            Some(self.cur_kmer)
+            Some((self.cur_kmer, false))
         }
     }
 }
@@ -91,7 +88,7 @@ impl<'a> Iterator for BitNuclKmer<'a> {
 fn can_kmerize() {
     // test general function
     let mut i = 0;
-    for k in BitNuclKmer::new(b"AGCT", 1, false) {
+    for (k, _) in BitNuclKmer::new(b"AGCT", 1, false) {
         match i {
             0 => assert_eq!(k.0, 0b00 as BitKmerSeq),
             1 => assert_eq!(k.0, 0b10 as BitKmerSeq),
@@ -104,7 +101,7 @@ fn can_kmerize() {
 
     // test that we skip over N's
     i = 0;
-    for k in BitNuclKmer::new(b"ACNGT", 2, false) {
+    for (k, _) in BitNuclKmer::new(b"ACNGT", 2, false) {
         match i {
             0 => assert_eq!(k.0, 0b0001 as BitKmerSeq),
             1 => assert_eq!(k.0, 0b1011 as BitKmerSeq),
@@ -115,7 +112,7 @@ fn can_kmerize() {
 
     // test that we skip over N's and handle short kmers
     i = 0;
-    for k in BitNuclKmer::new(b"ACNG", 2, false) {
+    for (k, _) in BitNuclKmer::new(b"ACNG", 2, false) {
         match i {
             0 => assert_eq!(k.0, 0x0001 as BitKmerSeq),
             _ => assert!(false),
@@ -125,7 +122,7 @@ fn can_kmerize() {
 
     // test that the minimum length works
     i = 0;
-    for k in BitNuclKmer::new(b"AC", 2, false) {
+    for (k, _) in BitNuclKmer::new(b"AC", 2, false) {
         match i {
             0 => assert_eq!(k.0, 0x0001 as BitKmerSeq),
             _ => assert!(false),
@@ -138,64 +135,13 @@ fn can_kmerize() {
 fn test_iterator() {
     let seq = "ACGTA".as_bytes();
     let mut kmer_iter = BitNuclKmer::new(seq, 3, false);
-    assert_eq!(kmer_iter.next(), Some((6, 3)));
-    assert_eq!(kmer_iter.next(), Some((27, 3)));
-    assert_eq!(kmer_iter.next(), Some((44, 3)));
+    assert_eq!(kmer_iter.next(), Some(((6, 3), false)));
+    assert_eq!(kmer_iter.next(), Some(((27, 3), false)));
+    assert_eq!(kmer_iter.next(), Some(((44, 3), false)));
     assert_eq!(kmer_iter.next(), None);
 
     let seq = "TA".as_bytes();
     let mut kmer_iter = BitNuclKmer::new(seq, 3, false);
-    assert_eq!(kmer_iter.next(), None);
-}
-
-pub struct BitPlusNuclKmer<'a> {
-    start_pos: usize,
-    cur_kmer: BitKmer,
-    buffer: &'a [u8],
-    canonical: bool,
-}
-
-impl<'a> BitPlusNuclKmer<'a> {
-    pub fn new(slice: &'a [u8], k: u8, canonical: bool) -> BitPlusNuclKmer<'a> {
-        let mut kmer = (0u64, k);
-        let mut start_pos = 0;
-        update_position(&mut start_pos, &mut kmer, slice, true);
-
-        BitPlusNuclKmer {
-            start_pos: start_pos,
-            cur_kmer: kmer,
-            buffer: slice,
-            canonical: canonical,
-        }
-    }
-}
-
-impl<'a> Iterator for BitPlusNuclKmer<'a> {
-    type Item = (BitKmer, Cow<'a, [u8]>);
-
-    fn next(&mut self) -> Option<(BitKmer, Cow<'a, [u8]>)> {
-        if !update_position(&mut self.start_pos, &mut self.cur_kmer, self.buffer, false) {
-            return None;
-        }
-        let start = self.start_pos;
-        let kmer = &self.buffer[start..start + self.cur_kmer.1 as usize];
-        self.start_pos += 1;
-        if self.canonical {
-            Some((canonical(self.cur_kmer), kmer::canonical(kmer)))
-        } else {
-            Some((self.cur_kmer, Cow::Borrowed(kmer)))
-        }
-    }
-}
-
-
-#[test]
-fn test_bitplus_iterator() {
-    let seq = "ACGTA".as_bytes();
-    let mut kmer_iter = BitPlusNuclKmer::new(seq, 3, false);
-    assert_eq!(kmer_iter.next(), Some(((6, 3), Cow::Borrowed(&b"ACG"[..]))));
-    assert_eq!(kmer_iter.next(), Some(((27, 3), Cow::Borrowed(&b"CGT"[..]))));
-    assert_eq!(kmer_iter.next(), Some(((44, 3), Cow::Borrowed(&b"GTA"[..]))));
     assert_eq!(kmer_iter.next(), None);
 }
 
@@ -225,12 +171,12 @@ fn test_reverse_complement() {
   assert_eq!(reverse_complement((0b00011011, 4)).0, 0b00011011);
 }
 
-pub fn canonical(kmer: BitKmer) -> BitKmer {
+pub fn canonical(kmer: BitKmer) -> (BitKmer, bool) {
     let rc = reverse_complement(kmer);
     if kmer.0 > rc.0 {
-        rc
+        (rc, true)
     } else {
-        kmer
+        (kmer, false)
     }
 }
 

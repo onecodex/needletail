@@ -43,9 +43,8 @@ fn bench_bitkmer_speed(bench: &mut Bencher) {
         let mut n_total = 0;
         let mut n_canonical = 0;
         fastx::fastx_file(&filename[..], |seq| {
-            for k in bitkmer::BitNuclKmer::new(&seq.1, ksize, false) {
-                let l = bitkmer::canonical(k);
-                if l == k {
+            for (k, is_rc) in bitkmer::BitNuclKmer::new(&seq.1, ksize, true) {
+                if !is_rc {
                     n_canonical += 1;
                 }
                 n_total += 1;

@@ -107,9 +107,9 @@ fn test_memchr_both() {
 
 
 /// Given a RecBuffer, pull out one FASTA record
-fn fasta_record<'a>(rb: &'a mut RecBuffer) -> Result<SeqRecord<'a>, ParseError> {
-    let _ = rb.mark_field(|buf: &[u8], eof: bool| {
-        if buf[0] != b'>' {
+fn fasta_record<'a>(rb: &'a mut RecBuffer, validate: bool) -> Result<SeqRecord<'a>, ParseError> {
+    let _ = rb.mark_field(|buf: &[u8], _| {
+        if validate && buf[0] != b'>' {
             return Err(ParseError::Invalid(String::from("Bad FASTA record")));
         }
         match memchr(b'\n', &buf) {
@@ -141,7 +141,8 @@ fn fasta_record<'a>(rb: &'a mut RecBuffer) -> Result<SeqRecord<'a>, ParseError> 
     }
     rb.fields(&mut fields);
 
-    let id = match str::from_utf8(&fields[0][1..&fields[0].len() - 1]) { 
+    let offset = if validate { 1 } else { 0 };
+    let id = match str::from_utf8(&fields[0][offset..&fields[0].len() - 1]) {
         Ok(v) => Ok(v),
         Err(_) => Err(ParseError::Invalid(String::from("FASTA header not UTF8"))),
     }?;
@@ -151,9 +152,9 @@ fn fasta_record<'a>(rb: &'a mut RecBuffer) -> Result<SeqRecord<'a>, ParseError> 
 
 
 /// Given a RecBuffer, pull out one FASTQ record
-fn fastq_record<'a>(rb: &'a mut RecBuffer) -> Result<SeqRecord<'a>, ParseError> {
+fn fastq_record<'a>(rb: &'a mut RecBuffer, validate: bool) -> Result<SeqRecord<'a>, ParseError> {
     let _ = rb.mark_field(|buf: &[u8], eof: bool| {
-        if buf[0] != b'@' {
+        if validate && buf[0] != b'@' {
             // we allow up to 4 whitespace characters at the very end
             // b/c some FASTQs have extra returns
             if buf.len() <= 4 {
@@ -174,7 +175,7 @@ fn fastq_record<'a>(rb: &'a mut RecBuffer) -> Result<SeqRecord<'a>, ParseError> 
     })?;
 
     let mut newlines = false;
-    let seq_len = rb.mark_field(|buf: &[u8], eof: bool| {
+    let seq_len = rb.mark_field(|buf: &[u8], _| {
         match memchr_both(b'\n', b'+', &buf) {
             (None, _) => Err(ParseError::NeedMore),
             (Some(pos_end), has_newline) => {
@@ -184,7 +185,7 @@ fn fastq_record<'a>(rb: &'a mut RecBuffer) -> Result<SeqRecord<'a>, ParseError> 
         }
     })?;
 
-    let _ = rb.mark_field(|buf: &[u8], eof: bool| {
+    let _ = rb.mark_field(|buf: &[u8], _| {
         // the quality header
         match memchr(b'\n', &buf) {
             None => Err(ParseError::NeedMore),
@@ -209,7 +210,8 @@ fn fastq_record<'a>(rb: &'a mut RecBuffer) -> Result<SeqRecord<'a>, ParseError> 
     }
     rb.fields(&mut fields);
 
-    let id = match str::from_utf8(&fields[0][1..&fields[0].len() - 1]) { 
+    let offset = if validate { 1 } else { 0 };
+    let id = match str::from_utf8(&fields[0][offset..&fields[0].len() - 1]) {
         Ok(v) => Ok(v),
         Err(_) => Err(ParseError::Invalid(String::from("FASTQ header not UTF8"))),
     }?;
@@ -249,29 +251,47 @@ fn fastq_record<'a>(rb: &'a mut RecBuffer) -> Result<SeqRecord<'a>, ParseError> 
 //     assert_eq!(parsed, Ok((22, res)));
 // }
 
+
 /// Internal function abstracting over byte and file FASTX parsing
-fn fastx_reader<'b, F, T>(reader: &'b mut T, first: u8, ref mut callback: F) -> Result<(), ParseError>
+fn fastx_reader<'b, F, R, T>(reader: &'b mut R, ref mut callback: F, type_callback: Option<&mut T>) -> Result<(), ParseError>
     where F: for<'a> FnMut(SeqRecord<'a>) -> (),
-          T: Read,
+          R: Read,
+          T: ?Sized + FnMut(&'static str) -> (),
 {
-    let mut producer = RecBuffer::new(reader, 10000000usize);
-    let parser = match first {
-        b'>' => Ok(fasta_record as for<'a> fn(&'a mut RecBuffer) -> Result<SeqRecord<'a>, ParseError>),
-        b'@' => Ok(fastq_record as for<'a> fn(&'a mut RecBuffer) -> Result<SeqRecord<'a>, ParseError>),
+    let mut first = vec![0];
+    reader.read(&mut first)?;
+    let parser = match first[0] {
+        b'>' => {
+            if let Some(f) = type_callback {
+                f("FASTA");
+            }
+            Ok(fasta_record as for<'a> fn(&'a mut RecBuffer, bool) -> Result<SeqRecord<'a>, ParseError>)
+        },
+        b'@' => {
+            if let Some(f) = type_callback {
+                f("FASTQ");
+            }
+            Ok(fastq_record as for<'a> fn(&'a mut RecBuffer, bool) -> Result<SeqRecord<'a>, ParseError>)
+        },
         _ => Err(ParseError::Invalid(String::from("Bad starting byte"))),
     }?;
 
+    let mut producer = RecBuffer::new(reader, 10000000usize);
+
     // TODO: replace this with some kind of futures event loop?
+    let mut validate = false;  // we already know the type of the first read
     loop {
-        let record = parser(&mut producer);
+        let record = parser(&mut producer, validate);
         match record {
             Err(ParseError::EOF) => break,
             Ok(v) => callback(v),
             Err(e) => return Err(e),
         }
+        validate = true;
     }
     Ok(())
 }
+
 
 /// Parse a collection of bytes into FASTX records and calls `callback` on each.
 ///
@@ -279,7 +299,20 @@ pub fn fastx_bytes<'b, F>(bytes: &'b [u8], ref mut callback: F) -> Result<(), Pa
     where F: for<'a> FnMut(SeqRecord<'a>) -> (),
 {
     let mut cursor = Cursor::new(bytes);
-    fastx_reader(&mut cursor, bytes[0], callback)
+    fastx_reader(&mut cursor, callback, None::<&mut FnMut(&'static str) -> ()>)
+}
+
+
+/// Parse stdin into FASTX records and call `callback` on each.
+pub fn fastx_stdin<F>(ref mut callback: F) -> Result<(), ParseError>
+    where F: for<'a> FnMut(SeqRecord<'a>) -> ()
+{
+
+    use std::io::{Read, stdin};
+
+    let sin = stdin();
+    let mut lock = sin.lock();
+    fastx_reader(&mut lock, callback, None::<&mut FnMut(&'static str) -> ()>)
 }
 
 
@@ -293,20 +326,14 @@ pub fn fastx_file<F>(filename: &str, ref mut callback: F) -> Result<(), ParseErr
     //! decompress them.
     let mut f = File::open(&Path::new(filename))?;
 
-    let mut first = vec![0];
+    let mut first = vec![0, 0];
     f.read(&mut first)?;
-    if first[0] == 0x1F {
-        let _ = f.seek(SeekFrom::Start(0));
+    let _ = f.seek(SeekFrom::Start(0));
+    if first[0] == 0x1F && first[1] == 0x8B {
         let mut gz_reader = GzDecoder::new(f)?;
-        gz_reader.read(&mut first)?;
-        // unfortunately, we can't seek back so we have to reopen everything
-        drop(gz_reader);
-        f = File::open(&Path::new(filename))?;
-        gz_reader = GzDecoder::new(f)?;
-        fastx_reader(&mut gz_reader, first[0], callback)
+        fastx_reader(&mut gz_reader, callback, None::<&mut FnMut(&'static str) -> ()>)
     } else {
-        let _ = f.seek(SeekFrom::Start(0));
-        fastx_reader(&mut f, first[0], callback)
+        fastx_reader(&mut f, callback, None::<&mut FnMut(&'static str) -> ()>)
     }
 }
 
@@ -317,10 +344,36 @@ pub fn fastx_file<F>(filename: &str, ref mut callback: F) -> Result<(), ParseErr
     //! Parse a file (given its name) into FASTX records and calls `callback` on each.
     let mut f = File::open(&Path::new(filename))?;
 
-    let mut first = vec![0];
+    fastx_reader(&mut f, callback, None::<&mut FnMut(&'static str) -> ()>)
+}
+
+
+#[cfg(feature = "gz")]
+pub fn fastx_cli<F, T>(filename: &str, ref mut callback: F, ref mut type_callback: T) -> Result<(), ParseError>
+    where F: for<'a> FnMut(SeqRecord<'a>) -> (),
+          T: FnMut(&'static str) -> (),
+{
+    //! Opens files (or stdin, if a dash is provided instead) and reads FASTX records out. Also
+    //! takes a "type_callback" that gets called as soon as we determine if the records are FASTA
+    //! or FASTQ.  If a file starts with a gzip header, transparently decompress it.
+    if filename == "-" {
+        use std::io::{Read, stdin};
+
+        let sin = stdin();
+        let mut lock = sin.lock();
+        return fastx_reader(&mut lock, callback, Some(type_callback))
+    }
+
+    let mut f = File::open(&Path::new(filename))?;
+    let mut first = vec![0, 0];
     f.read(&mut first)?;
     let _ = f.seek(SeekFrom::Start(0));
-    fastx_reader(&mut f, first[0], callback)
+    if first[0] == 0x1F && first[1] == 0x8B {
+        let mut gz_reader = GzDecoder::new(f)?;
+        fastx_reader(&mut gz_reader, callback, Some(type_callback))
+    } else {
+        fastx_reader(&mut f, callback, Some(type_callback))
+    }
 }
 
 
