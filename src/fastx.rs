@@ -224,13 +224,18 @@ fn fastq_record<'a>(rb: &'a mut RecBuffer, validate: bool) -> Result<SeqRecord<'
 }
 
 /// Internal function abstracting over byte and file FASTX parsing
-fn fastx_reader<'b, F, R, T>(reader: &'b mut R, ref mut callback: F, type_callback: Option<&mut T>) -> Result<(), ParseError>
+fn fastx_reader<'b, F, R, T>(reader: &'b mut R, first_byte: Option<u8>, ref mut callback: F, type_callback: Option<&mut T>) -> Result<(), ParseError>
     where F: for<'a> FnMut(SeqRecord<'a>) -> (),
           R: Read,
           T: ?Sized + FnMut(&'static str) -> (),
 {
     let mut first = vec![0];
-    reader.read(&mut first)?;
+    match first_byte {
+        Some(b) => first[0] = b,
+        None => {
+            reader.read(&mut first)?;
+        },
+    }
     let parser = match first[0] {
         b'>' => {
             if let Some(f) = type_callback {
@@ -264,13 +269,12 @@ fn fastx_reader<'b, F, R, T>(reader: &'b mut R, ref mut callback: F, type_callba
 }
 
 
-/// Parse a collection of bytes into FASTX records and calls `callback` on each.
-///
+/// Parse a array of bytes into FASTX records and calls `callback` on each.
 pub fn fastx_bytes<'b, F>(bytes: &'b [u8], ref mut callback: F) -> Result<(), ParseError>
     where F: for<'a> FnMut(SeqRecord<'a>) -> (),
 {
     let mut cursor = Cursor::new(bytes);
-    fastx_reader(&mut cursor, callback, None::<&mut FnMut(&'static str) -> ()>)
+    fastx_reader(&mut cursor, None, callback, None::<&mut FnMut(&'static str) -> ()>)
 }
 
 
@@ -280,7 +284,7 @@ pub fn fastx_stdin<F>(ref mut callback: F) -> Result<(), ParseError>
 {
     let sin = stdin();
     let mut lock = sin.lock();
-    fastx_reader(&mut lock, callback, None::<&mut FnMut(&'static str) -> ()>)
+    fastx_reader(&mut lock, None, callback, None::<&mut FnMut(&'static str) -> ()>)
 }
 
 
@@ -294,14 +298,18 @@ pub fn fastx_file<F>(filename: &str, ref mut callback: F) -> Result<(), ParseErr
     //! decompress them.
     let mut f = File::open(&Path::new(filename))?;
 
-    let mut first = vec![0, 0];
+    let mut first = vec![0];
     f.read(&mut first)?;
-    let _ = f.seek(SeekFrom::Start(0));
-    if first[0] == 0x1F && first[1] == 0x8B {
+    if first[0] == 0x1F {
+        f.read(&mut first)?;
+        if first[0] != 0x8B {
+            return Err(ParseError::Invalid(String::from("Bad starting bytes")));
+        }
+        let _ = f.seek(SeekFrom::Start(0));
         let mut gz_reader = GzDecoder::new(f)?;
-        fastx_reader(&mut gz_reader, callback, None::<&mut FnMut(&'static str) -> ()>)
+        fastx_reader(&mut gz_reader, None, callback, None::<&mut FnMut(&'static str) -> ()>)
     } else {
-        fastx_reader(&mut f, callback, None::<&mut FnMut(&'static str) -> ()>)
+        fastx_reader(&mut f, Some(first[0]), callback, None::<&mut FnMut(&'static str) -> ()>)
     }
 }
 
@@ -325,21 +333,25 @@ pub fn fastx_cli<F, T>(filename: &str, ref mut type_callback: T, ref mut callbac
     //! takes a "type_callback" that gets called as soon as we determine if the records are FASTA
     //! or FASTQ.  If a file starts with a gzip header, transparently decompress it.
     if filename == "-" {
-
         let sin = stdin();
         let mut lock = sin.lock();
-        return fastx_reader(&mut lock, callback, Some(type_callback))
+        return fastx_reader(&mut lock, None, callback, Some(type_callback))
     }
 
     let mut f = File::open(&Path::new(filename))?;
-    let mut first = vec![0, 0];
+
+    let mut first = vec![0];
     f.read(&mut first)?;
-    let _ = f.seek(SeekFrom::Start(0));
-    if first[0] == 0x1F && first[1] == 0x8B {
+    if first[0] == 0x1F {
+        f.read(&mut first)?;
+        if first[0] != 0x8B {
+            return Err(ParseError::Invalid(String::from("Bad starting bytes")));
+        }
+        let _ = f.seek(SeekFrom::Start(0));
         let mut gz_reader = GzDecoder::new(f)?;
-        fastx_reader(&mut gz_reader, callback, Some(type_callback))
+        fastx_reader(&mut gz_reader, None, callback, Some(type_callback))
     } else {
-        fastx_reader(&mut f, callback, Some(type_callback))
+        fastx_reader(&mut f, Some(first[0]), callback, Some(type_callback))
     }
 }
 

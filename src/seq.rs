@@ -64,7 +64,7 @@ impl<'a> SeqRecord<'a> {
     }
 
     /// Return an iterator the returns valid kmers
-    pub fn kmers(&'a mut self, k: u8, canonical: bool) -> NuclKmer<'a> {
+    pub fn kmers<'b, 'c>(&'b mut self, k: u8, canonical: bool) -> NuclKmer<'c> where 'b: 'c {
         if canonical {
             self.rev_seq = Some(self.seq.iter().rev().map(|n| complement(n)).collect());
         }
@@ -75,7 +75,7 @@ impl<'a> SeqRecord<'a> {
     }
 
     /// Return an iterator the returns valid kmers in 4-bit form
-    pub fn bit_kmers(&'a self, k: u8, canonical: bool) -> BitNuclKmer<'a> {
+    pub fn bit_kmers<'b>(&'b self, k: u8, canonical: bool) -> BitNuclKmer<'b> {
         BitNuclKmer::new(&self.seq, k, canonical)
     }
 }

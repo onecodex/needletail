@@ -1,6 +1,8 @@
 pub type BitKmerSeq = u64;
 pub type BitKmer = (BitKmerSeq, u8);
 
+/// Takes a BitKmer and adds a new base on the end, optionally loping off the
+/// first base if the resulting kmer is too long.
 fn extend_kmer(kmer: &mut BitKmer, new_char: &u8) -> bool {
     let new_char_int;
     match new_char {
@@ -148,6 +150,7 @@ fn test_iterator() {
 }
 
 
+/// Reverse complement a BitKmer (reverses the sequence and swaps A<>T and G<>C)
 pub fn reverse_complement(kmer: BitKmer) -> BitKmer {
     // FIXME: this is not going to work with BitKmers of u128 or u32
     // inspired from https://www.biostars.org/p/113640/
@@ -173,6 +176,8 @@ fn test_reverse_complement() {
   assert_eq!(reverse_complement((0b00011011, 4)).0, 0b00011011);
 }
 
+/// Return the lexigraphically lowest of the BitKmer and its reverse complement and 
+/// whether the returned kmer is the reverse_complement (true) or the original (false)
 pub fn canonical(kmer: BitKmer) -> (BitKmer, bool) {
     let rc = reverse_complement(kmer);
     if kmer.0 > rc.0 {
@@ -182,6 +187,7 @@ pub fn canonical(kmer: BitKmer) -> (BitKmer, bool) {
     }
 }
 
+/// Find the lexigraphically lowest substring of a given length in the BitKmer
 pub fn minimizer(kmer: BitKmer, minmer_size: u8) -> BitKmer {
     let mut new_kmer = kmer.0;
     let mut lowest = !(0 as BitKmerSeq);
