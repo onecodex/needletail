@@ -1,14 +1,7 @@
 pub type BitKmerSeq = u64;
 pub type BitKmer = (BitKmerSeq, u8);
 
-pub struct BitNuclKmer<'a> {
-    start_pos: usize,
-    cur_kmer: BitKmer,
-    buffer: &'a [u8],
-    canonical: bool,
-}
-
-pub fn extend_kmer(kmer: &mut BitKmer, new_char: &u8) -> bool {
+fn extend_kmer(kmer: &mut BitKmer, new_char: &u8) -> bool {
     let new_char_int;
     match new_char {
         &b'A' | &b'a' => new_char_int = 0 as BitKmerSeq,
@@ -51,6 +44,14 @@ fn update_position(start_pos: &mut usize, kmer: &mut BitKmer, buffer: &[u8], ini
         }
     }
     true
+}
+
+
+pub struct BitNuclKmer<'a> {
+    start_pos: usize,
+    cur_kmer: BitKmer,
+    buffer: &'a [u8],
+    canonical: bool,
 }
 
 impl<'a> BitNuclKmer<'a> {
@@ -206,7 +207,7 @@ fn test_minimizer() {
     assert_eq!(minimizer((0b110001, 3), 2).0, 0b0001);
 }
 
-pub fn bitmer_to_str(kmer: BitKmer) -> Vec<u8> {
+pub fn bitmer_to_bytes(kmer: BitKmer) -> Vec<u8> {
     let mut new_kmer = kmer.0;
     let mut new_kmer_str = Vec::new();
     // we're reading the bases off from the "high" end of the integer so we need to do some
@@ -230,13 +231,13 @@ pub fn bitmer_to_str(kmer: BitKmer) -> Vec<u8> {
 }
 
 #[test]
-fn test_bitmer_to_str() {
-    assert_eq!(bitmer_to_str((1 as BitKmerSeq, 1)), b"C".to_vec());
-    assert_eq!(bitmer_to_str((60 as BitKmerSeq, 3)), b"TTA".to_vec());
-    assert_eq!(bitmer_to_str((0 as BitKmerSeq, 3)), b"AAA".to_vec());
+fn test_bitmer_to_bytes() {
+    assert_eq!(bitmer_to_bytes((1 as BitKmerSeq, 1)), b"C".to_vec());
+    assert_eq!(bitmer_to_bytes((60 as BitKmerSeq, 3)), b"TTA".to_vec());
+    assert_eq!(bitmer_to_bytes((0 as BitKmerSeq, 3)), b"AAA".to_vec());
 }
 
-pub fn str_to_bitmer(kmer: &[u8]) -> BitKmer {
+pub fn bytes_to_bitmer(kmer: &[u8]) -> BitKmer {
     let k = kmer.len() as u8;
 
     let mut bit_kmer = (0u64, k);
@@ -247,13 +248,13 @@ pub fn str_to_bitmer(kmer: &[u8]) -> BitKmer {
 }
 
 #[test]
-fn test_str_to_bitkmer() {
-    let mut ikmer: BitKmer = str_to_bitmer("C".as_bytes());
+fn test_bytes_to_bitkmer() {
+    let mut ikmer: BitKmer = bytes_to_bitmer("C".as_bytes());
     assert_eq!(ikmer.0, 1 as BitKmerSeq);
 
-    ikmer = str_to_bitmer("TTA".as_bytes());
+    ikmer = bytes_to_bitmer("TTA".as_bytes());
     assert_eq!(ikmer.0, 60 as BitKmerSeq);
 
-    ikmer = str_to_bitmer("AAA".as_bytes());
+    ikmer = bytes_to_bitmer("AAA".as_bytes());
     assert_eq!(ikmer.0, 0 as BitKmerSeq);
 }

@@ -15,7 +15,7 @@
 use std::borrow::Cow;
 use std::cmp::min;
 use std::fs::File;
-use std::io::{Cursor, Read, Seek, SeekFrom};
+use std::io::{Cursor, Read, Seek, SeekFrom, stdin};
 use std::mem;
 use std::path::Path;
 use std::str;
@@ -27,11 +27,45 @@ use buffer::{RecBuffer, ParseError};
 #[cfg(feature = "gz")]
 use flate2::read::GzDecoder;
 
-/// A generic FASTX record containing:
-///   seq.0 - an id
-///   seq.1 - the sequence itself
-///   seq.2 - an optional set of quality scores for the sequence
-pub type SeqRecord<'a> = (&'a str, Cow<'a, [u8]>, Option<&'a [u8]>);
+/// A generic FASTX record
+pub struct SeqRecord<'a> {
+    pub id: &'a str,
+    pub seq: Cow<'a, [u8]>,
+    pub qual: Option<&'a [u8]>,
+}
+
+
+impl<'a> SeqRecord<'a> {
+    /// Given a SeqRecord and a quality cutoff, mask out low-quality bases with
+    /// `N` characters.
+    ///
+    /// Experimental.
+    pub fn quality_mask(self, ref score: u8) -> Self {
+        match self.qual {
+            None => self,
+            Some(quality) => {
+                // could maybe speed this up by doing a copy of base and then
+                // iterating though qual and masking?
+                let seq = self.seq
+                    .iter()
+                    .zip(quality.iter())
+                    .map(|(base, qual)| {
+                        if qual < score {
+                            b'N'
+                        } else {
+                            base.clone()
+                        }
+                    })
+                    .collect();
+                SeqRecord {
+                    id: self.id,
+                    seq: seq,
+                    qual: self.qual,
+                }
+            },
+        }
+    }
+}
 
 /// remove newlines from within FASTX records; currently the rate limiting step
 /// in FASTX parsing (in general; readfq also exhibits this behavior)
@@ -147,7 +181,11 @@ fn fasta_record<'a>(rb: &'a mut RecBuffer, validate: bool) -> Result<SeqRecord<'
         Err(_) => Err(ParseError::Invalid(String::from("FASTA header not UTF8"))),
     }?;
 
-    Ok((id, strip_whitespace(fields[1], newlines), None))
+    Ok(SeqRecord {
+        id: id,
+        seq: strip_whitespace(fields[1], newlines),
+        qual: None,
+    })
 }
 
 
@@ -225,32 +263,12 @@ fn fastq_record<'a>(rb: &'a mut RecBuffer, validate: bool) -> Result<SeqRecord<'
         qual = &qual[..qual.len() - 1];
     }
 
-    Ok((id, seq, Some(qual)))
+    Ok(SeqRecord {
+        id: id,
+        seq: seq,
+        qual: Some(qual),
+    })
 }
-
-// #[test]
-// fn test_parsers() {
-//     let parsed = fasta_record(b">\n", true);
-//     let res = ("", b"".to_vec(), None);
-//     assert_eq!(parsed, Ok((2, res)));
-// 
-//     let parsed = fasta_record(b">\n\n>", false);
-//     let res = ("", b"".to_vec(), None);
-//     assert_eq!(parsed, Ok((3, res)));
-// 
-//     let parsed = fasta_record(b">test\nagct\n>", false);
-//     let res = ("test", b"agct".to_vec(), None);
-//     assert_eq!(parsed, Ok((11, res)));
-// 
-//     let parsed = fasta_record(b">test2\nagct", true);
-//     let res = ("test2", b"agct".to_vec(), None);
-//     assert_eq!(parsed, Ok((11, res)));
-// 
-//     let parsed = fastq_record(b"@test\nagct\n+test\nAAAA\n", true);
-//     let res = ("test", b"agct".to_vec(), Some(&b"AAAA"[..]));
-//     assert_eq!(parsed, Ok((22, res)));
-// }
-
 
 /// Internal function abstracting over byte and file FASTX parsing
 fn fastx_reader<'b, F, R, T>(reader: &'b mut R, ref mut callback: F, type_callback: Option<&mut T>) -> Result<(), ParseError>
@@ -307,9 +325,6 @@ pub fn fastx_bytes<'b, F>(bytes: &'b [u8], ref mut callback: F) -> Result<(), Pa
 pub fn fastx_stdin<F>(ref mut callback: F) -> Result<(), ParseError>
     where F: for<'a> FnMut(SeqRecord<'a>) -> ()
 {
-
-    use std::io::{Read, stdin};
-
     let sin = stdin();
     let mut lock = sin.lock();
     fastx_reader(&mut lock, callback, None::<&mut FnMut(&'static str) -> ()>)
@@ -357,7 +372,6 @@ pub fn fastx_cli<F, T>(filename: &str, ref mut type_callback: T, ref mut callbac
     //! takes a "type_callback" that gets called as soon as we determine if the records are FASTA
     //! or FASTQ.  If a file starts with a gzip header, transparently decompress it.
     if filename == "-" {
-        use std::io::{Read, stdin};
 
         let sin = stdin();
         let mut lock = sin.lock();
@@ -380,79 +394,57 @@ pub fn fastx_cli<F, T>(filename: &str, ref mut type_callback: T, ref mut callbac
 #[test]
 fn test_callback() {
     let mut i = 0;
-    fastx_bytes(&b">test\nAGCT\n>test2\nGATC"[..], |seq| {
+    let res = fastx_bytes(&b">test\nAGCT\n>test2\nGATC"[..], |seq| {
         match i {
             0 => {
-                assert_eq!(seq.0, "test");
-                assert_eq!(&seq.1[..], &b"AGCT"[..]);
-                assert_eq!(seq.2, None);
+                assert_eq!(seq.id, "test");
+                assert_eq!(&seq.seq[..], &b"AGCT"[..]);
+                assert_eq!(seq.qual, None);
             },
             1 => {
-                assert_eq!(seq.0, "test2");
-                assert_eq!(&seq.1[..], &b"GATC"[..]);
-                assert_eq!(seq.2, None);
+                assert_eq!(seq.id, "test2");
+                assert_eq!(&seq.seq[..], &b"GATC"[..]);
+                assert_eq!(seq.qual, None);
             },
             _ => {
                 assert!(false);
             },
         }
         i += 1;
-    }).unwrap();
+    });
     assert_eq!(i, 2);
+    assert_eq!(res, Ok(()));
 
     i = 0;
-    fastx_file("./tests/data/test.fa", |seq| {
+    let res = fastx_file("./tests/data/test.fa", |seq| {
         match i {
             0 => {
-                assert_eq!(seq.0, "test");
-                assert_eq!(&seq.1[..], b"AGCTGATCGA");
-                assert_eq!(seq.2, None);
+                assert_eq!(seq.id, "test");
+                assert_eq!(&seq.seq[..], b"AGCTGATCGA");
+                assert_eq!(seq.qual, None);
             },
             1 => {
-                assert_eq!(seq.0, "test2");
-                assert_eq!(&seq.1[..], b"TAGC");
-                assert_eq!(seq.2, None);
+                assert_eq!(seq.id, "test2");
+                assert_eq!(&seq.seq[..], b"TAGC");
+                assert_eq!(seq.qual, None);
             },
-            _ => {
-                assert!(false);
-            },
+            _ => assert!(false),
         }
         i += 1;
-    }).unwrap();
+    });
     assert_eq!(i, 2);
-}
-
-/// Given a SeqRecord and a quality cutoff, mask out low-quality bases with
-/// `N` characters.
-///
-/// Experimental. Not currently used elsewhere in the codebase.
-fn quality_mask<'a>(seq_rec: SeqRecord<'a>, ref score: u8) -> Vec<u8> {
-    match seq_rec.2 {
-        None => seq_rec.1.into_owned(),
-        Some(quality) => {
-            // could maybe speed this up by doing a copy of base and then
-            // iterating though qual and masking?
-            seq_rec.1
-                   .iter()
-                   .zip(quality.iter())
-                   .map(|(base, qual)| {
-                       if qual < score {
-                           b'N'
-                       } else {
-                           base.clone()
-                       }
-                   })
-                   .collect()
-
-        },
-    }
+    assert_eq!(res, Ok(()));
 }
 
 #[test]
 fn test_quality_mask() {
-    let seq_rec = ("", Cow::Borrowed(&b"AGCT"[..]), Some(&b"AAA0"[..]));
-    let filtered = quality_mask(seq_rec, '5' as u8);
-    assert_eq!(&filtered[..], &b"AGCN"[..]);
+    let seq_rec = SeqRecord {
+        id: "",
+        seq: Cow::Borrowed(&b"AGCT"[..]),
+        qual: Some(&b"AAA0"[..]),
+    };
+    let filtered_rec = seq_rec.quality_mask('5' as u8);
+    assert_eq!(&filtered_rec.seq[..], &b"AGCN"[..]);
 }
 
 
@@ -462,25 +454,21 @@ fn test_fastq() {
     let res = fastx_bytes(&b"@test\nAGCT\n+test\n~~a!\n@test2\nTGCA\n+test\nWUI9"[..], |seq| {
         match i {
             0 => {
-                assert_eq!(seq.0, "test");
-                assert_eq!(&seq.1[..], &b"AGCT"[..]);
-                assert_eq!(seq.2, Some(&b"~~a!"[..]));
+                assert_eq!(seq.id, "test");
+                assert_eq!(&seq.seq[..], &b"AGCT"[..]);
+                assert_eq!(seq.qual, Some(&b"~~a!"[..]));
             },
             1 => {
-                assert_eq!(seq.0, "test2");
-                assert_eq!(&seq.1[..], &b"TGCA"[..]);
-                assert_eq!(seq.2, Some(&b"WUI9"[..]));
+                assert_eq!(seq.id, "test2");
+                assert_eq!(&seq.seq[..], &b"TGCA"[..]);
+                assert_eq!(seq.qual, Some(&b"WUI9"[..]));
             },
-            _ => {
-                assert!(false);
-            },
+            _ => assert!(false),
         }
         i += 1;
     });
-    assert_eq!(i, 2);
     assert_eq!(res, Ok(()));
 }
-
 
 #[test]
 fn test_wrapped_fasta() {
@@ -488,21 +476,49 @@ fn test_wrapped_fasta() {
     let res = fastx_bytes(&b">test\nAGCT\nTCG\n>test2\nG"[..], |seq| {
         match i {
             0 => {
-                assert_eq!(seq.0, "test");
-                assert_eq!(&seq.1[..], &b"AGCTTCG"[..]);
-                assert_eq!(seq.2, None);
+                assert_eq!(seq.id, "test");
+                assert_eq!(&seq.seq[..], &b"AGCTTCG"[..]);
+                assert_eq!(seq.qual, None);
             },
             1 => {
-                assert_eq!(seq.0, "test2");
-                assert_eq!(&seq.1[..], &b"G"[..]);
-                assert_eq!(seq.2, None);
+                assert_eq!(seq.id, "test2");
+                assert_eq!(&seq.seq[..], &b"G"[..]);
+                assert_eq!(seq.qual, None);
             },
-            _ => {
-                assert!(false);
-            },
+            _ => assert!(false),
         }
         i += 1;
     });
-    assert_eq!(i, 2);
     assert_eq!(res, Ok(()));
+}
+
+#[test]
+fn test_premature_endings() {
+    let mut i = 0;
+    let res = fastx_bytes(&b">test\nAGCT\n>test2"[..], |seq| {
+        match i {
+            0 => {
+                assert_eq!(seq.id, "test");
+                assert_eq!(&seq.seq[..], &b"AGCT"[..]);
+                assert_eq!(seq.qual, None);
+            },
+            _ => assert!(false),
+        }
+        i += 1;
+    });
+    assert_eq!(res, Err(ParseError::PrematureEOF));
+
+    let mut i = 0;
+    let res = fastx_bytes(&b"@test\nAGCT\n+test\n~~a!\n@test2\nTGCA"[..], |seq| {
+        match i {
+            0 => {
+                assert_eq!(seq.id, "test");
+                assert_eq!(&seq.seq[..], &b"AGCT"[..]);
+                assert_eq!(seq.qual, Some(&b"~~a!"[..]));
+            },
+            _ => assert!(false),
+        }
+        i += 1;
+    });
+    assert_eq!(res, Err(ParseError::PrematureEOF));
 }

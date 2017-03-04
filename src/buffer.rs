@@ -1,7 +1,6 @@
 use std::error;
 use std::fmt;
 use std::io;
-use std::mem;
 
 
 /// Errors returned during parsing/reading buffers
@@ -9,6 +8,7 @@ use std::mem;
 pub enum ParseError {
     NeedMore,
     EOF,
+    PrematureEOF,
     Invalid(String),
 }
 
@@ -117,8 +117,9 @@ impl<'a> RecBuffer<'a> {
                 (Err(ParseError::NeedMore), false) => {
                     eof = self.refresh()?;
                 },
+                (Err(ParseError::NeedMore), true) => return Err(ParseError::PrematureEOF),
                 (Err(e), false) => return Err(e),
-                _ => return Err(ParseError::EOF),
+                _ => panic!("Unknown contingency; remove at some point and set Err(e), true above instead"),
             }
         }
     }
@@ -143,6 +144,8 @@ impl<'a> RecBuffer<'a> {
 
 #[test]
 fn test_buffer() {
+    use std::mem;
+
     let test: [u8; 4] = [1, 2, 3, 4];
     let mut slice = &test[..];
     let mut b = RecBuffer::new(&mut slice, 2usize);
