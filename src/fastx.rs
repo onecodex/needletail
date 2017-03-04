@@ -23,49 +23,10 @@ use std::str;
 use memchr::{memchr, memchr2};
 
 use buffer::{RecBuffer, ParseError};
+use seq::SeqRecord;
 
 #[cfg(feature = "gz")]
 use flate2::read::GzDecoder;
-
-/// A generic FASTX record
-pub struct SeqRecord<'a> {
-    pub id: &'a str,
-    pub seq: Cow<'a, [u8]>,
-    pub qual: Option<&'a [u8]>,
-}
-
-
-impl<'a> SeqRecord<'a> {
-    /// Given a SeqRecord and a quality cutoff, mask out low-quality bases with
-    /// `N` characters.
-    ///
-    /// Experimental.
-    pub fn quality_mask(self, ref score: u8) -> Self {
-        match self.qual {
-            None => self,
-            Some(quality) => {
-                // could maybe speed this up by doing a copy of base and then
-                // iterating though qual and masking?
-                let seq = self.seq
-                    .iter()
-                    .zip(quality.iter())
-                    .map(|(base, qual)| {
-                        if qual < score {
-                            b'N'
-                        } else {
-                            base.clone()
-                        }
-                    })
-                    .collect();
-                SeqRecord {
-                    id: self.id,
-                    seq: seq,
-                    qual: self.qual,
-                }
-            },
-        }
-    }
-}
 
 /// remove newlines from within FASTX records; currently the rate limiting step
 /// in FASTX parsing (in general; readfq also exhibits this behavior)
@@ -181,11 +142,7 @@ fn fasta_record<'a>(rb: &'a mut RecBuffer, validate: bool) -> Result<SeqRecord<'
         Err(_) => Err(ParseError::Invalid(String::from("FASTA header not UTF8"))),
     }?;
 
-    Ok(SeqRecord {
-        id: id,
-        seq: strip_whitespace(fields[1], newlines),
-        qual: None,
-    })
+    Ok(SeqRecord::new(id,strip_whitespace(fields[1], newlines), None))
 }
 
 
@@ -263,11 +220,7 @@ fn fastq_record<'a>(rb: &'a mut RecBuffer, validate: bool) -> Result<SeqRecord<'
         qual = &qual[..qual.len() - 1];
     }
 
-    Ok(SeqRecord {
-        id: id,
-        seq: seq,
-        qual: Some(qual),
-    })
+    Ok(SeqRecord::new(id, seq, Some(qual)))
 }
 
 /// Internal function abstracting over byte and file FASTX parsing
@@ -435,18 +388,6 @@ fn test_callback() {
     assert_eq!(i, 2);
     assert_eq!(res, Ok(()));
 }
-
-#[test]
-fn test_quality_mask() {
-    let seq_rec = SeqRecord {
-        id: "",
-        seq: Cow::Borrowed(&b"AGCT"[..]),
-        qual: Some(&b"AAA0"[..]),
-    };
-    let filtered_rec = seq_rec.quality_mask('5' as u8);
-    assert_eq!(&filtered_rec.seq[..], &b"AGCN"[..]);
-}
-
 
 #[test]
 fn test_fastq() {

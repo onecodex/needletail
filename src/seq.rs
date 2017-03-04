@@ -1,46 +1,85 @@
+use std::borrow::Cow;
+
 use bitkmer::BitNuclKmer;
-use kmer::{is_good_base, complement};
+use kmer::{is_good_base, complement, normalize};
 
-
-pub struct Seq<'a> {
-    seq: &'a [u8],
+/// A generic FASTX record that also abstracts over several logical operations
+/// that can be performed on nucleic acid sequences.
+pub struct SeqRecord<'a> {
+    pub id: &'a str,
+    pub seq: Cow<'a, [u8]>,
+    pub qual: Option<&'a [u8]>,
     rev_seq: Option<Vec<u8>>,
 }
 
-/// Struct that abstracts over several logical operations that can be performed
-/// on nucleic acid sequences.
-impl<'a> Seq<'a> {
-    pub fn new(seq: &'a [u8]) -> Self {
-        Seq {
-            seq: seq,
+impl<'a> SeqRecord<'a> {
+    pub fn new(id: &'a str, seq: Cow<'a, [u8]>, qual: Option<&'a [u8]>) -> Self {
+        SeqRecord { id: id, seq: seq, qual: qual, rev_seq: None }
+    }
+
+    pub fn from_bytes(seq: &'a [u8]) -> Self {
+        SeqRecord { id: "", seq: Cow::Borrowed(seq), qual: None, rev_seq: None }
+    }
+
+    /// Given a SeqRecord and a quality cutoff, mask out low-quality bases with
+    /// `N` characters.
+    ///
+    /// Experimental.
+    pub fn quality_mask(self, ref score: u8) -> Self {
+        match self.qual {
+            None => self,
+            Some(quality) => {
+                // could maybe speed this up by doing a copy of base and then
+                // iterating though qual and masking?
+                let seq = self.seq
+                    .iter()
+                    .zip(quality.iter())
+                    .map(|(base, qual)| {
+                        if qual < score {
+                            b'N'
+                        } else {
+                            base.clone()
+                        }
+                    })
+                    .collect();
+                SeqRecord {
+                    id: self.id,
+                    seq: seq,
+                    qual: self.qual,
+                    rev_seq: None,
+                }
+            },
+        }
+    }
+
+    /// Capitalize everything and mask unknown bases to N
+    pub fn normalize(self, iupac: bool) -> Self {
+        let seq = normalize(&self.seq, iupac);
+        SeqRecord {
+            id: self.id,
+            seq: Cow::Owned(seq),
+            qual: self.qual,
             rev_seq: None,
         }
     }
 
-    // pub fn kmers(&'a self, k: u8) -> Windows<&[u8]> {
-    //     self.seq.windows(k as usize)
-    // }
-
-    pub fn valid_kmers(&'a self, k: u8) -> NuclKmer<'a> {
-        NuclKmer::new(self.seq, None, k)
-    }
-
-    pub fn canonical_kmers(&'a mut self, k: u8) -> NuclKmer<'a> {
-        self.rev_seq = Some(self.seq.iter().rev().map(|n| complement(n)).collect());
+    /// Return an iterator the returns valid kmers
+    pub fn kmers(&'a mut self, k: u8, canonical: bool) -> NuclKmer<'a> {
+        if canonical {
+            self.rev_seq = Some(self.seq.iter().rev().map(|n| complement(n)).collect());
+        }
         match self.rev_seq {
-            Some(ref rev_seq) => NuclKmer::new(self.seq, Some(&rev_seq), k),
-            None => NuclKmer::new(self.seq, None, k),
+            Some(ref rev_seq) => NuclKmer::new(&self.seq, Some(&rev_seq), k),
+            None => NuclKmer::new(&self.seq, None, k),
         }
     }
 
-    pub fn bit_kmers(&'a self, k: u8) -> BitNuclKmer<'a> {
-        BitNuclKmer::new(self.seq, k, false)
-    }
-
-    pub fn canonical_bit_kmers(&'a self, k: u8) -> BitNuclKmer<'a> {
-        BitNuclKmer::new(self.seq, k, true)
+    /// Return an iterator the returns valid kmers in 4-bit form
+    pub fn bit_kmers(&'a self, k: u8, canonical: bool) -> BitNuclKmer<'a> {
+        BitNuclKmer::new(&self.seq, k, canonical)
     }
 }
+
 
 pub struct NuclKmer<'a> {
     k: u8,
@@ -115,12 +154,23 @@ impl<'a> Iterator for NuclKmer<'a> {
     }
 }
 
+#[test]
+fn test_quality_mask() {
+    let seq_rec = SeqRecord {
+        id: "",
+        seq: Cow::Borrowed(&b"AGCT"[..]),
+        qual: Some(&b"AAA0"[..]),
+        rev_seq: None,
+    };
+    let filtered_rec = seq_rec.quality_mask('5' as u8);
+    assert_eq!(&filtered_rec.seq[..], &b"AGCN"[..]);
+}
 
 #[test]
 fn can_kmerize() {
     // test general function
     let mut i = 0;
-    for (_, k, _) in Seq::new(b"AGCT").valid_kmers(1) {
+    for (_, k, _) in SeqRecord::from_bytes(b"AGCT").kmers(1, false) {
         match i {
             0 => assert_eq!(k, &b"A"[..]),
             1 => assert_eq!(k, &b"G"[..]),
@@ -133,7 +183,7 @@ fn can_kmerize() {
 
     // test that we skip over N's
     i = 0;
-    for (_, k, _) in Seq::new(b"ACNGT").valid_kmers(2) {
+    for (_, k, _) in SeqRecord::from_bytes(b"ACNGT").kmers(2, false) {
         match i {
             0 => assert_eq!(k, &b"AC"[..]),
             1 => assert_eq!(k, &b"GT"[..]),
@@ -144,7 +194,7 @@ fn can_kmerize() {
 
     // test that we skip over N's and handle short kmers
     i = 0;
-    for (ix, k, _) in Seq::new(b"ACNG").valid_kmers(2) {
+    for (ix, k, _) in SeqRecord::from_bytes(b"ACNG").kmers(2, false) {
         match i {
             0 => {
                 assert_eq!(ix, 0);
@@ -156,7 +206,7 @@ fn can_kmerize() {
     }
 
     // test that the minimum length works
-    for (_, k, _) in Seq::new(b"AC").valid_kmers(2) {
+    for (_, k, _) in SeqRecord::from_bytes(b"AC").kmers(2, false) {
         assert_eq!(k, &b"AC"[..]);
     }
 }
@@ -165,7 +215,7 @@ fn can_kmerize() {
 fn can_canonicalize() {
     // test general function
     let mut i = 0;
-    for (_, k, is_c) in Seq::new(b"AGCT").canonical_kmers(1) {
+    for (_, k, is_c) in SeqRecord::from_bytes(b"AGCT").kmers(1, true) {
         match i {
             0 => {
                 assert_eq!(k, &b"A"[..]);
@@ -189,7 +239,7 @@ fn can_canonicalize() {
     }
 
     let mut i = 0;
-    for (_, k, _) in Seq::new(b"AGCTA").canonical_kmers(2) {
+    for (_, k, _) in SeqRecord::from_bytes(b"AGCTA").kmers(2, true) {
         match i {
             0 => assert_eq!(k, &b"AG"[..]),
             1 => assert_eq!(k, &b"GC"[..]),
@@ -201,7 +251,7 @@ fn can_canonicalize() {
     }
 
     let mut i = 0;
-    for (ix, k, _) in Seq::new(b"AGNTA").canonical_kmers(2) {
+    for (ix, k, _) in SeqRecord::from_bytes(b"AGNTA").kmers(2, true) {
         match i {
             0 => {
                 assert_eq!(ix, 0);
