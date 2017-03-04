@@ -70,17 +70,18 @@ impl<'a> BitNuclKmer<'a> {
 }
 
 impl<'a> Iterator for BitNuclKmer<'a> {
-    type Item = (BitKmer, bool);
+    type Item = (usize, BitKmer,  bool);
 
-    fn next(&mut self) -> Option<(BitKmer, bool)> {
+    fn next(&mut self) -> Option<(usize, BitKmer, bool)> {
         if !update_position(&mut self.start_pos, &mut self.cur_kmer, self.buffer, false) {
             return None;
         }
         self.start_pos += 1;
         if self.canonical {
-            Some(canonical(self.cur_kmer))
+            let (kmer, was_rc) = canonical(self.cur_kmer);
+            Some((self.start_pos - 1, kmer, was_rc))
         } else {
-            Some((self.cur_kmer, false))
+            Some((self.start_pos - 1, self.cur_kmer, false))
         }
     }
 }
@@ -89,7 +90,7 @@ impl<'a> Iterator for BitNuclKmer<'a> {
 fn can_kmerize() {
     // test general function
     let mut i = 0;
-    for (k, _) in BitNuclKmer::new(b"AGCT", 1, false) {
+    for (_, k, _) in BitNuclKmer::new(b"AGCT", 1, false) {
         match i {
             0 => assert_eq!(k.0, 0b00 as BitKmerSeq),
             1 => assert_eq!(k.0, 0b10 as BitKmerSeq),
@@ -102,7 +103,7 @@ fn can_kmerize() {
 
     // test that we skip over N's
     i = 0;
-    for (k, _) in BitNuclKmer::new(b"ACNGT", 2, false) {
+    for (_, k, _) in BitNuclKmer::new(b"ACNGT", 2, false) {
         match i {
             0 => assert_eq!(k.0, 0b0001 as BitKmerSeq),
             1 => assert_eq!(k.0, 0b1011 as BitKmerSeq),
@@ -113,7 +114,7 @@ fn can_kmerize() {
 
     // test that we skip over N's and handle short kmers
     i = 0;
-    for (k, _) in BitNuclKmer::new(b"ACNG", 2, false) {
+    for (_, k, _) in BitNuclKmer::new(b"ACNG", 2, false) {
         match i {
             0 => assert_eq!(k.0, 0x0001 as BitKmerSeq),
             _ => assert!(false),
@@ -123,7 +124,7 @@ fn can_kmerize() {
 
     // test that the minimum length works
     i = 0;
-    for (k, _) in BitNuclKmer::new(b"AC", 2, false) {
+    for (_, k, _) in BitNuclKmer::new(b"AC", 2, false) {
         match i {
             0 => assert_eq!(k.0, 0x0001 as BitKmerSeq),
             _ => assert!(false),
@@ -136,9 +137,9 @@ fn can_kmerize() {
 fn test_iterator() {
     let seq = "ACGTA".as_bytes();
     let mut kmer_iter = BitNuclKmer::new(seq, 3, false);
-    assert_eq!(kmer_iter.next(), Some(((6, 3), false)));
-    assert_eq!(kmer_iter.next(), Some(((27, 3), false)));
-    assert_eq!(kmer_iter.next(), Some(((44, 3), false)));
+    assert_eq!(kmer_iter.next(), Some((0, (6, 3), false)));
+    assert_eq!(kmer_iter.next(), Some((1, (27, 3), false)));
+    assert_eq!(kmer_iter.next(), Some((2, (44, 3), false)));
     assert_eq!(kmer_iter.next(), None);
 
     let seq = "TA".as_bytes();
