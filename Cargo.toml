@@ -2,6 +2,12 @@
 name = "needletail"
 version = "0.1.0"
 authors = ["Roderick Bovee <roderick@onecodex.com>"]
+description = "FASTX parsing and k-mer methods"
+keywords = ["FASTA", "FASTQ", "kmer", "bioinformatics"]
+categories = ["science", "parsing"]
+repository = "https://github.com/onecodex/needletail"
+license = "MIT"
+readme = "./README.md"
 
 [features]
 default = ["gz"]
