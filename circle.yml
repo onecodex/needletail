@@ -17,4 +17,4 @@ test:
   override:
     - cargo build -v --color never
     - cargo test -v --color never
-    - cargo bench bench_ > benchmarks.txt
+    - cargo bench -v --color never bench_ > benchmarks.txt

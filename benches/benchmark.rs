@@ -18,13 +18,8 @@ fn bench_kmer_speed(bench: &mut Bencher) {
         let mut n_total = 0;
         let mut n_canonical = 0;
         fastx::fastx_file(&filename[..], |seq| {
-            let normalized_seq = kmer::normalize(&seq.1, true);
-            for k in normalized_seq.windows(ksize) {
-                let l = kmer::canonical(k).into_owned();
-                if !kmer::has_no_n(&l) {
-                    continue;
-                }
-                if l == k {
+            for (_, kmer, was_rc) in seq.normalize(true).kmers(ksize, true) {
+                if !was_rc {
                     n_canonical += 1;
                 }
                 n_total += 1;
@@ -43,8 +38,8 @@ fn bench_bitkmer_speed(bench: &mut Bencher) {
         let mut n_total = 0;
         let mut n_canonical = 0;
         fastx::fastx_file(&filename[..], |seq| {
-            for (k, is_rc) in bitkmer::BitNuclKmer::new(&seq.1, ksize, true) {
-                if !is_rc {
+            for (_, k, was_rc) in seq.bit_kmers(ksize, true) {
+                if !was_rc {
                     n_canonical += 1;
                 }
                 n_total += 1;
@@ -69,7 +64,7 @@ fn bench_fastq_bytes(bench: &mut Bencher) {
     bench.iter(|| {
         let mut n_bases = 0;
         fastx::fastx_bytes(&data, |seq| {
-            n_bases += seq.1.len();
+            n_bases += seq.seq.len();
         }).unwrap();
         assert_eq!(250000, n_bases);
     })
@@ -84,7 +79,7 @@ fn bench_fastq_file(bench: &mut Bencher) {
     bench.iter(|| {
         let mut n_bases = 0;
         fastx::fastx_file(&filename[..], |seq| {
-            n_bases += seq.1.len();
+            n_bases += seq.seq.len();
         }).unwrap();
         assert_eq!(250000, n_bases);
     })
@@ -101,7 +96,7 @@ fn bench_fasta_bytes(bench: &mut Bencher) {
     bench.iter(|| {
         let mut n_bases = 0;
         fastx::fastx_bytes(&data, |seq| {
-            n_bases += seq.1.len();
+            n_bases += seq.seq.len();
         }).unwrap();
         assert_eq!(738580, n_bases);
     })
@@ -116,7 +111,7 @@ fn bench_fasta_file(bench: &mut Bencher) {
     bench.iter(|| {
         let mut n_bases = 0;
         fastx::fastx_file(&filename[..], |seq| {
-            n_bases += seq.1.len();
+            n_bases += seq.seq.len();
         }).unwrap();
         assert_eq!(738580, n_bases);
     })
