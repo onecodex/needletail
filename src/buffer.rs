@@ -118,8 +118,7 @@ impl<'a> RecBuffer<'a> {
                     eof = self.refresh()?;
                 },
                 (Err(ParseError::NeedMore), true) => return Err(ParseError::PrematureEOF),
-                (Err(e), false) => return Err(e),
-                _ => panic!("Unknown contingency; remove at some point and set Err(e), true above instead"),
+                (Err(e), _) => return Err(e),
             }
         }
     }
