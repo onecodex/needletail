@@ -14,7 +14,13 @@ pub enum ParseError {
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Parse Error: {}", *self)
+        let msg = match *self {
+            ParseError::NeedMore => "More data required",
+            ParseError::EOF => "File ended",
+            ParseError::PrematureEOF => "File ended prematurely",
+            ParseError::Invalid(ref s) => &s,
+        };
+        write!(f, "{}", msg)
     }
 }
 

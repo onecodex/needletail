@@ -335,7 +335,7 @@ pub fn fastx_cli<F, T>(filename: &str, ref mut type_callback: T, ref mut callbac
     if filename == "-" {
         let sin = stdin();
         let mut lock = sin.lock();
-        return fastx_reader(&mut lock, None, callback, Some(type_callback))
+        return fastx_reader(&mut lock, None, callback, Some(type_callback));
     }
 
     let mut f = File::open(&Path::new(filename))?;
