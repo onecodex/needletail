@@ -64,7 +64,7 @@ needletail = "^0.1.0"
 
 To install needletail itself for development:
 ```shell
-git clone https://github.com/bovee/needletail
+git clone https://github.com/onecodex/needletail
 cargo test  # to run tests
 ```
 
