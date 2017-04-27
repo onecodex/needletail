@@ -320,7 +320,7 @@ pub fn fastx_file<F>(filename: &str, ref mut callback: F) -> Result<(), ParseErr
     //! Parse a file (given its name) into FASTX records and calls `callback` on each.
     let mut f = File::open(&Path::new(filename))?;
 
-    fastx_reader(&mut f, callback, None::<&mut FnMut(&'static str) -> ()>)
+    fastx_reader(&mut f, None, callback, None::<&mut FnMut(&'static str) -> ()>)
 }
 
 
