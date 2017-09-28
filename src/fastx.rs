@@ -279,12 +279,22 @@ pub fn fastx_bytes<'b, F>(bytes: &'b [u8], ref mut callback: F) -> Result<(), Pa
 
 
 /// Parse stdin into FASTX records and call `callback` on each.
+#[deprecated(since="0.1.3", note="please use `fastx_stream` instead")]
 pub fn fastx_stdin<F>(ref mut callback: F) -> Result<(), ParseError>
     where F: for<'a> FnMut(SeqRecord<'a>) -> ()
 {
     let sin = stdin();
     let mut lock = sin.lock();
     fastx_reader(&mut lock, None, callback, None::<&mut FnMut(&'static str) -> ()>)
+}
+
+
+/// Parse FASTX records from a `Read` source and call `callback` on each.
+pub fn fastx_stream<F, R>(mut reader: R, ref mut callback: F) -> Result<(), ParseError>
+    where F: for<'a> FnMut(SeqRecord<'a>) -> (),
+          R: Read,
+{
+    fastx_reader(&mut reader, None, callback, None::<&mut FnMut(&'static str) -> ()>)
 }
 
 
