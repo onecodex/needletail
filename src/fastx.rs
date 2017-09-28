@@ -289,12 +289,28 @@ pub fn fastx_stdin<F>(ref mut callback: F) -> Result<(), ParseError>
 }
 
 
-/// Parse FASTX records from a `Read` source and call `callback` on each.
-pub fn fastx_stream<F, R>(mut reader: R, ref mut callback: F) -> Result<(), ParseError>
+#[cfg(feature = "gz")]
+pub fn fastx_stream<F, R, T>(mut reader: R, ref mut type_callback: T, ref mut callback: F) -> Result<(), ParseError>
     where F: for<'a> FnMut(SeqRecord<'a>) -> (),
-          R: Read,
+          R: Read + Seek,
+          T: FnMut(&'static str) -> (),
 {
-    fastx_reader(&mut reader, None, callback, None::<&mut FnMut(&'static str) -> ()>)
+    //! Opens a `Read` stream and parses the FASTX records out. Also takes a "type_callback"
+    //! that gets called as soon as we determine if the records are FASTA or FASTQ.
+    //!  If a file starts with a gzip header, transparently decompress it.
+    let mut first = vec![0];
+    reader.read(&mut first)?;
+    if first[0] == 0x1F {
+        reader.read(&mut first)?;
+        if first[0] != 0x8B {
+            return Err(ParseError::Invalid(String::from("Bad starting bytes")));
+        }
+        let _ = reader.seek(SeekFrom::Start(0));
+        let mut gz_reader = GzDecoder::new(reader)?;
+        fastx_reader(&mut gz_reader, None, callback, Some(type_callback))
+    } else {
+        fastx_reader(&mut reader, Some(first[0]), callback, Some(type_callback))
+    }
 }
 
 
