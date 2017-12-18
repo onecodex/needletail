@@ -66,7 +66,7 @@ fn strip_whitespace<'a>(seq: &'a [u8], has_newlines: bool) -> Cow<'a, [u8]> {
 /// Like memchr, but handles a two-byte sequence (unlike memchr::memchr2, this
 /// looks for the bytes in sequence not either/or).
 ///
-/// Also returns if any other newlines were found in the sequence
+/// Also returns if any other `b1`s were found in the sequence
 #[inline]
 fn memchr_both(b1: u8, b2: u8, seq: &[u8]) -> (Option<usize>, bool) {
     let mut pos = 0;

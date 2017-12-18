@@ -5,20 +5,21 @@ use kmer::{is_good_base, complement, normalize};
 
 /// A generic FASTX record that also abstracts over several logical operations
 /// that can be performed on nucleic acid sequences.
+#[derive(Debug)]
 pub struct SeqRecord<'a> {
-    pub id: &'a str,
+    pub id: Cow<'a, str>,
     pub seq: Cow<'a, [u8]>,
-    pub qual: Option<&'a [u8]>,
+    pub qual: Option<Cow<'a, [u8]>>,
     rev_seq: Option<Vec<u8>>,
 }
 
 impl<'a> SeqRecord<'a> {
     pub fn new(id: &'a str, seq: Cow<'a, [u8]>, qual: Option<&'a [u8]>) -> Self {
-        SeqRecord { id: id, seq: seq, qual: qual, rev_seq: None }
+        SeqRecord { id: Cow::Borrowed(id), seq: seq, qual: qual.map(Cow::Borrowed), rev_seq: None }
     }
 
     pub fn from_bytes(seq: &'a [u8]) -> Self {
-        SeqRecord { id: "", seq: Cow::Borrowed(seq), qual: None, rev_seq: None }
+        SeqRecord { id: Cow::Borrowed(""), seq: Cow::Borrowed(seq), qual: None, rev_seq: None }
     }
 
     /// Given a SeqRecord and a quality cutoff, mask out low-quality bases with
@@ -26,29 +27,28 @@ impl<'a> SeqRecord<'a> {
     ///
     /// Experimental.
     pub fn quality_mask(self, ref score: u8) -> Self {
-        match self.qual {
-            None => self,
-            Some(quality) => {
-                // could maybe speed this up by doing a copy of base and then
-                // iterating though qual and masking?
-                let seq = self.seq
-                    .iter()
-                    .zip(quality.iter())
-                    .map(|(base, qual)| {
-                        if qual < score {
-                            b'N'
-                        } else {
-                            base.clone()
-                        }
-                    })
-                    .collect();
-                SeqRecord {
-                    id: self.id,
-                    seq: seq,
-                    qual: self.qual,
-                    rev_seq: None,
+        if self.qual == None {
+            return self
+        }
+        let qual = self.qual.unwrap().into_owned();
+        // could maybe speed this up by doing a copy of base and then
+        // iterating though qual and masking?
+        let seq = self.seq
+            .iter()
+            .zip(qual.iter())
+            .map(|(base, qual)| {
+                if qual < score {
+                    b'N'
+                } else {
+                    base.clone()
                 }
-            },
+            })
+            .collect();
+        SeqRecord {
+            id: self.id,
+            seq: seq,
+            qual: Some(Cow::Owned(qual)),
+            rev_seq: None,
         }
     }
 
@@ -77,6 +77,18 @@ impl<'a> SeqRecord<'a> {
     /// Return an iterator the returns valid kmers in 4-bit form
     pub fn bit_kmers<'b>(&'b self, k: u8, canonical: bool) -> BitNuclKmer<'b> {
         BitNuclKmer::new(&self.seq, k, canonical)
+    }
+
+    /// Construct an owned version of `self` to, e.g. pass across threads
+    /// (it's not clear why this can't be the `impl for Clone`, but the
+    /// 'static lifetime doesn't work there for some reason)
+    pub fn into_owned(self) -> SeqRecord<'static> {
+        SeqRecord {
+            id: Cow::Owned(self.id.clone().into_owned()),
+            seq: Cow::Owned(self.seq.clone().into_owned()),
+            qual: self.qual.clone().map(Cow::into_owned).map(Cow::Owned),
+            rev_seq: self.rev_seq.clone(),
+        }
     }
 }
 
