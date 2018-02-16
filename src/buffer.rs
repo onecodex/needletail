@@ -1,192 +1,133 @@
-use std::error;
-use std::fmt;
 use std::io;
+use std::marker::PhantomData;
+
+use util::ParseError;
 
 
-/// Errors returned during parsing/reading buffers
-#[derive(Clone, Debug, PartialEq)]
-pub enum ParseError {
-    NeedMore,
-    EOF,
-    PrematureEOF,
-    Invalid(String),
-}
-
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let msg = match *self {
-            ParseError::NeedMore => "More data required",
-            ParseError::EOF => "File ended",
-            ParseError::PrematureEOF => "File ended prematurely",
-            ParseError::Invalid(ref s) => &s,
-        };
-        write!(f, "{}", msg)
-    }
-}
-
-impl error::Error for ParseError {
-    fn description(&self) -> &str {
-        "ParseError"
-    }
-
-    fn cause(&self) -> Option<&error::Error> {
-        None
-    }
-}
-
-
-impl From<io::Error> for ParseError {
-    fn from(err: io::Error) -> ParseError {
-        ParseError::Invalid(err.to_string())
-    }
-}
-
-
-pub struct RecBuffer<'a> {
+pub struct RecReader<'a> {
     file: &'a mut io::Read,
+    last: bool,
     buf: Vec<u8>,
-    offset: usize,
-    record_start: usize,
-    marks: Vec<usize>,
 }
 
 /// A buffer that wraps an object with the `Read` trait and allows extracting
 /// a set of slices to data. Acts as a lower-level primitive for our FASTX
 /// readers.
-impl<'a> RecBuffer<'a> {
+impl<'a> RecReader<'a> {
     /// Instantiate a new buffer.
     ///
     /// # Panics
     ///
     /// Under some very rare circumstances (setting a `buf_size` larger than 2 Gb
     /// on Mac OS X) a panic can occur. Please use a smaller buffer in this case.
-    pub fn new(file: &'a mut io::Read, buf_size: usize) -> RecBuffer {
+    pub fn new(file: &'a mut io::Read, buf_size: usize, header: &[u8]) -> Result<RecReader<'a>, ParseError> {
         let mut buf = Vec::with_capacity(buf_size);
         unsafe {
-            buf.set_len(buf_size);
+            buf.set_len(buf_size + header.len());
         }
-        let amt_read = file.read(&mut buf).unwrap();
+        buf[..header.len()].copy_from_slice(header);
+        let amt_read = file.read(&mut buf[header.len()..])?;
         unsafe {
             buf.set_len(amt_read);
         }
         
-        RecBuffer {
+        Ok(RecReader {
             file: file,
+            last: false,
             buf: buf,
-            offset: 0,
-            record_start: 0,
-            marks: Vec::new(),
-        }
+        })
     }
 
-    /// Internal method to refill the internal buffer (and optionally increase
-    /// it's capacity if it's not big enough)
-    fn refresh(&mut self) -> Result<bool, ParseError> {
-        let cur_length = self.buf.len() - self.record_start;
+    /// Refill the buffer and increase its capacity if it's not big enough
+    pub fn refill(&mut self, used: usize) -> Result<bool, ParseError> {
+        if used == 0 && self.last {
+            return Ok(true);
+        }
+        let cur_length = self.buf.len() - used;
         let new_length = cur_length + self.buf.capacity();
 
         let mut new_buf = Vec::with_capacity(new_length);
         unsafe {
             new_buf.set_len(new_length);
         }
-        new_buf[..cur_length].copy_from_slice(&self.buf[self.record_start..]);
+        new_buf[..cur_length].copy_from_slice(&self.buf[used..]);
         let amt_read = self.file.read(&mut new_buf[cur_length..])?;
         unsafe {
             new_buf.set_len(cur_length + amt_read);
         }
         self.buf = new_buf;
-        self.offset -= self.record_start;
-        self.record_start = 0;
-        
-        // return eof if we didn't get anything
-        Ok(amt_read == 0)
+        self.last = amt_read == 0;
+        Ok(false)
     }
 
-    pub fn mark_field<F>(&mut self, mut rec_fn: F) -> Result<usize, ParseError>
-        where F: FnMut(&[u8], bool) -> Result<usize, ParseError>
-    {
-        let mut eof = false;
-        loop {
-            if self.offset == self.buf.len() {
-                eof = self.refresh()?;
-                if eof {
-                    return Err(ParseError::EOF);
+    pub fn get_buffer<'b, T>(&'b self) -> RecBuffer<'b, T> {
+        RecBuffer {
+            buf: &self.buf,
+            pos: 0,
+            last: self.last,
+            record_type: PhantomData,
+        }
+    }
+}
+
+pub struct RecBuffer<'a, T> {
+    pub buf: &'a [u8],
+    pub pos: usize,
+    pub last: bool,
+    pub record_type: PhantomData<T>,
+}
+
+impl<'a, T> RecBuffer<'a, T> {
+    pub fn empty() -> Self {
+        RecBuffer {
+            buf: b"",
+            pos: 0,
+            last: false,
+            record_type: PhantomData,
+        }
+    }
+    
+    pub fn is_finished(&self, ignore_whitespace: bool) -> bool {
+        if !self.last {
+            return false;
+        }
+        if self.pos == self.buf.len() {
+            return true;
+        }
+        if ignore_whitespace {
+            for c in &self.buf[self.pos..] {
+                if c != &b'\r' && c != &b'\n' && c != &b' ' {
+                    return false;
                 }
             }
-            let result = rec_fn(&self.buf[self.offset..], eof);
-            match (result, eof) {
-                (Ok(v), _) => {
-                    self.marks.push(v);
-                    self.offset += v;
-                    return Ok(v);
-                },
-                (Err(ParseError::NeedMore), false) => {
-                    eof = self.refresh()?;
-                },
-                (Err(ParseError::NeedMore), true) => return Err(ParseError::PrematureEOF),
-                (Err(e), _) => return Err(e),
-            }
+            return true;
         }
-    }
-
-    pub fn fields<'b>(&'b mut self, fields: &mut [&'b [u8]]) {
-        // TODO: it would be nice if this could just return the array so we don't
-        // have to have an unsafe mem::uninitialized to set up for this
-        let mut cum_pos = self.record_start;
-        let mut i = 0;
-        for mark in &self.marks {
-            fields[i] = &self.buf[cum_pos..cum_pos + *mark];
-            cum_pos += *mark;
-            i += 1;
-        }
-
-        self.marks.clear();
-        self.record_start = self.offset;
+        false
     }
 }
 
 
-
-#[test]
-fn test_buffer() {
-    use std::mem;
-
-    let test: [u8; 4] = [1, 2, 3, 4];
-    let mut slice = &test[..];
-    let mut b = RecBuffer::new(&mut slice, 2usize);
-
-    let field_len = b.mark_field(|buf, eof| {
-        assert_eq!(buf[0], 1);
-        assert_eq!(buf.len(), 2);
-        assert!(!eof);
-        Ok(1)
-    });
-    assert_eq!(field_len.unwrap(), 1);
-
-    let field_len = b.mark_field(|buf, eof| {
-        if buf.len() == 1 {
-            assert_eq!(buf[0], 2);
-            assert!(!eof);
-            return Err(ParseError::NeedMore);
+pub fn parse<T, E, F>(reader: &'s mut io::Read, header: &[u8], ref mut callback: F) -> Result<(), E> where
+    E: From<ParseError>,
+    F: FnMut(T) -> Result<(), E>,
+    for<'s> RecBuffer<'s, T>: Iterator<Item=Result<T, ParseError>>,
+{
+    let mut rec_reader = RecReader::new(reader, 10_000_000, header)?;
+    loop {
+        let used = {
+            let mut rec_buffer = rec_reader.get_buffer();
+            for s in rec_buffer.by_ref() {
+                callback(s?)?;
+            }
+            rec_buffer.pos
+        };
+        if rec_reader.refill(used)? {
+            break;
         }
-        if !eof {
-            assert_eq!(buf[0], 2);
-            assert_eq!(buf.len(), 3);
-            return Err(ParseError::NeedMore);
-        }
-
-        assert_eq!(buf[0], 2);
-        assert!(eof);
-        assert_eq!(buf.len(), 3);
-        Ok(3)
-    });
-    assert_eq!(field_len.unwrap(), 3);
-
-    let mut fields: [&[u8]; 2];
-    unsafe {
-        fields = mem::uninitialized();
     }
-    b.fields(&mut fields);
-    assert_eq!(fields[0], &[1]);
-    assert_eq!(fields[1], &[2, 3, 4]);
+    if rec_reader.get_buffer::<T>().is_finished(true) {
+        Ok(())
+    } else {
+        Err(ParseError::PrematureEOF.into())
+    }
 }

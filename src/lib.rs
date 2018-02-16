@@ -9,3 +9,4 @@ pub mod kmer;
 pub mod bitkmer;
 pub mod seq;
 mod buffer;
+mod util;
