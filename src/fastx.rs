@@ -13,218 +13,121 @@
 //! See: https://github.com/emk/rust-streaming
 
 use std::borrow::Cow;
-use std::cmp::min;
 use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom, stdin};
-use std::mem;
 use std::path::Path;
 use std::str;
 
-use memchr::{memchr, memchr2};
+use memchr::memchr;
 
-use buffer::{RecBuffer, ParseError};
+use buffer::{parse, RecBuffer};
 use seq::SeqRecord;
+use util::{ParseError, memchr_both};
 
 #[cfg(feature = "gz")]
 use flate2::read::GzDecoder;
 
-/// remove newlines from within FASTX records; currently the rate limiting step
-/// in FASTX parsing (in general; readfq also exhibits this behavior)
-#[inline]
-fn strip_whitespace<'a>(seq: &'a [u8], has_newlines: bool) -> Cow<'a, [u8]> {
-    // if we already know there are no newlines inside, we only have to remove
-    // ones at the end
-    if !has_newlines {
-        let mut s_seq = seq;
-        if s_seq[s_seq.len() - 1] == b'\n' {
-            s_seq = &s_seq[..s_seq.len() - 1];
-        }
-        if s_seq[s_seq.len() - 1] == b'\r' {
-            s_seq = &s_seq[..s_seq.len() - 1];
-        }
-        return Cow::Borrowed(s_seq);
-    }
 
-    let mut new_buf = Vec::with_capacity(seq.len());
-    let mut i = 0;
-    while i < seq.len() {
-        match memchr2(b'\r', b'\n', &seq[i..]) {
-            None => {
-                new_buf.extend_from_slice(&seq[i..]);
-                break;
-            },
-            Some(match_pos) => {
-                new_buf.extend_from_slice(&seq[i..i + match_pos]);
-                i += match_pos + 1;
-            },
-        }
-    }
-    Cow::Owned(new_buf)
+// TODO: make `id` fields &str
+#[derive(Debug)]
+struct FASTA<'a> {
+    id: &'a [u8],
+    seq: &'a [u8],
 }
 
 
-/// Like memchr, but handles a two-byte sequence (unlike memchr::memchr2, this
-/// looks for the bytes in sequence not either/or).
-///
-/// Also returns if any other `b1`s were found in the sequence
-#[inline]
-fn memchr_both(b1: u8, b2: u8, seq: &[u8]) -> (Option<usize>, bool) {
-    let mut pos = 0;
-    let mut found_newline = false;
-    loop {
-        match memchr(b1, &seq[pos..]) {
-            None => return (None, found_newline),
-            Some(match_pos) => {
-                if pos + match_pos + 1 == seq.len() {
-                    return (None, found_newline);
-                } else if seq[pos + match_pos + 1] == b2 {
-                    return (Some(pos + match_pos), found_newline);
-                } else {
-                    pos += match_pos + 1;
-                    found_newline = true;
-                }
-            },
+#[derive(Debug)]
+struct FASTQ<'a> {
+    id: &'a [u8],
+    seq: &'a [u8],
+    qual: &'a [u8],
+}
+
+
+impl<'a> Iterator for RecBuffer<'a, FASTA<'static>> {
+    type Item = Result<FASTA<'a>, ParseError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let start = self.pos;
+        let id_end;
+        match memchr(b'\n', &self.buf[start..]) {
+            Some(i) => id_end = i,
+            None => return None,
+        };
+
+        let seq_end;
+        match (memchr_both(b'\n', b'>', &self.buf[id_end..]).0, self.last) {
+            (Some(i), _) => seq_end = i,
+            (None, true) => seq_end = self.buf.len(),
+            (None, false) => return None,
+        };
+        if self.buf[start] != b'>' {
+            return Some(Err(ParseError::Invalid(String::from("Bad FASTA record"))));
         }
+        self.pos = seq_end;
+        Some(Ok(FASTA {
+            id: &self.buf[start..id_end],
+            seq: &self.buf[id_end..seq_end],
+        }))
     }
 }
 
 
-#[test]
-fn test_memchr_both() {
-    let (pos, newline) = memchr_both(b'\n', b'-', &b"test\n-this"[..]);
-    assert_eq!(pos, Some(4));
-    assert_eq!(newline, false);
+impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
+    type Item = Result<FASTQ<'a>, ParseError>;
 
-    let (pos, newline) = memchr_both(b'\n', b'-', &b"te\nst\n-this"[..]);
-    assert_eq!(pos, Some(5));
-    assert_eq!(newline, true);
+    fn next(&mut self) -> Option<Self::Item> {
+        let start = self.pos;
+
+        let id_end;
+        match memchr(b'\n', &self.buf[start..]) {
+            Some(i) => id_end = i,
+            None => return None,
+        };
+        let seq_end;
+        match memchr_both(b'\n', b'+', &self.buf[id_end..]).0 {
+            Some(i) => seq_end = i,
+            None => return None,
+        };
+        let id2_end;
+        match memchr(b'\n', &self.buf[seq_end..]) {
+            Some(i) => id2_end = i,
+            None => return None,
+        };
+        // we know the qual scores must be the same length as the sequence
+        // so we can just do some arithmatic instead of memchr'ing
+        if (self.buf.len() - id2_end) < (id_end - start) {
+            return None;
+        }
+        let qual_end = id2_end + id_end - start;
+        if self.buf[start] != b'@' {
+            return Some(Err(ParseError::Invalid(String::from("Bad FASTA record"))));
+        }
+        self.pos = qual_end;
+        Some(Ok(FASTQ {
+            id: &self.buf[start..id_end],
+            seq: &self.buf[id_end..seq_end],
+            qual: &self.buf[id2_end..qual_end],
+        }))
+    }
 }
 
-
-/// Given a RecBuffer, pull out one FASTA record
-fn fasta_record<'a>(rb: &'a mut RecBuffer, validate: bool) -> Result<SeqRecord<'a>, ParseError> {
-    let _ = rb.mark_field(|buf: &[u8], _| {
-        if validate && buf[0] != b'>' {
-            return Err(ParseError::Invalid(String::from("Bad FASTA record")));
-        }
-        match memchr(b'\n', &buf) {
-            None => Err(ParseError::NeedMore),
-            Some(pos_end) => Ok(pos_end + 1),
-        }
-    })?;
-
-    let mut newlines = false;
-    let _ = rb.mark_field(|buf: &[u8], eof: bool| {
-        match memchr_both(b'\n', b'>', &buf) {
-            (None, has_newline) => match eof {
-                false => Err(ParseError::NeedMore),
-                true => {
-                    newlines = has_newline;
-                    Ok(buf.len())
-                },
-            },
-            (Some(pos_end), has_newline) => {
-                newlines = has_newline;
-                Ok(pos_end + 1)
-            }
-        }
-    })?;
-
-    let mut fields: [&[u8]; 2];
-    unsafe {
-        fields = mem::uninitialized();
+impl<'a> From<FASTA<'a>> for SeqRecord<'a> {
+    fn from(fasta: FASTA<'a>) -> SeqRecord<'a> {
+        SeqRecord::new(str::from_utf8(fasta.id).unwrap(), Cow::from(fasta.seq), None)
     }
-    rb.fields(&mut fields);
 
-    let offset = if validate { 1 } else { 0 };
-    let id = match str::from_utf8(&fields[0][offset..&fields[0].len() - 1]) {
-        Ok(v) => Ok(v),
-        Err(_) => Err(ParseError::Invalid(String::from("FASTA header not UTF8"))),
-    }?;
-
-    Ok(SeqRecord::new(id,strip_whitespace(fields[1], newlines), None))
 }
 
-
-/// Given a RecBuffer, pull out one FASTQ record
-fn fastq_record<'a>(rb: &'a mut RecBuffer, validate: bool) -> Result<SeqRecord<'a>, ParseError> {
-    let _ = rb.mark_field(|buf: &[u8], eof: bool| {
-        if validate && buf[0] != b'@' {
-            // we allow up to 4 whitespace characters at the very end
-            // b/c some FASTQs have extra returns
-            if buf.len() <= 4 {
-                if !eof {
-                    // try to get an eof
-                    return Err(ParseError::NeedMore);
-                }
-                if buf.iter().all(|&c| c == b'\r' || c == b'\n') {
-                    return Err(ParseError::EOF);
-                }
-            }
-            return Err(ParseError::Invalid(String::from("Bad FASTQ record")));
-        }
-        match memchr(b'\n', &buf) {
-            None => Err(ParseError::NeedMore),
-            Some(pos_end) => Ok(pos_end + 1),
-        }
-    })?;
-
-    let mut newlines = false;
-    let seq_len = rb.mark_field(|buf: &[u8], _| {
-        match memchr_both(b'\n', b'+', &buf) {
-            (None, _) => Err(ParseError::NeedMore),
-            (Some(pos_end), has_newline) => {
-                newlines = has_newline;
-                Ok(pos_end + 1)
-            },
-        }
-    })?;
-
-    let _ = rb.mark_field(|buf: &[u8], _| {
-        // the quality header
-        match memchr(b'\n', &buf) {
-            None => Err(ParseError::NeedMore),
-            Some(pos_end) => Ok(pos_end + 1),
-        }
-    })?;
-        
-    let _ = rb.mark_field(|buf: &[u8], eof: bool| {
-        // the actual quality score
-        if eof {
-            Ok(min(seq_len, buf.len()))
-        } else if seq_len > buf.len() {
-            Err(ParseError::NeedMore)
-        } else {
-            Ok(seq_len)
-        }
-    })?;
-
-    let mut fields: [&[u8]; 4];
-    unsafe {
-        fields = mem::uninitialized();
+impl<'a> From<FASTQ<'a>> for SeqRecord<'a> {
+    fn from(fastq: FASTQ<'a>) -> SeqRecord<'a> {
+        SeqRecord::new(str::from_utf8(fastq.id).unwrap(), Cow::from(fastq.seq), Some(fastq.qual))
     }
-    rb.fields(&mut fields);
-
-    let offset = if validate { 1 } else { 0 };
-    let id = match str::from_utf8(&fields[0][offset..&fields[0].len() - 1]) {
-        Ok(v) => Ok(v),
-        Err(_) => Err(ParseError::Invalid(String::from("FASTQ header not UTF8"))),
-    }?;
-    let seq = strip_whitespace(fields[1], newlines);
-    let mut qual = fields[3];
-    // remove newlines from the end of the quality record
-    if qual[qual.len() - 1] == b'\n' {
-        qual = &qual[..qual.len() - 1];
-    }
-    if qual[qual.len() - 1] == b'\r' {
-        qual = &qual[..qual.len() - 1];
-    }
-
-    Ok(SeqRecord::new(id, seq, Some(qual)))
 }
+
 
 /// Internal function abstracting over byte and file FASTX parsing
-fn fastx_reader<'b, F, R, T>(reader: &'b mut R, first_byte: Option<u8>, ref mut callback: F, type_callback: Option<&mut T>) -> Result<(), ParseError>
+fn fastx_reader<F, R, T>(reader: &mut R, first_byte: Option<u8>, ref mut callback: F, type_callback: Option<&mut T>) -> Result<(), ParseError>
     where F: for<'a> FnMut(SeqRecord<'a>) -> (),
           R: Read,
           T: ?Sized + FnMut(&'static str) -> (),
@@ -236,35 +139,27 @@ fn fastx_reader<'b, F, R, T>(reader: &'b mut R, first_byte: Option<u8>, ref mut 
             reader.read(&mut first)?;
         },
     }
-    let parser = match first[0] {
+    match first[0] {
         b'>' => {
             if let Some(f) = type_callback {
                 f("FASTA");
             }
-            Ok(fasta_record as for<'a> fn(&'a mut RecBuffer, bool) -> Result<SeqRecord<'a>, ParseError>)
+            parse::<FASTA, ParseError, _>(reader, &[b'>'], |record| {
+                callback(SeqRecord::from(record));
+                Ok(())
+            });
         },
         b'@' => {
             if let Some(f) = type_callback {
                 f("FASTQ");
             }
-            Ok(fastq_record as for<'a> fn(&'a mut RecBuffer, bool) -> Result<SeqRecord<'a>, ParseError>)
+            // parse::<FASTQ>(reader, &b'@', |record| {
+            //     callback(record.to_seq()?);
+            //     Ok(())
+            // });
         },
-        _ => Err(ParseError::Invalid(String::from("Bad starting byte"))),
-    }?;
-
-    let mut producer = RecBuffer::new(reader, 10000000usize);
-
-    // TODO: replace this with some kind of futures event loop?
-    let mut validate = false;  // we already know the type of the first read
-    loop {
-        let record = parser(&mut producer, validate);
-        match record {
-            Err(ParseError::EOF) => break,
-            Ok(v) => callback(v),
-            Err(e) => return Err(e),
-        }
-        validate = true;
-    }
+        _ => return Err(ParseError::Invalid(String::from("Bad starting byte"))),
+    };
     Ok(())
 }
 
