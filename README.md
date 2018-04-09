@@ -22,7 +22,7 @@ _Note: `gcc` with the `-O3` flag was used for `readfq` (`clang -O3` was slower o
 
 ```rust
 extern crate needletail;
-ues std::env;
+use std::env;
 use needletail::{fastx};
 
 fn main() {
