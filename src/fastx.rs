@@ -13,6 +13,7 @@
 //! See: https://github.com/emk/rust-streaming
 
 use std::borrow::Cow;
+use std::cmp::min;
 use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom, stdin};
 use std::path::Path;
@@ -20,25 +21,24 @@ use std::str;
 
 use memchr::memchr;
 
-use buffer::{parse, RecBuffer};
+use buffer::{RecBuffer, RecReader, FindRecord};
 use seq::SeqRecord;
-use util::{ParseError, memchr_both};
+use util::{ParseError, memchr_both, strip_whitespace};
 
 #[cfg(feature = "gz")]
 use flate2::read::GzDecoder;
 
 
-// TODO: make `id` fields &str
 #[derive(Debug)]
 struct FASTA<'a> {
-    id: &'a [u8],
+    id: &'a str,
     seq: &'a [u8],
 }
 
 
 #[derive(Debug)]
 struct FASTQ<'a> {
-    id: &'a [u8],
+    id: &'a str,
     seq: &'a [u8],
     qual: &'a [u8],
 }
@@ -48,26 +48,44 @@ impl<'a> Iterator for RecBuffer<'a, FASTA<'static>> {
     type Item = Result<FASTA<'a>, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let start = self.pos;
+        let buf = &self.buf[self.pos..];
+        if buf.len() == 0 {
+            return None;
+        }
+        if buf[0] != b'>' {
+            return Some(Err(ParseError::Invalid(String::from("Bad FASTA record"))));
+        }
+
         let id_end;
-        match memchr(b'\n', &self.buf[start..]) {
-            Some(i) => id_end = i,
+        match memchr(b'\n', &buf) {
+            Some(i) => id_end = i + 1,
             None => return None,
         };
+        let mut raw_id = &buf[1..id_end - 1];
+        if raw_id.len() > 0 && raw_id[raw_id.len() - 1] == b'\r' {
+            raw_id = &raw_id[..raw_id.len() - 1];
+        }
+        let id;
+        match str::from_utf8(raw_id) {
+            Ok(i) => id = i,
+            Err(e) => return Some(Err(ParseError::from(e))),
+        }
 
         let seq_end;
-        match (memchr_both(b'\n', b'>', &self.buf[id_end..]).0, self.last) {
-            (Some(i), _) => seq_end = i,
+        match (memchr_both(b'\n', b'>', &buf[id_end..]), self.last) {
+            (Some(i), _) => seq_end = id_end + i + 1,
             (None, true) => seq_end = self.buf.len(),
             (None, false) => return None,
         };
-        if self.buf[start] != b'>' {
-            return Some(Err(ParseError::Invalid(String::from("Bad FASTA record"))));
+        let mut seq = &buf[id_end..seq_end];
+        if seq[seq.len() - 1] == b'\r' {
+            seq = &seq[..seq.len()];
         }
-        self.pos = seq_end;
+
+        self.pos += seq_end;
         Some(Ok(FASTA {
-            id: &self.buf[start..id_end],
-            seq: &self.buf[id_end..seq_end],
+            id: id,
+            seq: seq,
         }))
     }
 }
@@ -77,51 +95,110 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
     type Item = Result<FASTQ<'a>, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let start = self.pos;
+        if self.pos >= self.buf.len() {
+            return None;
+        }
+        let buf = &self.buf[self.pos..];
+        if buf[0] != b'@' {
+            return Some(Err(ParseError::Invalid(String::from("Bad FASTQ record"))));
+        }
 
         let id_end;
-        match memchr(b'\n', &self.buf[start..]) {
-            Some(i) => id_end = i,
+        match memchr(b'\n', &buf) {
+            Some(i) => id_end = i + 1,
             None => return None,
         };
+
         let seq_end;
-        match memchr_both(b'\n', b'+', &self.buf[id_end..]).0 {
-            Some(i) => seq_end = i,
+        match memchr_both(b'\n', b'+', &buf[id_end..]) {
+            Some(i) => seq_end = id_end + i,
             None => return None,
         };
+        let mut seq = &buf[id_end..seq_end];
+        if seq.len() > 0 && seq[seq.len() - 1] == b'\r' {
+            seq = &seq[..seq.len() - 1];
+        }
+
         let id2_end;
-        match memchr(b'\n', &self.buf[seq_end..]) {
-            Some(i) => id2_end = i,
+        match memchr(b'\n', &buf[seq_end + 1..]) {
+            Some(i) => id2_end = seq_end + i + 1,
             None => return None,
         };
         // we know the qual scores must be the same length as the sequence
         // so we can just do some arithmatic instead of memchr'ing
-        if (self.buf.len() - id2_end) < (id_end - start) {
+        if (buf.len() - id2_end) < seq.len() {
             return None;
         }
-        let qual_end = id2_end + id_end - start;
-        if self.buf[start] != b'@' {
-            return Some(Err(ParseError::Invalid(String::from("Bad FASTA record"))));
+        let mut raw_id = &buf[1..id_end - 1];
+        if raw_id.len() > 0 && raw_id[raw_id.len() - 1] == b'\r' {
+            raw_id = &raw_id[..raw_id.len() - 1];
         }
-        self.pos = qual_end;
+        let id;
+        match str::from_utf8(raw_id) {
+            Ok(i) => id = i,
+            Err(e) => return Some(Err(ParseError::from(e))),
+        }
+        // if there are \r or \n we need to skip them still
+        // FIXME: 2 isn't always right
+        // println!("{:?}", &buf[self.pos..self.pos+id2_end + seq_end - id_end + 2]);
+        self.pos += min(id2_end + seq_end - id_end + 2, buf.len());
         Some(Ok(FASTQ {
-            id: &self.buf[start..id_end],
-            seq: &self.buf[id_end..seq_end],
-            qual: &self.buf[id2_end..qual_end],
+            id: id,
+            seq: seq,
+            qual: &buf[id2_end + 1..id2_end + 1 + seq.len()],
         }))
     }
 }
 
-impl<'a> From<FASTA<'a>> for SeqRecord<'a> {
-    fn from(fasta: FASTA<'a>) -> SeqRecord<'a> {
-        SeqRecord::new(str::from_utf8(fasta.id).unwrap(), Cow::from(fasta.seq), None)
+
+fn is_finished<T>(rb: &RecBuffer<T>) -> bool {
+    if !rb.last {
+        return false;
+    }
+    if rb.pos == rb.buf.len() {
+        return true;
+    }
+    for c in &rb.buf[rb.pos..] {
+        if c != &b'\r' && c != &b'\n' {
+            return false;
+        }
+    }
+    true
+}
+
+
+impl<'a> FindRecord for RecBuffer<'a, FASTA<'a>> {
+    fn move_to_next(&mut self) {
+        unimplemented!("");
     }
 
+    fn is_finished(&self) -> bool {
+        is_finished(&self)
+    }
+}
+
+
+impl<'a> FindRecord for RecBuffer<'a, FASTQ<'a>> {
+    fn move_to_next(&mut self) {
+        unimplemented!("");
+    }
+
+    fn is_finished(&self) -> bool {
+        is_finished(&self)
+    }
+}
+
+
+
+impl<'a> From<FASTA<'a>> for SeqRecord<'a> {
+    fn from(fasta: FASTA<'a>) -> SeqRecord<'a> {
+        SeqRecord::new(fasta.id, Cow::from(strip_whitespace(fasta.seq)), None)
+    }
 }
 
 impl<'a> From<FASTQ<'a>> for SeqRecord<'a> {
     fn from(fastq: FASTQ<'a>) -> SeqRecord<'a> {
-        SeqRecord::new(str::from_utf8(fastq.id).unwrap(), Cow::from(fastq.seq), Some(fastq.qual))
+        SeqRecord::new(fastq.id, Cow::from(fastq.seq), Some(fastq.qual))
     }
 }
 
@@ -139,27 +216,49 @@ fn fastx_reader<F, R, T>(reader: &mut R, first_byte: Option<u8>, ref mut callbac
             reader.read(&mut first)?;
         },
     }
+    let mut rec_reader = RecReader::new(reader, 10_000_000, &first)?;
     match first[0] {
         b'>' => {
             if let Some(f) = type_callback {
                 f("FASTA");
             }
-            parse::<FASTA, ParseError, _>(reader, &[b'>'], |record| {
-                callback(SeqRecord::from(record));
-                Ok(())
-            });
+            loop {
+                let used = {
+                    let mut rec_buffer = rec_reader.get_buffer::<FASTA>();
+                    for s in rec_buffer.by_ref() {
+                        callback(SeqRecord::from(s?));
+                    }
+                    rec_buffer.pos
+                };
+                if rec_reader.refill(used)? {
+                    break;
+                }
+            }
         },
         b'@' => {
             if let Some(f) = type_callback {
                 f("FASTQ");
             }
-            // parse::<FASTQ>(reader, &b'@', |record| {
-            //     callback(record.to_seq()?);
-            //     Ok(())
-            // });
+            loop {
+                let used = {
+                    let mut rec_buffer = rec_reader.get_buffer::<FASTQ>();
+                    for s in rec_buffer.by_ref() {
+                        callback(SeqRecord::from(s?));
+                    }
+                    rec_buffer.pos
+                };
+                if rec_reader.refill(used)? {
+                    break;
+                }
+            }
         },
         _ => return Err(ParseError::Invalid(String::from("Bad starting byte"))),
     };
+    // check if there's anything left stuff in the buffer (besides returns)
+    let rec_buffer = rec_reader.get_buffer::<FASTA>();
+    if !rec_buffer.is_finished() {
+        return Err(ParseError::PrematureEOF);
+    }
     Ok(())
 }
 
@@ -330,17 +429,38 @@ fn test_fastq() {
             0 => {
                 assert_eq!(seq.id, "test");
                 assert_eq!(&seq.seq[..], &b"AGCT"[..]);
-                assert_eq!(seq.qual, Some(&b"~~a!"[..]));
+                assert_eq!(&seq.qual.unwrap()[..], &b"~~a!"[..]);
             },
             1 => {
                 assert_eq!(seq.id, "test2");
                 assert_eq!(&seq.seq[..], &b"TGCA"[..]);
-                assert_eq!(seq.qual, Some(&b"WUI9"[..]));
+                assert_eq!(&seq.qual.unwrap()[..], &b"WUI9"[..]);
             },
             _ => assert!(false),
         }
         i += 1;
     });
+    assert_eq!(i, 2);
+    assert_eq!(res, Ok(()));
+
+    let mut i = 0;
+    let res = fastx_bytes(&b"@test\r\nAGCT\r\n+test\r\n~~a!\r\n@test2\r\nTGCA\r\n+test\r\nWUI9"[..], |seq| {
+        match i {
+            0 => {
+                assert_eq!(seq.id, "test");
+                assert_eq!(&seq.seq[..], &b"AGCT"[..]);
+                assert_eq!(&seq.qual.unwrap()[..], &b"~~a!"[..]);
+            },
+            1 => {
+                assert_eq!(seq.id, "test2");
+                assert_eq!(&seq.seq[..], &b"TGCA"[..]);
+                assert_eq!(&seq.qual.unwrap()[..], &b"WUI9"[..]);
+            },
+            _ => assert!(false),
+        }
+        i += 1;
+    });
+    assert_eq!(i, 2);
     assert_eq!(res, Ok(()));
 }
 
@@ -363,6 +483,27 @@ fn test_wrapped_fasta() {
         }
         i += 1;
     });
+    assert_eq!(i, 2);
+    assert_eq!(res, Ok(()));
+
+    let mut i = 0;
+    let res = fastx_bytes(&b">test\r\nAGCT\r\nTCG\r\n>test2\r\nG"[..], |seq| {
+        match i {
+            0 => {
+                assert_eq!(seq.id, "test");
+                assert_eq!(&seq.seq[..], &b"AGCTTCG"[..]);
+                assert_eq!(seq.qual, None);
+            },
+            1 => {
+                assert_eq!(seq.id, "test2");
+                assert_eq!(&seq.seq[..], &b"G"[..]);
+                assert_eq!(seq.qual, None);
+            },
+            _ => assert!(false),
+        }
+        i += 1;
+    });
+    assert_eq!(i, 2);
     assert_eq!(res, Ok(()));
 }
 
@@ -380,6 +521,7 @@ fn test_premature_endings() {
         }
         i += 1;
     });
+    assert_eq!(i, 1);
     assert_eq!(res, Err(ParseError::PrematureEOF));
 
     let mut i = 0;
@@ -388,11 +530,75 @@ fn test_premature_endings() {
             0 => {
                 assert_eq!(seq.id, "test");
                 assert_eq!(&seq.seq[..], &b"AGCT"[..]);
-                assert_eq!(seq.qual, Some(&b"~~a!"[..]));
+                assert_eq!(&seq.qual.unwrap()[..], &b"~~a!"[..]);
             },
             _ => assert!(false),
         }
         i += 1;
     });
+    assert_eq!(i, 1);
     assert_eq!(res, Err(ParseError::PrematureEOF));
+}
+
+#[test]
+fn test_empty_records() {
+    let mut i = 0;
+    let res = fastx_bytes(&b"@\n\n+\n\n@test2\nTGCA\n+test2\n~~~~\n"[..], |seq| {
+        match i {
+            0 => {
+                assert_eq!(seq.id, "");
+                assert_eq!(&seq.seq[..], &b""[..]);
+                assert_eq!(&seq.qual.unwrap()[..], &b""[..]);
+            },
+            1 => {
+                assert_eq!(seq.id, "test2");
+                assert_eq!(&seq.seq[..], &b"TGCA"[..]);
+                assert_eq!(&seq.qual.unwrap()[..], &b"~~~~"[..]);
+            },
+            _ => assert!(false),
+        }
+        i += 1;
+    });
+    assert_eq!(i, 2);
+    assert_eq!(res, Ok(()));
+
+    let mut i = 0;
+    let res = fastx_bytes(&b">\n\n>shine\nAGGAGGU"[..], |seq| {
+        match i {
+            0 => {
+                assert_eq!(seq.id, "");
+                assert_eq!(&seq.seq[..], &b""[..]);
+                assert_eq!(seq.qual, None);
+            },
+            1 => {
+                assert_eq!(seq.id, "shine");
+                assert_eq!(&seq.seq[..], &b"AGGAGGU"[..]);
+                assert_eq!(seq.qual, None);
+            },
+            _ => assert!(false),
+        }
+        i += 1;
+    });
+    assert_eq!(i, 2);
+    assert_eq!(res, Ok(()));
+
+    let mut i = 0;
+    let res = fastx_bytes(&b">\r\n\r\n>shine\r\nAGGAGGU"[..], |seq| {
+        match i {
+            0 => {
+                assert_eq!(seq.id, "");
+                assert_eq!(&seq.seq[..], &b""[..]);
+                assert_eq!(seq.qual, None);
+            },
+            1 => {
+                assert_eq!(seq.id, "shine");
+                assert_eq!(&seq.seq[..], &b"AGGAGGU"[..]);
+                assert_eq!(seq.qual, None);
+            },
+            _ => assert!(false),
+        }
+        i += 1;
+    });
+    assert_eq!(i, 2);
+    assert_eq!(res, Ok(()));
 }

@@ -52,20 +52,7 @@ impl From<str::Utf8Error> for ParseError {
 /// remove newlines from within FASTX records; currently the rate limiting step
 /// in FASTX parsing (in general; readfq also exhibits this behavior)
 #[inline]
-fn strip_whitespace<'a>(seq: &'a [u8], has_newlines: bool) -> Cow<'a, [u8]> {
-    // if we already know there are no newlines inside, we only have to remove
-    // ones at the end
-    if !has_newlines {
-        let mut s_seq = seq;
-        if s_seq[s_seq.len() - 1] == b'\n' {
-            s_seq = &s_seq[..s_seq.len() - 1];
-        }
-        if s_seq[s_seq.len() - 1] == b'\r' {
-            s_seq = &s_seq[..s_seq.len() - 1];
-        }
-        return Cow::Borrowed(s_seq);
-    }
-
+pub fn strip_whitespace<'a>(seq: &'a [u8]) -> Cow<'a, [u8]> {
     let mut new_buf = Vec::with_capacity(seq.len());
     let mut i = 0;
     while i < seq.len() {
@@ -89,20 +76,43 @@ fn strip_whitespace<'a>(seq: &'a [u8], has_newlines: bool) -> Cow<'a, [u8]> {
 ///
 /// Also returns if any other `b1`s were found in the sequence
 #[inline]
-pub fn memchr_both(b1: u8, b2: u8, seq: &[u8]) -> (Option<usize>, bool) {
+pub fn memchr_both(b1: u8, b2: u8, seq: &[u8]) -> Option<usize> {
+    // TODO: b2 is going to be much rarer for us in FASTAs, so we should search for that instead
+    // (but b1 is going to be the rarer character in FASTQs so this is optimized for that and we
+    // should allow a choice between the two)
     let mut pos = 0;
-    let mut found_newline = false;
     loop {
         match memchr(b1, &seq[pos..]) {
-            None => return (None, found_newline),
+            None => return None,
             Some(match_pos) => {
                 if pos + match_pos + 1 == seq.len() {
-                    return (None, found_newline);
+                    return None;
                 } else if seq[pos + match_pos + 1] == b2 {
-                    return (Some(pos + match_pos), found_newline);
+                    return Some(pos + match_pos);
                 } else {
                     pos += match_pos + 1;
-                    found_newline = true;
+                }
+            },
+        }
+    }
+}
+
+
+#[inline]
+pub fn memchr_both_b2(b1: u8, b2: u8, seq: &[u8]) -> Option<usize> {
+    // b2 is much rarer in FASTAs, so we search for that instead
+    // for a speed up; this needs a lot more testing
+    let mut pos = 0;
+    loop {
+        match memchr(b2, &seq[pos..]) {
+            None => return None,
+            Some(match_pos) => {
+                if pos + match_pos + 1 == seq.len() {
+                    return None;
+                } else if seq[pos + match_pos] == b1 {
+                    return Some(pos + match_pos);
+                } else {
+                    pos += match_pos;
                 }
             },
         }
@@ -112,11 +122,9 @@ pub fn memchr_both(b1: u8, b2: u8, seq: &[u8]) -> (Option<usize>, bool) {
 
 #[test]
 fn test_memchr_both() {
-    let (pos, newline) = memchr_both(b'\n', b'-', &b"test\n-this"[..]);
+    let pos = memchr_both(b'\n', b'-', &b"test\n-this"[..]);
     assert_eq!(pos, Some(4));
-    assert_eq!(newline, false);
 
-    let (pos, newline) = memchr_both(b'\n', b'-', &b"te\nst\n-this"[..]);
+    let pos = memchr_both(b'\n', b'-', &b"te\nst\n-this"[..]);
     assert_eq!(pos, Some(5));
-    assert_eq!(newline, true);
 }
