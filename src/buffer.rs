@@ -28,7 +28,7 @@ impl<'a> RecReader<'a> {
         buf[..header.len()].copy_from_slice(header);
         let amt_read = file.read(&mut buf[header.len()..])?;
         unsafe {
-            buf.set_len(amt_read);
+            buf.set_len(amt_read + header.len());
         }
         
         Ok(RecReader {
@@ -43,6 +43,9 @@ impl<'a> RecReader<'a> {
         if used == 0 && self.last {
             return Ok(true);
         }
+        // if used >= self.buf.len() {
+        //     return Ok(true);
+        // }
         let cur_length = self.buf.len() - used;
         let new_length = cur_length + self.buf.capacity();
 
@@ -74,60 +77,46 @@ pub struct RecBuffer<'a, T> {
     pub buf: &'a [u8],
     pub pos: usize,
     pub last: bool,
-    pub record_type: PhantomData<T>,
+    record_type: PhantomData<T>,
 }
 
 impl<'a, T> RecBuffer<'a, T> {
-    pub fn empty() -> Self {
+    pub fn from_bytes(data: &'a [u8]) -> Self {
         RecBuffer {
-            buf: b"",
+            buf: data,
             pos: 0,
             last: false,
             record_type: PhantomData,
         }
     }
-    
-    pub fn is_finished(&self, ignore_whitespace: bool) -> bool {
-        if !self.last {
-            return false;
-        }
-        if self.pos == self.buf.len() {
-            return true;
-        }
-        if ignore_whitespace {
-            for c in &self.buf[self.pos..] {
-                if c != &b'\r' && c != &b'\n' && c != &b' ' {
-                    return false;
-                }
-            }
-            return true;
-        }
-        false
-    }
 }
 
-
-pub fn parse<T, E, F>(reader: &'s mut io::Read, header: &[u8], ref mut callback: F) -> Result<(), E> where
-    E: From<ParseError>,
-    F: FnMut(T) -> Result<(), E>,
-    for<'s> RecBuffer<'s, T>: Iterator<Item=Result<T, ParseError>>,
-{
-    let mut rec_reader = RecReader::new(reader, 10_000_000, header)?;
-    loop {
-        let used = {
-            let mut rec_buffer = rec_reader.get_buffer();
-            for s in rec_buffer.by_ref() {
-                callback(s?)?;
-            }
-            rec_buffer.pos
-        };
-        if rec_reader.refill(used)? {
-            break;
-        }
-    }
-    if rec_reader.get_buffer::<T>().is_finished(true) {
-        Ok(())
-    } else {
-        Err(ParseError::PrematureEOF.into())
-    }
+pub trait FindRecord {
+    fn move_to_next(&mut self);
+    fn is_finished(&self) -> bool;
 }
+
+// pub fn parse<T, E, F>(reader: &'s mut io::Read, header: &[u8], ref mut callback: F) -> Result<(), E> where
+//     E: From<ParseError>,
+//     F: FnMut(T) -> Result<(), E>,
+//     for<'s> RecBuffer<'s, T>: Iterator<Item=Result<T, ParseError>>,
+// {
+//     let mut rec_reader = RecReader::new(reader, 10_000_000, header)?;
+//     loop {
+//         let used = {
+//             let mut rec_buffer = rec_reader.get_buffer();
+//             for s in rec_buffer.by_ref() {
+//                 callback(s?)?;
+//             }
+//             rec_buffer.pos
+//         };
+//         if rec_reader.refill(used)? {
+//             break;
+//         }
+//     }
+//     if rec_reader.get_buffer::<T>().is_finished(true) {
+//         Ok(())
+//     } else {
+//         Err(ParseError::PrematureEOF.into())
+//     }
+// }

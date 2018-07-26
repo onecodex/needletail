@@ -169,9 +169,9 @@ impl<'a> Iterator for NuclKmer<'a> {
 #[test]
 fn test_quality_mask() {
     let seq_rec = SeqRecord {
-        id: "",
+        id: Cow::Borrowed(""),
         seq: Cow::Borrowed(&b"AGCT"[..]),
-        qual: Some(&b"AAA0"[..]),
+        qual: Some(Cow::Borrowed(&b"AAA0"[..])),
         rev_seq: None,
     };
     let filtered_rec = seq_rec.quality_mask('5' as u8);
