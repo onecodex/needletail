@@ -98,28 +98,6 @@ pub fn memchr_both(b1: u8, b2: u8, seq: &[u8]) -> Option<usize> {
 }
 
 
-#[inline]
-pub fn memchr_both_b2(b1: u8, b2: u8, seq: &[u8]) -> Option<usize> {
-    // b2 is much rarer in FASTAs, so we search for that instead
-    // for a speed up; this needs a lot more testing
-    let mut pos = 0;
-    loop {
-        match memchr(b2, &seq[pos..]) {
-            None => return None,
-            Some(match_pos) => {
-                if pos + match_pos + 1 == seq.len() {
-                    return None;
-                } else if seq[pos + match_pos] == b1 {
-                    return Some(pos + match_pos);
-                } else {
-                    pos += match_pos;
-                }
-            },
-        }
-    }
-}
-
-
 #[test]
 fn test_memchr_both() {
     let pos = memchr_both(b'\n', b'-', &b"test\n-this"[..]);

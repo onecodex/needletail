@@ -73,6 +73,7 @@ impl<'a> RecReader<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct RecBuffer<'a, T> {
     pub buf: &'a [u8],
     pub pos: usize,
@@ -85,10 +86,19 @@ impl<'a, T> RecBuffer<'a, T> {
         RecBuffer {
             buf: data,
             pos: 0,
-            last: false,
+            last: true,
             record_type: PhantomData,
         }
     }
+}
+
+#[test]
+fn test_from_bytes() {
+    // this is not a useful test, but it does get the compiler to shut up
+    // about `from_bytes` not being used
+    let rb: RecBuffer<String> = RecBuffer::from_bytes(b"test");
+    assert_eq!(rb.pos, 0);
+    assert_eq!(rb.buf, b"test");
 }
 
 pub trait FindRecord {

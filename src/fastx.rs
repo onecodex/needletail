@@ -52,6 +52,10 @@ impl<'a> Iterator for RecBuffer<'a, FASTA<'static>> {
         if buf.len() == 0 {
             return None;
         }
+        // this probably shouldn't ever happen (because we should check the first
+        // byte upstream on creation (i.e. Bad Starting Byte) and because each parse
+        // after that is finding this > character; maybe we should remove once we
+        // feel confident enough in this not happening
         if buf[0] != b'>' {
             return Some(Err(ParseError::Invalid(String::from("Bad FASTA record"))));
         }
@@ -99,6 +103,10 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
             return None;
         }
         let buf = &self.buf[self.pos..];
+        // this probably shouldn't ever happen (because we should check the first
+        // byte upstream on creation (i.e. Bad Starting Byte) and because each parse
+        // after that is finding this > character; maybe we should remove once we
+        // feel confident enough in this not happening
         if buf[0] != b'@' {
             return Some(Err(ParseError::Invalid(String::from("Bad FASTQ record"))));
         }
@@ -391,9 +399,7 @@ fn test_callback() {
                 assert_eq!(&seq.seq[..], &b"GATC"[..]);
                 assert_eq!(seq.qual, None);
             },
-            _ => {
-                assert!(false);
-            },
+            _ => unreachable!("Too many records"),
         }
         i += 1;
     });
@@ -413,7 +419,57 @@ fn test_callback() {
                 assert_eq!(&seq.seq[..], b"TAGC");
                 assert_eq!(seq.qual, None);
             },
-            _ => assert!(false),
+            _ => unreachable!("Too many records"),
+        }
+        i += 1;
+    });
+    assert_eq!(i, 2);
+    assert_eq!(res, Ok(()));
+
+    let res = fastx_file("./tests/data/bad_test.fa", |_| {
+        unreachable!("No valid records in this file to parse");
+    });
+    assert_eq!(res, Err(ParseError::Invalid(String::from("Bad starting byte"))));
+}
+
+#[test]
+fn test_gziped() {
+    let mut i = 0;
+    let res = fastx_cli("./tests/data/test.fa.gz", |filetype| {
+        assert_eq!(filetype, "FASTA");
+    }, |seq| {
+        match i {
+            0 => {
+                assert_eq!(seq.id, "test");
+                assert_eq!(&seq.seq[..], b"AGCTGATCGA");
+                assert_eq!(seq.qual, None);
+            },
+            1 => {
+                assert_eq!(seq.id, "test2");
+                assert_eq!(&seq.seq[..], b"TAGC");
+                assert_eq!(seq.qual, None);
+            },
+            _ => unreachable!("Too many records"),
+        }
+        i += 1;
+    });
+    assert_eq!(i, 2);
+    assert_eq!(res, Ok(()));
+
+    i = 0;
+    let res = fastx_file("./tests/data/test.fa.gz", |seq| {
+        match i {
+            0 => {
+                assert_eq!(seq.id, "test");
+                assert_eq!(&seq.seq[..], b"AGCTGATCGA");
+                assert_eq!(seq.qual, None);
+            },
+            1 => {
+                assert_eq!(seq.id, "test2");
+                assert_eq!(&seq.seq[..], b"TAGC");
+                assert_eq!(seq.qual, None);
+            },
+            _ => unreachable!("Too many records"),
         }
         i += 1;
     });
@@ -436,7 +492,7 @@ fn test_fastq() {
                 assert_eq!(&seq.seq[..], &b"TGCA"[..]);
                 assert_eq!(&seq.qual.unwrap()[..], &b"WUI9"[..]);
             },
-            _ => assert!(false),
+            _ => unreachable!("Too many records"),
         }
         i += 1;
     });
@@ -456,7 +512,7 @@ fn test_fastq() {
                 assert_eq!(&seq.seq[..], &b"TGCA"[..]);
                 assert_eq!(&seq.qual.unwrap()[..], &b"WUI9"[..]);
             },
-            _ => assert!(false),
+            _ => unreachable!("Too many records"),
         }
         i += 1;
     });
@@ -479,7 +535,7 @@ fn test_wrapped_fasta() {
                 assert_eq!(&seq.seq[..], &b"G"[..]);
                 assert_eq!(seq.qual, None);
             },
-            _ => assert!(false),
+            _ => unreachable!("Too many records"),
         }
         i += 1;
     });
@@ -499,7 +555,7 @@ fn test_wrapped_fasta() {
                 assert_eq!(&seq.seq[..], &b"G"[..]);
                 assert_eq!(seq.qual, None);
             },
-            _ => assert!(false),
+            _ => unreachable!("Too many records"),
         }
         i += 1;
     });
@@ -517,7 +573,7 @@ fn test_premature_endings() {
                 assert_eq!(&seq.seq[..], &b"AGCT"[..]);
                 assert_eq!(seq.qual, None);
             },
-            _ => assert!(false),
+            _ => unreachable!("Too many records"),
         }
         i += 1;
     });
@@ -532,7 +588,7 @@ fn test_premature_endings() {
                 assert_eq!(&seq.seq[..], &b"AGCT"[..]);
                 assert_eq!(&seq.qual.unwrap()[..], &b"~~a!"[..]);
             },
-            _ => assert!(false),
+            _ => unreachable!("Too many records"),
         }
         i += 1;
     });
@@ -555,7 +611,7 @@ fn test_empty_records() {
                 assert_eq!(&seq.seq[..], &b"TGCA"[..]);
                 assert_eq!(&seq.qual.unwrap()[..], &b"~~~~"[..]);
             },
-            _ => assert!(false),
+            _ => unreachable!("Too many records"),
         }
         i += 1;
     });
@@ -575,7 +631,7 @@ fn test_empty_records() {
                 assert_eq!(&seq.seq[..], &b"AGGAGGU"[..]);
                 assert_eq!(seq.qual, None);
             },
-            _ => assert!(false),
+            _ => unreachable!("Too many records"),
         }
         i += 1;
     });
@@ -595,10 +651,21 @@ fn test_empty_records() {
                 assert_eq!(&seq.seq[..], &b"AGGAGGU"[..]);
                 assert_eq!(seq.qual, None);
             },
-            _ => assert!(false),
+            _ => unreachable!("Too many records"),
         }
         i += 1;
     });
     assert_eq!(i, 2);
     assert_eq!(res, Ok(()));
+}
+
+#[test]
+fn test_buffer() {
+    let mut buf: RecBuffer<FASTA> = RecBuffer::from_bytes(b">test\nACGT");
+    let rec = buf.next().unwrap().unwrap();
+    assert_eq!(rec.id, "test", "Record has the right ID");
+    assert_eq!(rec.seq, b"ACGT", "Record has the right sequence");
+    
+    let mut buf: RecBuffer<FASTA> = RecBuffer::from_bytes(b">test");
+    assert!(buf.next().is_none(), "Incomplete record returns None");
 }

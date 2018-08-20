@@ -98,7 +98,7 @@ fn can_kmerize() {
             1 => assert_eq!(k.0, 0b10 as BitKmerSeq),
             2 => assert_eq!(k.0, 0b01 as BitKmerSeq),
             3 => assert_eq!(k.0, 0b11 as BitKmerSeq),
-            _ => assert!(false),
+            _ => unreachable!("Too many kmers"),
         }
         i += 1;
     }
@@ -109,7 +109,7 @@ fn can_kmerize() {
         match i {
             0 => assert_eq!(k.0, 0b0001 as BitKmerSeq),
             1 => assert_eq!(k.0, 0b1011 as BitKmerSeq),
-            _ => assert!(false),
+            _ => unreachable!("Too many kmers"),
         }
         i += 1;
     }
@@ -119,7 +119,7 @@ fn can_kmerize() {
     for (_, k, _) in BitNuclKmer::new(b"ACNG", 2, false) {
         match i {
             0 => assert_eq!(k.0, 0x0001 as BitKmerSeq),
-            _ => assert!(false),
+            _ => unreachable!("Too many kmers"),
         }
         i += 1;
     }
@@ -129,7 +129,7 @@ fn can_kmerize() {
     for (_, k, _) in BitNuclKmer::new(b"AC", 2, false) {
         match i {
             0 => assert_eq!(k.0, 0x0001 as BitKmerSeq),
-            _ => assert!(false),
+            _ => unreachable!("Too many kmers"),
         }
         i += 1;
     }
