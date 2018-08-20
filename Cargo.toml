@@ -14,11 +14,11 @@ default = ["gz"]
 gz = ["flate2"]
 
 [dependencies]
-flate2 = { version="0.2", optional=true }
-memchr = "1.0.1"
+flate2 = { version="1.0.2", optional=true }
+memchr = "2.0.1"
 
 [dev-dependencies]
-bencher = "0.1.4"
+bencher = "0.1.5"
 
 [[bench]]
 name = "benchmark"

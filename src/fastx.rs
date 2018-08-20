@@ -300,7 +300,7 @@ pub fn fastx_stream<F, R, T>(mut reader: R, ref mut type_callback: T, ref mut ca
             return Err(ParseError::Invalid(String::from("Bad starting bytes")));
         }
         let _ = reader.seek(SeekFrom::Start(0));
-        let mut gz_reader = GzDecoder::new(reader)?;
+        let mut gz_reader = GzDecoder::new(reader);
         fastx_reader(&mut gz_reader, None, callback, Some(type_callback))
     } else {
         fastx_reader(&mut reader, Some(first[0]), callback, Some(type_callback))
@@ -326,7 +326,7 @@ pub fn fastx_file<F>(filename: &str, ref mut callback: F) -> Result<(), ParseErr
             return Err(ParseError::Invalid(String::from("Bad starting bytes")));
         }
         let _ = f.seek(SeekFrom::Start(0));
-        let mut gz_reader = GzDecoder::new(f)?;
+        let mut gz_reader = GzDecoder::new(f);
         fastx_reader(&mut gz_reader, None, callback, None::<&mut FnMut(&'static str) -> ()>)
     } else {
         fastx_reader(&mut f, Some(first[0]), callback, None::<&mut FnMut(&'static str) -> ()>)
@@ -368,7 +368,7 @@ pub fn fastx_cli<F, T>(filename: &str, ref mut type_callback: T, ref mut callbac
             return Err(ParseError::Invalid(String::from("Bad starting bytes")));
         }
         let _ = f.seek(SeekFrom::Start(0));
-        let mut gz_reader = GzDecoder::new(f)?;
+        let mut gz_reader = GzDecoder::new(f);
         fastx_reader(&mut gz_reader, None, callback, Some(type_callback))
     } else {
         fastx_reader(&mut f, Some(first[0]), callback, Some(type_callback))
