@@ -188,7 +188,7 @@ fn can_kmerize() {
             1 => assert_eq!(k, &b"G"[..]),
             2 => assert_eq!(k, &b"C"[..]),
             3 => assert_eq!(k, &b"T"[..]),
-            _ => assert!(false),
+            _ => unreachable!("Too many kmers"),
         }
         i += 1;
     }
@@ -199,7 +199,7 @@ fn can_kmerize() {
         match i {
             0 => assert_eq!(k, &b"AC"[..]),
             1 => assert_eq!(k, &b"GT"[..]),
-            _ => assert!(false),
+            _ => unreachable!("Too many kmers"),
         }
         i += 1;
     }
@@ -212,7 +212,7 @@ fn can_kmerize() {
                 assert_eq!(ix, 0);
                 assert_eq!(k, &b"AC"[..]);
             },
-            _ => assert!(false),
+            _ => unreachable!("Too many kmers"),
         }
         i += 1;
     }
@@ -245,7 +245,7 @@ fn can_canonicalize() {
                 assert_eq!(k, &b"A"[..]);
                 assert_eq!(is_c, true);
             },
-            _ => assert!(false),
+            _ => unreachable!("Too many kmers"),
         }
         i += 1;
     }
@@ -257,7 +257,7 @@ fn can_canonicalize() {
             1 => assert_eq!(k, &b"GC"[..]),
             2 => assert_eq!(k, &b"AG"[..]),
             3 => assert_eq!(k, &b"TA"[..]),
-            _ => assert!(false),
+            _ => unreachable!("Too many kmers"),
         }
         i += 1;
     }
@@ -273,7 +273,7 @@ fn can_canonicalize() {
                 assert_eq!(ix, 3);
                 assert_eq!(k, &b"TA"[..]);
             },
-            _ => assert!(false),
+            _ => unreachable!("Too many kmers"),
         }
         i += 1;
     }

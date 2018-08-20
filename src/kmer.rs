@@ -34,6 +34,14 @@ pub fn complement(n: &u8) -> u8 {
     }
 }
 
+#[test]
+fn test_complement() {
+    assert_eq!(complement(&b'a'), b't');
+    assert_eq!(complement(&b'c'), b'g');
+    assert_eq!(complement(&b'g'), b'c');
+    assert_eq!(complement(&b'n'), b'n');
+}
+
 pub fn normalize<'a>(seq: &'a [u8], iupac: bool) -> Vec<u8> {
     //! Transform a FASTX sequence into it's "normalized" form.
     //!
@@ -78,6 +86,19 @@ pub fn normalize<'a>(seq: &'a [u8], iupac: bool) -> Vec<u8> {
         });
     }
     buf
+}
+
+#[test]
+fn test_normalize() {
+    assert_eq!(normalize(b"ACGTU", false), b"ACGTT");
+    assert_eq!(normalize(b"acgtu", false), b"ACGTT");
+
+    assert_eq!(normalize(b"N.N-N~N N", false), b"N.N.N.N.N");
+
+    assert_eq!(normalize(b"BDHVRYSWKM", true), b"BDHVRYSWKM");
+    assert_eq!(normalize(b"bdhvryswkm", true), b"BDHVRYSWKM");
+    assert_eq!(normalize(b"BDHVRYSWKM", false), b"NNNNNNNNNN");
+    assert_eq!(normalize(b"bdhvryswkm", false), b"NNNNNNNNNN");
 }
 
 pub fn canonical<'a>(seq: &'a [u8]) -> Cow<'a, [u8]> {
