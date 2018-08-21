@@ -10,11 +10,14 @@ license = "MIT"
 readme = "./README.md"
 
 [features]
-default = ["gz"]
-gz = ["flate2"]
+default = ["compression"]
+compression = ["bzip2", "flate2", "xz2", "zip"]
 
 [dependencies]
 flate2 = { version="1.0.2", optional=true }
+bzip2 = { version="0.3.3", optional=true }
+xz2 = { version="0.1.5", optional=true }
+zip = { version="0.4.2", optional=true }
 memchr = "2.0.1"
 
 [dev-dependencies]

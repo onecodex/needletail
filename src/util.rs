@@ -6,6 +6,9 @@ use std::str;
 
 use memchr::{memchr, memchr2};
 
+#[cfg(feature = "compression")]
+use zip::result::ZipError;
+
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseError {
@@ -46,7 +49,12 @@ impl From<str::Utf8Error> for ParseError {
     }
 }
 
-
+#[cfg(feature = "compression")]
+impl From<ZipError> for ParseError {
+    fn from(err: ZipError) -> ParseError {
+        ParseError::Invalid(err.to_string())
+    }
+}
 
 
 /// remove newlines from within FASTX records; currently the rate limiting step

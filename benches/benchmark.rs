@@ -17,7 +17,7 @@ fn bench_kmer_speed(bench: &mut Bencher) {
     bench.iter(|| {
         let mut n_total = 0;
         let mut n_canonical = 0;
-        fastx::fastx_file(&filename[..], |seq| {
+        fastx::fastx_cli(&filename[..], |_| {}, |seq| {
             for (_, kmer, was_rc) in seq.normalize(true).kmers(ksize, true) {
                 if !was_rc {
                     n_canonical += 1;
@@ -37,7 +37,7 @@ fn bench_bitkmer_speed(bench: &mut Bencher) {
     bench.iter(|| {
         let mut n_total = 0;
         let mut n_canonical = 0;
-        fastx::fastx_file(&filename[..], |seq| {
+        fastx::fastx_cli(&filename[..], |_| {}, |seq| {
             for (_, k, was_rc) in seq.bit_kmers(ksize, true) {
                 if !was_rc {
                     n_canonical += 1;
@@ -78,7 +78,7 @@ fn bench_fastq_file(bench: &mut Bencher) {
     // fastx::fastx_file(&filename[..], |seq| { assert!(seq.1.len() > 0) }).unwrap();
     bench.iter(|| {
         let mut n_bases = 0;
-        fastx::fastx_file(&filename[..], |seq| {
+        fastx::fastx_cli(&filename[..], |_| {}, |seq| {
             n_bases += seq.seq.len();
         }).unwrap();
         assert_eq!(250000, n_bases);
@@ -110,7 +110,7 @@ fn bench_fasta_file(bench: &mut Bencher) {
     // fastx::fastx_file(&filename[..], |seq| { assert!(seq.1.len() > 0) }).unwrap();
     bench.iter(|| {
         let mut n_bases = 0;
-        fastx::fastx_file(&filename[..], |seq| {
+        fastx::fastx_cli(&filename[..], |_| {}, |seq| {
             n_bases += seq.seq.len();
         }).unwrap();
         assert_eq!(738580, n_bases);
