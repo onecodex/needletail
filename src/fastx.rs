@@ -58,13 +58,6 @@ impl<'a> Iterator for RecBuffer<'a, FASTA<'static>> {
         if buf.len() == 0 {
             return None;
         }
-        // this probably shouldn't ever happen (because we should check the first
-        // byte upstream on creation (i.e. Bad Starting Byte) and because each parse
-        // after that is finding this > character; maybe we should remove once we
-        // feel confident enough in this not happening
-        if buf[0] != b'>' {
-            return Some(Err(ParseError::Invalid(String::from("Bad FASTA record"))));
-        }
 
         let id_end;
         match memchr(b'\n', &buf) {
@@ -109,12 +102,14 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
             return None;
         }
         let buf = &self.buf[self.pos..];
-        // this probably shouldn't ever happen (because we should check the first
-        // byte upstream on creation (i.e. Bad Starting Byte) and because each parse
-        // after that is finding this > character; maybe we should remove once we
-        // feel confident enough in this not happening
+
         if buf[0] != b'@' {
-            return Some(Err(ParseError::Invalid(String::from("Bad FASTQ record"))));
+            // sometimes there are extra returns at the end of a file so we shouldn't blow up
+            if buf[0] == b'\r' || buf[0] == b'\n' {
+                return None;
+            } else {
+                return Some(Err(ParseError::Invalid(String::from("Bad FASTQ record"))));
+            }
         }
 
         let id_end;
@@ -552,6 +547,38 @@ fn test_premature_endings() {
 
     let mut i = 0;
     let res = fastx_bytes(&b"@test\nAGCT\n+test\n~~a!\n@test2\nTGCA"[..], |seq| {
+        match i {
+            0 => {
+                assert_eq!(seq.id, "test");
+                assert_eq!(&seq.seq[..], &b"AGCT"[..]);
+                assert_eq!(&seq.qual.unwrap()[..], &b"~~a!"[..]);
+            },
+            _ => unreachable!("Too many records"),
+        }
+        i += 1;
+    });
+    assert_eq!(i, 1);
+    assert_eq!(res, Err(ParseError::PrematureEOF));
+
+    // we allow a few extra newlines at the ends of FASTQs
+    let mut i = 0;
+    let res = fastx_bytes(&b"@test\nAGCT\n+test\n~~a!\n\n"[..], |seq| {
+        match i {
+            0 => {
+                assert_eq!(seq.id, "test");
+                assert_eq!(&seq.seq[..], &b"AGCT"[..]);
+                assert_eq!(&seq.qual.unwrap()[..], &b"~~a!"[..]);
+            },
+            _ => unreachable!("Too many records"),
+        }
+        i += 1;
+    });
+    assert_eq!(i, 1);
+    assert_eq!(res, Ok(()));
+    
+    // but if there's additional data past the newlines it's an error
+    let mut i = 0;
+    let res = fastx_bytes(&b"@test\nAGCT\n+test\n~~a!\n\n@TEST\nA\n+TEST\n~"[..], |seq| {
         match i {
             0 => {
                 assert_eq!(seq.id, "test");
