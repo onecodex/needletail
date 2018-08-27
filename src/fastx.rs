@@ -13,7 +13,6 @@
 //! See: https://github.com/emk/rust-streaming
 
 use std::borrow::Cow;
-use std::cmp::min;
 use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom, stdin};
 use std::path::Path;
@@ -117,44 +116,64 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
             Some(i) => id_end = i + 1,
             None => return None,
         };
+        let mut raw_id = &buf[1..id_end - 1];
 
         let seq_end;
         match memchr_both(b'\n', b'+', &buf[id_end..]) {
-            Some(i) => seq_end = id_end + i,
+            Some(i) => seq_end = id_end + i + 1,
             None => return None,
         };
-        let mut seq = &buf[id_end..seq_end];
-        if seq.len() > 0 && seq[seq.len() - 1] == b'\r' {
-            seq = &seq[..seq.len() - 1];
-        }
+        let mut seq = &buf[id_end..seq_end - 1];
 
         let id2_end;
-        match memchr(b'\n', &buf[seq_end + 1..]) {
+        match memchr(b'\n', &buf[seq_end..]) {
             Some(i) => id2_end = seq_end + i + 1,
             None => return None,
         };
+
         // we know the qual scores must be the same length as the sequence
         // so we can just do some arithmatic instead of memchr'ing
-        if (buf.len() - id2_end) < seq.len() {
-            return None;
+        let mut qual_end = id2_end + seq.len() + 1;
+        let mut buffer_used = qual_end;
+        if qual_end > buf.len() {
+            if !self.last {
+                // we need to pull more into the buffer
+                return None;
+            }
+            // now do some math to figure out if the file doesn't end with a newline
+            let windows_ending = if seq.last() == Some(&b'\r') {
+                1
+            } else {
+                0
+            };
+            if !(qual_end == buf.len() + 1 + windows_ending) {
+                return None;
+            }
+            buffer_used -= 1 + windows_ending;
+            qual_end -= windows_ending;
         }
-        let mut raw_id = &buf[1..id_end - 1];
+        let mut qual = &buf[id2_end..qual_end - 1];
+
+        // clean up any extra '\r' from the id and seq
         if raw_id.len() > 0 && raw_id[raw_id.len() - 1] == b'\r' {
             raw_id = &raw_id[..raw_id.len() - 1];
+            seq = &seq[..seq.len() - 1];
         }
+        // we do qual separately in case this is the end of the file
+        if qual.len() > 0 && qual[qual.len() - 1] == b'\r' {
+            qual = &qual[..qual.len() - 1];
+        }
+
         let id;
         match str::from_utf8(raw_id) {
             Ok(i) => id = i,
             Err(e) => return Some(Err(ParseError::from(e))),
         }
-        // if there are \r or \n we need to skip them still
-        // FIXME: 2 isn't always right
-        // println!("{:?}", &buf[self.pos..self.pos+id2_end + seq_end - id_end + 2]);
-        self.pos += min(id2_end + seq_end - id_end + 2, buf.len());
+        self.pos += buffer_used;
         Some(Ok(FASTQ {
             id: id,
             seq: seq,
-            qual: &buf[id2_end + 1..id2_end + 1 + seq.len()],
+            qual: qual,
         }))
     }
 }
@@ -665,4 +684,39 @@ fn test_buffer() {
     
     let mut buf: RecBuffer<FASTA> = RecBuffer::from_bytes(b">test");
     assert!(buf.next().is_none(), "Incomplete record returns None");
+}
+
+#[test]
+fn test_fastq_across_buffer() {
+    let test_seq = b"@A\nA\n+A\nA\n@B\nA\n+B\n!";
+    let mut cursor = Cursor::new(test_seq);
+    // the buffer is aligned to the first record
+    let mut rec_reader = RecReader::new(&mut cursor, 9, b"").unwrap();
+
+    let used = {
+        let mut rec_buffer = rec_reader.get_buffer::<FASTQ>();
+        for s in rec_buffer.by_ref() {
+            // record is incomplete
+            panic!("No initial record should be parsed")
+        }
+        rec_buffer.pos
+    };
+
+    // refill the buffer, but we're not done quite yet
+    assert_eq!(rec_reader.refill(used).unwrap(), false);
+
+    // now we should see both records
+    let mut rec_buffer = rec_reader.get_buffer::<FASTQ>();
+
+    // there should be a record assuming the parser
+    // handled the buffer boundary
+    let iterated_seq = rec_buffer.by_ref().next();
+    let seq = iterated_seq.unwrap();
+    assert_eq!(seq.unwrap().id, "A");
+
+    // but not another because the buffer's too short
+    let iterated_seq = rec_buffer.by_ref().next();
+    assert!(iterated_seq.is_none());
+
+    // TODO: refill and check for the last record
 }

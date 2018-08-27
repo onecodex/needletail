@@ -7,7 +7,7 @@ use util::ParseError;
 pub struct RecReader<'a> {
     file: &'a mut io::Read,
     last: bool,
-    buf: Vec<u8>,
+    pub buf: Vec<u8>,
 }
 
 /// A buffer that wraps an object with the `Read` trait and allows extracting
