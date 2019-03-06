@@ -19,12 +19,17 @@ fn extend_kmer(kmer: &mut BitKmer, new_char: &u8) -> bool {
     true
 }
 
-fn update_position(start_pos: &mut usize, kmer: &mut BitKmer, buffer: &[u8], initial: bool) -> bool {
+fn update_position(
+    start_pos: &mut usize,
+    kmer: &mut BitKmer,
+    buffer: &[u8],
+    initial: bool,
+) -> bool {
     // check if we have enough "physical" space for one more kmer
     if *start_pos + kmer.1 as usize > buffer.len() {
         return false;
     }
-    
+
     let mut kmer_len = (kmer.1 - 1) as usize;
     let mut stop_len = kmer.1 as usize;
     if initial {
@@ -47,7 +52,6 @@ fn update_position(start_pos: &mut usize, kmer: &mut BitKmer, buffer: &[u8], ini
     }
     true
 }
-
 
 pub struct BitNuclKmer<'a> {
     start_pos: usize,
@@ -72,7 +76,7 @@ impl<'a> BitNuclKmer<'a> {
 }
 
 impl<'a> Iterator for BitNuclKmer<'a> {
-    type Item = (usize, BitKmer,  bool);
+    type Item = (usize, BitKmer, bool);
 
     fn next(&mut self) -> Option<(usize, BitKmer, bool)> {
         if !update_position(&mut self.start_pos, &mut self.cur_kmer, self.buffer, false) {
@@ -149,7 +153,6 @@ fn test_iterator() {
     assert_eq!(kmer_iter.next(), None);
 }
 
-
 /// Reverse complement a BitKmer (reverses the sequence and swaps A<>T and G<>C)
 pub fn reverse_complement(kmer: BitKmer) -> BitKmer {
     // FIXME: this is not going to work with BitKmers of u128 or u32
@@ -170,13 +173,13 @@ pub fn reverse_complement(kmer: BitKmer) -> BitKmer {
 
 #[test]
 fn test_reverse_complement() {
-  assert_eq!(reverse_complement((0b000000, 3)).0, 0b111111);
-  assert_eq!(reverse_complement((0b111111, 3)).0, 0b000000);
-  assert_eq!(reverse_complement((0b00000000, 4)).0, 0b11111111);
-  assert_eq!(reverse_complement((0b00011011, 4)).0, 0b00011011);
+    assert_eq!(reverse_complement((0b000000, 3)).0, 0b111111);
+    assert_eq!(reverse_complement((0b111111, 3)).0, 0b000000);
+    assert_eq!(reverse_complement((0b00000000, 4)).0, 0b11111111);
+    assert_eq!(reverse_complement((0b00011011, 4)).0, 0b00011011);
 }
 
-/// Return the lexigraphically lowest of the BitKmer and its reverse complement and 
+/// Return the lexigraphically lowest of the BitKmer and its reverse complement and
 /// whether the returned kmer is the reverse_complement (true) or the original (false)
 pub fn canonical(kmer: BitKmer) -> (BitKmer, bool) {
     let rc = reverse_complement(kmer);
@@ -221,7 +224,8 @@ pub fn bitmer_to_bytes(kmer: BitKmer) -> Vec<u8> {
     // math to figure out where they start (this helps us just pop the bases on the end
     // of the working buffer as we read them off "left to right")
     let offset = (kmer.1 - 1) * 2;
-    let bitmask = BitKmerSeq::pow(2, (2 * kmer.1 - 1) as u32) + BitKmerSeq::pow(2, (2 * kmer.1 - 2) as u32);
+    let bitmask =
+        BitKmerSeq::pow(2, (2 * kmer.1 - 1) as u32) + BitKmerSeq::pow(2, (2 * kmer.1 - 2) as u32);
 
     for _ in 0..kmer.1 {
         let new_char = (new_kmer & bitmask) >> offset;

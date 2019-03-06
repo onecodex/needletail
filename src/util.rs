@@ -9,7 +9,6 @@ use memchr::{memchr, memchr2};
 #[cfg(feature = "compression")]
 use zip::result::ZipError;
 
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseError {
     PrematureEOF,
@@ -36,7 +35,6 @@ impl error::Error for ParseError {
     }
 }
 
-
 impl From<io::Error> for ParseError {
     fn from(err: io::Error) -> ParseError {
         ParseError::Invalid(err.to_string())
@@ -55,7 +53,6 @@ impl From<ZipError> for ParseError {
         ParseError::Invalid(err.to_string())
     }
 }
-
 
 /// remove newlines from within FASTX records; currently the rate limiting step
 /// in FASTX parsing (in general; readfq also exhibits this behavior)
@@ -77,7 +74,6 @@ pub fn strip_whitespace<'a>(seq: &'a [u8]) -> Cow<'a, [u8]> {
     }
     Cow::Owned(new_buf)
 }
-
 
 /// Like memchr, but handles a two-byte sequence (unlike memchr::memchr2, this
 /// looks for the bytes in sequence not either/or).
@@ -104,7 +100,6 @@ pub fn memchr_both(b1: u8, b2: u8, seq: &[u8]) -> Option<usize> {
         }
     }
 }
-
 
 #[test]
 fn test_memchr_both() {

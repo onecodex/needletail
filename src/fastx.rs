@@ -14,25 +14,24 @@
 
 use std::borrow::Cow;
 use std::fs::File;
-use std::io::{Cursor, Read, Seek, SeekFrom, stdin};
+use std::io::{stdin, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
 use std::str;
 
 use memchr::memchr;
 
-use buffer::{RecBuffer, RecReader, FindRecord};
-use seq::SeqRecord;
-use util::{ParseError, memchr_both, strip_whitespace};
+use crate::buffer::{FindRecord, RecBuffer, RecReader};
+use crate::seq::SeqRecord;
+use crate::util::{memchr_both, strip_whitespace, ParseError};
 
 #[cfg(feature = "compression")]
-use flate2::read::GzDecoder;
-#[cfg(feature = "compression")]
 use bzip2::read::BzDecoder;
+#[cfg(feature = "compression")]
+use flate2::read::GzDecoder;
 #[cfg(feature = "compression")]
 use xz2::read::XzDecoder;
 #[cfg(feature = "compression")]
 use zip::read::ZipArchive;
-
 
 #[derive(Debug)]
 struct FASTA<'a> {
@@ -40,14 +39,12 @@ struct FASTA<'a> {
     seq: &'a [u8],
 }
 
-
 #[derive(Debug)]
 struct FASTQ<'a> {
     id: &'a str,
     seq: &'a [u8],
     qual: &'a [u8],
 }
-
 
 impl<'a> Iterator for RecBuffer<'a, FASTA<'static>> {
     type Item = Result<FASTA<'a>, ParseError>;
@@ -85,13 +82,9 @@ impl<'a> Iterator for RecBuffer<'a, FASTA<'static>> {
         }
 
         self.pos += seq_end;
-        Some(Ok(FASTA {
-            id: id,
-            seq: seq,
-        }))
+        Some(Ok(FASTA { id: id, seq: seq }))
     }
 }
-
 
 impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
     type Item = Result<FASTQ<'a>, ParseError>;
@@ -141,11 +134,7 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
                 return None;
             }
             // now do some math to figure out if the file doesn't end with a newline
-            let windows_ending = if seq.last() == Some(&b'\r') {
-                1
-            } else {
-                0
-            };
+            let windows_ending = if seq.last() == Some(&b'\r') { 1 } else { 0 };
             if !(qual_end == buf.len() + 1 + windows_ending) {
                 return None;
             }
@@ -178,7 +167,6 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
     }
 }
 
-
 fn is_finished<T>(rb: &RecBuffer<T>) -> bool {
     if !rb.last {
         return false;
@@ -194,7 +182,6 @@ fn is_finished<T>(rb: &RecBuffer<T>) -> bool {
     true
 }
 
-
 impl<'a> FindRecord for RecBuffer<'a, FASTA<'a>> {
     fn move_to_next(&mut self) {
         unimplemented!("");
@@ -205,7 +192,6 @@ impl<'a> FindRecord for RecBuffer<'a, FASTA<'a>> {
     }
 }
 
-
 impl<'a> FindRecord for RecBuffer<'a, FASTQ<'a>> {
     fn move_to_next(&mut self) {
         unimplemented!("");
@@ -215,8 +201,6 @@ impl<'a> FindRecord for RecBuffer<'a, FASTQ<'a>> {
         is_finished(&self)
     }
 }
-
-
 
 impl<'a> From<FASTA<'a>> for SeqRecord<'a> {
     fn from(fasta: FASTA<'a>) -> SeqRecord<'a> {
@@ -230,12 +214,17 @@ impl<'a> From<FASTQ<'a>> for SeqRecord<'a> {
     }
 }
 
-
 /// Internal function abstracting over byte and file FASTX parsing
-fn fastx_reader<F, R, T>(reader: &mut R, first_byte: Option<u8>, ref mut callback: F, type_callback: Option<&mut T>) -> Result<(), ParseError>
-    where F: for<'a> FnMut(SeqRecord<'a>) -> (),
-          R: Read,
-          T: ?Sized + FnMut(&'static str) -> (),
+fn fastx_reader<F, R, T>(
+    reader: &mut R,
+    first_byte: Option<u8>,
+    ref mut callback: F,
+    type_callback: Option<&mut T>,
+) -> Result<(), ParseError>
+where
+    F: for<'a> FnMut(SeqRecord<'a>) -> (),
+    R: Read,
+    T: ?Sized + FnMut(&'static str) -> (),
 {
     let mut first = vec![0];
     match first_byte {
@@ -290,28 +279,38 @@ fn fastx_reader<F, R, T>(reader: &mut R, first_byte: Option<u8>, ref mut callbac
     Ok(())
 }
 
-
 /// Parse a array of bytes into FASTX records and calls `callback` on each.
 pub fn fastx_bytes<'b, F>(bytes: &'b [u8], ref mut callback: F) -> Result<(), ParseError>
-    where F: for<'a> FnMut(SeqRecord<'a>) -> (),
+where
+    F: for<'a> FnMut(SeqRecord<'a>) -> (),
 {
     let mut cursor = Cursor::new(bytes);
-    fastx_reader(&mut cursor, None, callback, None::<&mut FnMut(&'static str) -> ()>)
+    fastx_reader(
+        &mut cursor,
+        None,
+        callback,
+        None::<&mut FnMut(&'static str) -> ()>,
+    )
 }
 
-
 #[cfg(feature = "compression")]
-pub fn fastx_stream<F, R, T>(mut reader: R, ref mut type_callback: T, ref mut callback: F) -> Result<(), ParseError>
-    where F: for<'a> FnMut(SeqRecord<'a>) -> (),
-          R: Read + Seek,
-          T: FnMut(&'static str) -> (),
+pub fn fastx_stream<F, R, T>(
+    mut reader: R,
+    ref mut type_callback: T,
+    ref mut callback: F,
+) -> Result<(), ParseError>
+where
+    F: for<'a> FnMut(SeqRecord<'a>) -> (),
+    R: Read + Seek,
+    T: FnMut(&'static str) -> (),
 {
     //! Opens a `Read` stream and parses the FASTX records out. Also takes a "type_callback"
     //! that gets called as soon as we determine if the records are FASTA or FASTQ.
     //!  If a file starts with a gzip or other header, transparently decompress it.
     let mut first = vec![0];
     reader.read(&mut first)?;
-    if first[0] == 0x1F {  // gz files
+    if first[0] == 0x1F {
+        // gz files
         reader.read(&mut first)?;
         if first[0] != 0x8B {
             return Err(ParseError::Invalid(String::from("Bad starting bytes")));
@@ -319,7 +318,8 @@ pub fn fastx_stream<F, R, T>(mut reader: R, ref mut type_callback: T, ref mut ca
         let _ = reader.seek(SeekFrom::Start(0));
         let mut gz_reader = GzDecoder::new(reader);
         fastx_reader(&mut gz_reader, None, callback, Some(type_callback))
-    } else if first[0] == 0x42 {  // bz files
+    } else if first[0] == 0x42 {
+        // bz files
         reader.read(&mut first)?;
         if first[0] != 0x5A {
             return Err(ParseError::Invalid(String::from("Bad starting bytes")));
@@ -327,7 +327,8 @@ pub fn fastx_stream<F, R, T>(mut reader: R, ref mut type_callback: T, ref mut ca
         let _ = reader.seek(SeekFrom::Start(0));
         let mut bz_reader = BzDecoder::new(reader);
         fastx_reader(&mut bz_reader, None, callback, Some(type_callback))
-    } else if first[0] == 0xFD {  // xz files
+    } else if first[0] == 0xFD {
+        // xz files
         reader.read(&mut first)?;
         if first[0] != 0x37 {
             return Err(ParseError::Invalid(String::from("Bad starting bytes")));
@@ -335,7 +336,8 @@ pub fn fastx_stream<F, R, T>(mut reader: R, ref mut type_callback: T, ref mut ca
         let _ = reader.seek(SeekFrom::Start(0));
         let mut xz_reader = XzDecoder::new(reader);
         fastx_reader(&mut xz_reader, None, callback, Some(type_callback))
-    } else if first[0] == 0x50 {  // zip files
+    } else if first[0] == 0x50 {
+        // zip files
         reader.read(&mut first)?;
         if first[0] != 0x4b {
             return Err(ParseError::Invalid(String::from("Bad starting bytes")));
@@ -344,7 +346,9 @@ pub fn fastx_stream<F, R, T>(mut reader: R, ref mut type_callback: T, ref mut ca
 
         let mut zip_archive = ZipArchive::new(reader)?;
         if zip_archive.len() != 1 {
-            return Err(ParseError::Invalid(String::from("Zip archives has more than one file")));
+            return Err(ParseError::Invalid(String::from(
+                "Zip archives has more than one file",
+            )));
         }
         let mut zip_reader = zip_archive.by_index(0)?;
         fastx_reader(&mut zip_reader, None, callback, Some(type_callback))
@@ -353,11 +357,15 @@ pub fn fastx_stream<F, R, T>(mut reader: R, ref mut type_callback: T, ref mut ca
     }
 }
 
-
 #[cfg(feature = "compression")]
-pub fn fastx_cli<F, T>(filename: &str, ref mut type_callback: T, ref mut callback: F) -> Result<(), ParseError>
-    where F: for<'a> FnMut(SeqRecord<'a>) -> (),
-          T: FnMut(&'static str) -> (),
+pub fn fastx_cli<F, T>(
+    filename: &str,
+    ref mut type_callback: T,
+    ref mut callback: F,
+) -> Result<(), ParseError>
+where
+    F: for<'a> FnMut(SeqRecord<'a>) -> (),
+    T: FnMut(&'static str) -> (),
 {
     //! Opens files (or stdin, if a dash is provided instead) and reads FASTX records out. Also
     //! takes a "type_callback" that gets called as soon as we determine if the records are FASTA
@@ -371,7 +379,6 @@ pub fn fastx_cli<F, T>(filename: &str, ref mut type_callback: T, ref mut callbac
     let f = File::open(&Path::new(filename))?;
     fastx_stream(f, type_callback, callback)
 }
-
 
 #[test]
 fn test_callback() {
@@ -396,51 +403,12 @@ fn test_callback() {
     assert_eq!(i, 2);
 
     i = 0;
-    let res = fastx_cli("./tests/data/test.fa",  |filetype| {
-        assert_eq!(filetype, "FASTA");
-    }, |seq| {
-        match i {
-            0 => {
-                assert_eq!(seq.id, "test");
-                assert_eq!(&seq.seq[..], b"AGCTGATCGA");
-                assert_eq!(seq.qual, None);
-            },
-            1 => {
-                assert_eq!(seq.id, "test2");
-                assert_eq!(&seq.seq[..], b"TAGC");
-                assert_eq!(seq.qual, None);
-            },
-            _ => unreachable!("Too many records"),
-        }
-        i += 1;
-    });
-    assert_eq!(res, Ok(()));
-    assert_eq!(i, 2);
-
-    let res = fastx_cli("./tests/data/bad_test.fa", |_| {
-        unreachable!("This is not a valid file type");
-    }, |_| {
-        unreachable!("No valid records in this file to parse");
-    });
-    assert_eq!(res, Err(ParseError::Invalid(String::from("Bad starting byte"))));
-}
-
-#[cfg(feature = "compression")]
-#[test]
-fn test_compressed() {
-
-    let test_files = [
-        "./tests/data/test.fa.gz",
-        "./tests/data/test.fa.bz2",
-        "./tests/data/test.fa.xz",
-        "./tests/data/test.fa.zip",
-    ];
-
-    for test_file in test_files.iter() {
-        let mut i = 0;
-        let res = fastx_cli(test_file, |filetype| {
+    let res = fastx_cli(
+        "./tests/data/test.fa",
+        |filetype| {
             assert_eq!(filetype, "FASTA");
-        }, |seq| {
+        },
+        |seq| {
             match i {
                 0 => {
                     assert_eq!(seq.id, "test");
@@ -455,7 +423,60 @@ fn test_compressed() {
                 _ => unreachable!("Too many records"),
             }
             i += 1;
-        });
+        },
+    );
+    assert_eq!(res, Ok(()));
+    assert_eq!(i, 2);
+
+    let res = fastx_cli(
+        "./tests/data/bad_test.fa",
+        |_| {
+            unreachable!("This is not a valid file type");
+        },
+        |_| {
+            unreachable!("No valid records in this file to parse");
+        },
+    );
+    assert_eq!(
+        res,
+        Err(ParseError::Invalid(String::from("Bad starting byte")))
+    );
+}
+
+#[cfg(feature = "compression")]
+#[test]
+fn test_compressed() {
+    let test_files = [
+        "./tests/data/test.fa.gz",
+        "./tests/data/test.fa.bz2",
+        "./tests/data/test.fa.xz",
+        "./tests/data/test.fa.zip",
+    ];
+
+    for test_file in test_files.iter() {
+        let mut i = 0;
+        let res = fastx_cli(
+            test_file,
+            |filetype| {
+                assert_eq!(filetype, "FASTA");
+            },
+            |seq| {
+                match i {
+                    0 => {
+                        assert_eq!(seq.id, "test");
+                        assert_eq!(&seq.seq[..], b"AGCTGATCGA");
+                        assert_eq!(seq.qual, None);
+                    },
+                    1 => {
+                        assert_eq!(seq.id, "test2");
+                        assert_eq!(&seq.seq[..], b"TAGC");
+                        assert_eq!(seq.qual, None);
+                    },
+                    _ => unreachable!("Too many records"),
+                }
+                i += 1;
+            },
+        );
         assert_eq!(res, Ok(()));
         assert_eq!(i, 2);
     }
@@ -464,42 +485,48 @@ fn test_compressed() {
 #[test]
 fn test_fastq() {
     let mut i = 0;
-    let res = fastx_bytes(&b"@test\nAGCT\n+test\n~~a!\n@test2\nTGCA\n+test\nWUI9"[..], |seq| {
-        match i {
-            0 => {
-                assert_eq!(seq.id, "test");
-                assert_eq!(&seq.seq[..], &b"AGCT"[..]);
-                assert_eq!(&seq.qual.unwrap()[..], &b"~~a!"[..]);
-            },
-            1 => {
-                assert_eq!(seq.id, "test2");
-                assert_eq!(&seq.seq[..], &b"TGCA"[..]);
-                assert_eq!(&seq.qual.unwrap()[..], &b"WUI9"[..]);
-            },
-            _ => unreachable!("Too many records"),
-        }
-        i += 1;
-    });
+    let res = fastx_bytes(
+        &b"@test\nAGCT\n+test\n~~a!\n@test2\nTGCA\n+test\nWUI9"[..],
+        |seq| {
+            match i {
+                0 => {
+                    assert_eq!(seq.id, "test");
+                    assert_eq!(&seq.seq[..], &b"AGCT"[..]);
+                    assert_eq!(&seq.qual.unwrap()[..], &b"~~a!"[..]);
+                },
+                1 => {
+                    assert_eq!(seq.id, "test2");
+                    assert_eq!(&seq.seq[..], &b"TGCA"[..]);
+                    assert_eq!(&seq.qual.unwrap()[..], &b"WUI9"[..]);
+                },
+                _ => unreachable!("Too many records"),
+            }
+            i += 1;
+        },
+    );
     assert_eq!(i, 2);
     assert_eq!(res, Ok(()));
 
     let mut i = 0;
-    let res = fastx_bytes(&b"@test\r\nAGCT\r\n+test\r\n~~a!\r\n@test2\r\nTGCA\r\n+test\r\nWUI9"[..], |seq| {
-        match i {
-            0 => {
-                assert_eq!(seq.id, "test");
-                assert_eq!(&seq.seq[..], &b"AGCT"[..]);
-                assert_eq!(&seq.qual.unwrap()[..], &b"~~a!"[..]);
-            },
-            1 => {
-                assert_eq!(seq.id, "test2");
-                assert_eq!(&seq.seq[..], &b"TGCA"[..]);
-                assert_eq!(&seq.qual.unwrap()[..], &b"WUI9"[..]);
-            },
-            _ => unreachable!("Too many records"),
-        }
-        i += 1;
-    });
+    let res = fastx_bytes(
+        &b"@test\r\nAGCT\r\n+test\r\n~~a!\r\n@test2\r\nTGCA\r\n+test\r\nWUI9"[..],
+        |seq| {
+            match i {
+                0 => {
+                    assert_eq!(seq.id, "test");
+                    assert_eq!(&seq.seq[..], &b"AGCT"[..]);
+                    assert_eq!(&seq.qual.unwrap()[..], &b"~~a!"[..]);
+                },
+                1 => {
+                    assert_eq!(seq.id, "test2");
+                    assert_eq!(&seq.seq[..], &b"TGCA"[..]);
+                    assert_eq!(&seq.qual.unwrap()[..], &b"WUI9"[..]);
+                },
+                _ => unreachable!("Too many records"),
+            }
+            i += 1;
+        },
+    );
     assert_eq!(res, Ok(()));
     assert_eq!(i, 2);
 }
@@ -594,20 +621,23 @@ fn test_premature_endings() {
     });
     assert_eq!(i, 1);
     assert_eq!(res, Ok(()));
-    
+
     // but if there's additional data past the newlines it's an error
     let mut i = 0;
-    let res = fastx_bytes(&b"@test\nAGCT\n+test\n~~a!\n\n@TEST\nA\n+TEST\n~"[..], |seq| {
-        match i {
-            0 => {
-                assert_eq!(seq.id, "test");
-                assert_eq!(&seq.seq[..], &b"AGCT"[..]);
-                assert_eq!(&seq.qual.unwrap()[..], &b"~~a!"[..]);
-            },
-            _ => unreachable!("Too many records"),
-        }
-        i += 1;
-    });
+    let res = fastx_bytes(
+        &b"@test\nAGCT\n+test\n~~a!\n\n@TEST\nA\n+TEST\n~"[..],
+        |seq| {
+            match i {
+                0 => {
+                    assert_eq!(seq.id, "test");
+                    assert_eq!(&seq.seq[..], &b"AGCT"[..]);
+                    assert_eq!(&seq.qual.unwrap()[..], &b"~~a!"[..]);
+                },
+                _ => unreachable!("Too many records"),
+            }
+            i += 1;
+        },
+    );
     assert_eq!(i, 1);
     assert_eq!(res, Err(ParseError::PrematureEOF));
 }
@@ -681,7 +711,7 @@ fn test_buffer() {
     let rec = buf.next().unwrap().unwrap();
     assert_eq!(rec.id, "test", "Record has the right ID");
     assert_eq!(rec.seq, b"ACGT", "Record has the right sequence");
-    
+
     let mut buf: RecBuffer<FASTA> = RecBuffer::from_bytes(b">test");
     assert!(buf.next().is_none(), "Incomplete record returns None");
 }

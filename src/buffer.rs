@@ -1,8 +1,7 @@
 use std::io;
 use std::marker::PhantomData;
 
-use util::ParseError;
-
+use crate::util::ParseError;
 
 pub struct RecReader<'a> {
     file: &'a mut io::Read,
@@ -20,7 +19,11 @@ impl<'a> RecReader<'a> {
     ///
     /// Under some very rare circumstances (setting a `buf_size` larger than 2 Gb
     /// on Mac OS X) a panic can occur. Please use a smaller buffer in this case.
-    pub fn new(file: &'a mut io::Read, buf_size: usize, header: &[u8]) -> Result<RecReader<'a>, ParseError> {
+    pub fn new(
+        file: &'a mut io::Read,
+        buf_size: usize,
+        header: &[u8],
+    ) -> Result<RecReader<'a>, ParseError> {
         let mut buf = Vec::with_capacity(buf_size);
         unsafe {
             buf.set_len(buf_size + header.len());
@@ -30,7 +33,7 @@ impl<'a> RecReader<'a> {
         unsafe {
             buf.set_len(amt_read + header.len());
         }
-        
+
         Ok(RecReader {
             file: file,
             last: false,

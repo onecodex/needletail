@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
-use bitkmer::BitNuclKmer;
-use kmer::{is_good_base, complement, normalize};
+use crate::bitkmer::BitNuclKmer;
+use crate::kmer::{complement, is_good_base, normalize};
 
 /// A generic FASTX record that also abstracts over several logical operations
 /// that can be performed on nucleic acid sequences.
@@ -15,11 +15,21 @@ pub struct SeqRecord<'a> {
 
 impl<'a> SeqRecord<'a> {
     pub fn new(id: &'a str, seq: Cow<'a, [u8]>, qual: Option<&'a [u8]>) -> Self {
-        SeqRecord { id: Cow::Borrowed(id), seq: seq, qual: qual.map(Cow::Borrowed), rev_seq: None }
+        SeqRecord {
+            id: Cow::Borrowed(id),
+            seq: seq,
+            qual: qual.map(Cow::Borrowed),
+            rev_seq: None,
+        }
     }
 
     pub fn from_bytes(seq: &'a [u8]) -> Self {
-        SeqRecord { id: Cow::Borrowed(""), seq: Cow::Borrowed(seq), qual: None, rev_seq: None }
+        SeqRecord {
+            id: Cow::Borrowed(""),
+            seq: Cow::Borrowed(seq),
+            qual: None,
+            rev_seq: None,
+        }
     }
 
     /// Given a SeqRecord and a quality cutoff, mask out low-quality bases with
@@ -28,21 +38,24 @@ impl<'a> SeqRecord<'a> {
     /// Experimental.
     pub fn quality_mask(self, ref score: u8) -> Self {
         if self.qual == None {
-            return self
+            return self;
         }
         let qual = self.qual.unwrap().into_owned();
         // could maybe speed this up by doing a copy of base and then
         // iterating though qual and masking?
-        let seq = self.seq
+        let seq = self
+            .seq
             .iter()
             .zip(qual.iter())
-            .map(|(base, qual)| {
-                if qual < score {
-                    b'N'
-                } else {
-                    base.clone()
-                }
-            })
+            .map(
+                |(base, qual)| {
+                    if qual < score {
+                        b'N'
+                    } else {
+                        base.clone()
+                    }
+                },
+            )
             .collect();
         SeqRecord {
             id: self.id,
@@ -64,7 +77,10 @@ impl<'a> SeqRecord<'a> {
     }
 
     /// Return an iterator the returns valid kmers
-    pub fn kmers<'b, 'c>(&'b mut self, k: u8, canonical: bool) -> NuclKmer<'c> where 'b: 'c {
+    pub fn kmers<'b, 'c>(&'b mut self, k: u8, canonical: bool) -> NuclKmer<'c>
+    where
+        'b: 'c,
+    {
         if canonical {
             self.rev_seq = Some(self.seq.iter().rev().map(|n| complement(n)).collect());
         }
@@ -91,7 +107,6 @@ impl<'a> SeqRecord<'a> {
         }
     }
 }
-
 
 pub struct NuclKmer<'a> {
     k: u8,
@@ -155,13 +170,14 @@ impl<'a> Iterator for NuclKmer<'a> {
         match self.rc_buffer {
             None => Some((pos, result, false)),
             Some(rc_buffer) => {
-                let rc_result = &rc_buffer[rc_buffer.len() - pos - self.k as usize..rc_buffer.len() - pos];
+                let rc_result =
+                    &rc_buffer[rc_buffer.len() - pos - self.k as usize..rc_buffer.len() - pos];
                 if result < rc_result {
                     Some((pos, result, false))
                 } else {
                     Some((pos, rc_result, true))
                 }
-            }
+            },
         }
     }
 }
