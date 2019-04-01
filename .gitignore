@@ -2,3 +2,4 @@ target
 Cargo.lock
 venv/
 .DS_Store
+.idea/
