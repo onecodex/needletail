@@ -316,7 +316,7 @@ where
             return Err(ParseError::Invalid(String::from("Bad starting bytes")));
         }
         let _ = reader.seek(SeekFrom::Start(0));
-        let mut gz_reader = GzDecoder::new(reader);
+        let mut gz_reader = MultiGzDecoder::new(reader);
         fastx_reader(&mut gz_reader, None, callback, Some(type_callback))
     } else if first[0] == 0x42 {
         // bz files
