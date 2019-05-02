@@ -27,7 +27,7 @@ use crate::util::{memchr_both, strip_whitespace, ParseError};
 #[cfg(feature = "compression")]
 use bzip2::read::BzDecoder;
 #[cfg(feature = "compression")]
-use flate2::read::GzDecoder;
+use flate2::read::MultiGzDecoder;
 #[cfg(feature = "compression")]
 use xz2::read::XzDecoder;
 #[cfg(feature = "compression")]
