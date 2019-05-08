@@ -13,6 +13,7 @@
 //! See: https://github.com/emk/rust-streaming
 
 use std::borrow::Cow;
+use std::cmp::min;
 use std::fs::File;
 use std::io::{stdin, Cursor, Read, Seek, SeekFrom};
 use std::path::Path;
@@ -22,7 +23,7 @@ use memchr::memchr;
 
 use crate::buffer::{FindRecord, RecBuffer, RecReader};
 use crate::seq::SeqRecord;
-use crate::util::{memchr_both, strip_whitespace, ParseError};
+use crate::util::{memchr_both, strip_whitespace, ParseError, ParseErrorType};
 
 #[cfg(feature = "compression")]
 use bzip2::read::BzDecoder;
@@ -67,7 +68,12 @@ impl<'a> Iterator for RecBuffer<'a, FASTA<'static>> {
         let id;
         match str::from_utf8(raw_id) {
             Ok(i) => id = i,
-            Err(e) => return Some(Err(ParseError::from(e))),
+            Err(e) => {
+                let e = ParseError::from(e)
+                    .record(self.count)
+                    .context(String::from_utf8_lossy(raw_id));
+                return Some(Err(e));
+            },
         }
 
         let seq_end;
@@ -85,6 +91,7 @@ impl<'a> Iterator for RecBuffer<'a, FASTA<'static>> {
         }
 
         self.pos += seq_end;
+        self.count += 1;
         Some(Ok(FASTA { id: id, seq: seq }))
     }
 }
@@ -103,7 +110,12 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
             if buf[0] == b'\r' || buf[0] == b'\n' {
                 return None;
             } else {
-                return Some(Err(ParseError::Invalid(String::from("Bad FASTQ record"))));
+                let context = String::from_utf8_lossy(&buf[0..min(16, buf.len())]);
+                let e =
+                    ParseError::new("Record must start with '@'", ParseErrorType::InvalidHeader)
+                        .record(self.count)
+                        .context(context);
+                return Some(Err(e));
             }
         }
 
@@ -159,9 +171,15 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
         let id;
         match str::from_utf8(raw_id) {
             Ok(i) => id = i,
-            Err(e) => return Some(Err(ParseError::from(e))),
+            Err(e) => {
+                let e = ParseError::from(e)
+                    .record(self.count)
+                    .context(String::from_utf8_lossy(raw_id));
+                return Some(Err(e));
+            },
         }
         self.pos += buffer_used;
+        self.count += 1;
         Some(Ok(FASTQ {
             id: id,
             seq: seq,
@@ -237,6 +255,7 @@ where
         },
     }
     let mut rec_reader = RecReader::new(reader, 10_000_000, &first)?;
+    let mut record_count = 0;
     match first[0] {
         b'>' => {
             if let Some(f) = type_callback {
@@ -244,10 +263,11 @@ where
             }
             loop {
                 let used = {
-                    let mut rec_buffer = rec_reader.get_buffer::<FASTA>();
+                    let mut rec_buffer = rec_reader.get_buffer::<FASTA>(record_count);
                     for s in rec_buffer.by_ref() {
                         callback(SeqRecord::from(s?));
                     }
+                    record_count += rec_buffer.count;
                     rec_buffer.pos
                 };
                 if rec_reader.refill(used)? {
@@ -261,10 +281,11 @@ where
             }
             loop {
                 let used = {
-                    let mut rec_buffer = rec_reader.get_buffer::<FASTQ>();
+                    let mut rec_buffer = rec_reader.get_buffer::<FASTQ>(record_count);
                     for s in rec_buffer.by_ref() {
                         callback(SeqRecord::from(s?));
                     }
+                    record_count += rec_buffer.count;
                     rec_buffer.pos
                 };
                 if rec_reader.refill(used)? {
@@ -272,12 +293,20 @@ where
                 }
             }
         },
-        _ => return Err(ParseError::Invalid(String::from("Bad starting byte"))),
+        _ => {
+            return Err(ParseError::new(
+                "Bad starting byte",
+                ParseErrorType::InvalidHeader,
+            ))
+        },
     };
     // check if there's anything left stuff in the buffer (besides returns)
-    let rec_buffer = rec_reader.get_buffer::<FASTA>();
+    let rec_buffer = rec_reader.get_buffer::<FASTA>(record_count);
     if !rec_buffer.is_finished() {
-        return Err(ParseError::PrematureEOF);
+        return Err(ParseError::new(
+            "File ended abruptly",
+            ParseErrorType::PrematureEOF,
+        ));
     }
     Ok(())
 }
@@ -316,7 +345,10 @@ where
         // gz files
         reader.read(&mut first)?;
         if first[0] != 0x8B {
-            return Err(ParseError::Invalid(String::from("Bad starting bytes")));
+            return Err(ParseError::new(
+                "Bad gz header",
+                ParseErrorType::BadCompression,
+            ));
         }
         let _ = reader.seek(SeekFrom::Start(0));
         let mut gz_reader = MultiGzDecoder::new(reader);
@@ -325,7 +357,10 @@ where
         // bz files
         reader.read(&mut first)?;
         if first[0] != 0x5A {
-            return Err(ParseError::Invalid(String::from("Bad starting bytes")));
+            return Err(ParseError::new(
+                "Bad bz header",
+                ParseErrorType::BadCompression,
+            ));
         }
         let _ = reader.seek(SeekFrom::Start(0));
         let mut bz_reader = BzDecoder::new(reader);
@@ -334,7 +369,10 @@ where
         // xz files
         reader.read(&mut first)?;
         if first[0] != 0x37 {
-            return Err(ParseError::Invalid(String::from("Bad starting bytes")));
+            return Err(ParseError::new(
+                "Bad xz header",
+                ParseErrorType::BadCompression,
+            ));
         }
         let _ = reader.seek(SeekFrom::Start(0));
         let mut xz_reader = XzDecoder::new(reader);
@@ -343,15 +381,20 @@ where
         // zip files
         reader.read(&mut first)?;
         if first[0] != 0x4b {
-            return Err(ParseError::Invalid(String::from("Bad starting bytes")));
+            return Err(ParseError::new(
+                "Bad zip header",
+                ParseErrorType::BadCompression,
+            ));
         }
         let _ = reader.seek(SeekFrom::Start(0));
 
-        let mut zip_archive = ZipArchive::new(reader)?;
+        let mut zip_archive = ZipArchive::new(reader)
+            .map_err(|err| ParseError::new(err.to_string(), ParseErrorType::BadCompression))?;
         if zip_archive.len() != 1 {
-            return Err(ParseError::Invalid(String::from(
+            return Err(ParseError::new(
                 "Zip archives has more than one file",
-            )));
+                ParseErrorType::BadCompression,
+            ));
         }
         let mut zip_reader = zip_archive.by_index(0)?;
         fastx_reader(&mut zip_reader, None, callback, Some(type_callback))
@@ -440,10 +483,9 @@ fn test_callback() {
             unreachable!("No valid records in this file to parse");
         },
     );
-    assert_eq!(
-        res,
-        Err(ParseError::Invalid(String::from("Bad starting byte")))
-    );
+    let e = res.unwrap_err();
+    assert_eq!(e.error_type, ParseErrorType::InvalidHeader);
+    assert_eq!(e.msg, String::from("Bad starting byte"));
 }
 
 #[cfg(feature = "compression")]
@@ -592,7 +634,8 @@ fn test_premature_endings() {
         i += 1;
     });
     assert_eq!(i, 1);
-    assert_eq!(res, Err(ParseError::PrematureEOF));
+    let e = res.unwrap_err();
+    assert_eq!(e.error_type, ParseErrorType::PrematureEOF);
 
     let mut i = 0;
     let res = fastx_bytes(&b"@test\nAGCT\n+test\n~~a!\n@test2\nTGCA"[..], |seq| {
@@ -607,7 +650,8 @@ fn test_premature_endings() {
         i += 1;
     });
     assert_eq!(i, 1);
-    assert_eq!(res, Err(ParseError::PrematureEOF));
+    let e = res.unwrap_err();
+    assert_eq!(e.error_type, ParseErrorType::PrematureEOF);
 
     // we allow a few extra newlines at the ends of FASTQs
     let mut i = 0;
@@ -642,7 +686,8 @@ fn test_premature_endings() {
         },
     );
     assert_eq!(i, 1);
-    assert_eq!(res, Err(ParseError::PrematureEOF));
+    let e = res.unwrap_err();
+    assert_eq!(e.error_type, ParseErrorType::PrematureEOF);
 
     // test that an abrupt stop in a FASTA triggers an error
     let mut i = 0;
@@ -745,8 +790,8 @@ fn test_fastq_across_buffer() {
     let mut rec_reader = RecReader::new(&mut cursor, 9, b"").unwrap();
 
     let used = {
-        let mut rec_buffer = rec_reader.get_buffer::<FASTQ>();
-        for _s in rec_buffer.by_ref() {
+        let mut rec_buffer = rec_reader.get_buffer::<FASTQ>(0);
+        for s in rec_buffer.by_ref() {
             // record is incomplete
             panic!("No initial record should be parsed")
         }
@@ -757,7 +802,7 @@ fn test_fastq_across_buffer() {
     assert_eq!(rec_reader.refill(used).unwrap(), false);
 
     // now we should see both records
-    let mut rec_buffer = rec_reader.get_buffer::<FASTQ>();
+    let mut rec_buffer = rec_reader.get_buffer::<FASTQ>(0);
 
     // there should be a record assuming the parser
     // handled the buffer boundary

@@ -24,7 +24,7 @@ impl<'a> RecReader<'a> {
         buf_size: usize,
         header: &[u8],
     ) -> Result<RecReader<'a>, ParseError> {
-        let mut buf = Vec::with_capacity(buf_size);
+        let mut buf = Vec::with_capacity(buf_size + header.len());
         unsafe {
             buf.set_len(buf_size + header.len());
         }
@@ -46,9 +46,6 @@ impl<'a> RecReader<'a> {
         if used == 0 && self.last {
             return Ok(true);
         }
-        // if used >= self.buf.len() {
-        //     return Ok(true);
-        // }
         let cur_length = self.buf.len() - used;
         let new_length = cur_length + self.buf.capacity();
 
@@ -66,12 +63,13 @@ impl<'a> RecReader<'a> {
         Ok(false)
     }
 
-    pub fn get_buffer<'b, T>(&'b self) -> RecBuffer<'b, T> {
+    pub fn get_buffer<'b, T>(&'b self, record_count: usize) -> RecBuffer<'b, T> {
         RecBuffer {
             buf: &self.buf,
             pos: 0,
             last: self.last,
             record_type: PhantomData,
+            count: record_count,
         }
     }
 }
@@ -82,6 +80,7 @@ pub struct RecBuffer<'a, T> {
     pub pos: usize,
     pub last: bool,
     record_type: PhantomData<T>,
+    pub count: usize,
 }
 
 impl<'a, T> RecBuffer<'a, T> {
@@ -91,6 +90,7 @@ impl<'a, T> RecBuffer<'a, T> {
             pos: 0,
             last: true,
             record_type: PhantomData,
+            count: 0,
         }
     }
 }

@@ -10,18 +10,61 @@ use memchr::{memchr, memchr2};
 use zip::result::ZipError;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum ParseError {
+pub enum ParseErrorType {
+    BadCompression,
     PrematureEOF,
-    Invalid(String),
+    InvalidHeader,
+    InvalidRecord,
+    IOError,
+    Invalid,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ParseError {
+    pub record: usize,
+    pub context: String,
+    pub msg: String,
+    pub error_type: ParseErrorType,
+}
+
+impl ParseError {
+    pub fn new<S>(msg: S, error_type: ParseErrorType) -> Self
+    where
+        S: Into<String>,
+    {
+        ParseError {
+            record: 0,
+            context: "".to_string(),
+            msg: msg.into(),
+            error_type,
+        }
+    }
+
+    pub fn record(mut self, record_number: usize) -> Self {
+        self.record = record_number;
+        self
+    }
+
+    pub fn context<S>(mut self, context: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.context = context.into();
+        self
+    }
 }
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let msg = match *self {
-            ParseError::PrematureEOF => "File ended prematurely",
-            ParseError::Invalid(ref s) => &s,
+        let msg = match self.error_type {
+            ParseErrorType::BadCompression => "Error in decompression",
+            ParseErrorType::PrematureEOF => "File ended prematurely",
+            ParseErrorType::InvalidHeader => "Invalid record header",
+            ParseErrorType::InvalidRecord => "Invalid record content",
+            ParseErrorType::IOError => "I/O Error",
+            ParseErrorType::Invalid => "",
         };
-        write!(f, "{}", msg)
+        write!(f, "{}: {}", msg, self.msg)
     }
 }
 
@@ -37,20 +80,20 @@ impl error::Error for ParseError {
 
 impl From<io::Error> for ParseError {
     fn from(err: io::Error) -> ParseError {
-        ParseError::Invalid(err.to_string())
+        ParseError::new(err.to_string(), ParseErrorType::IOError)
     }
 }
 
 impl From<str::Utf8Error> for ParseError {
     fn from(err: str::Utf8Error) -> ParseError {
-        ParseError::Invalid(err.to_string())
+        ParseError::new(err.to_string(), ParseErrorType::Invalid)
     }
 }
 
 #[cfg(feature = "compression")]
 impl From<ZipError> for ParseError {
     fn from(err: ZipError) -> ParseError {
-        ParseError::Invalid(err.to_string())
+        ParseError::new(err.to_string(), ParseErrorType::BadCompression)
     }
 }
 
