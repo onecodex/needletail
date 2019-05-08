@@ -21,7 +21,7 @@ use std::str;
 
 use memchr::memchr;
 
-use crate::buffer::{FindRecord, RecBuffer, RecReader};
+use crate::buffer::{RecBuffer, RecReader};
 use crate::seq::SeqRecord;
 use crate::util::{memchr_both, strip_whitespace, ParseError, ParseErrorType};
 
@@ -44,6 +44,7 @@ struct FASTA<'a> {
 struct FASTQ<'a> {
     id: &'a str,
     seq: &'a [u8],
+    id2: &'a [u8],
     qual: &'a [u8],
 }
 
@@ -52,7 +53,7 @@ impl<'a> Iterator for RecBuffer<'a, FASTA<'static>> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let buf = &self.buf[self.pos..];
-        if buf.len() == 0 {
+        if buf.is_empty() {
             return None;
         }
 
@@ -62,7 +63,7 @@ impl<'a> Iterator for RecBuffer<'a, FASTA<'static>> {
             None => return None,
         };
         let mut raw_id = &buf[1..id_end - 1];
-        if raw_id.len() > 0 && raw_id[raw_id.len() - 1] == b'\r' {
+        if !raw_id.is_empty() && raw_id[raw_id.len() - 1] == b'\r' {
             raw_id = &raw_id[..raw_id.len() - 1];
         }
         let id;
@@ -92,7 +93,7 @@ impl<'a> Iterator for RecBuffer<'a, FASTA<'static>> {
 
         self.pos += seq_end;
         self.count += 1;
-        Some(Ok(FASTA { id: id, seq: seq }))
+        Some(Ok(FASTA { id, seq }))
     }
 }
 
@@ -138,6 +139,7 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
             Some(i) => id2_end = seq_end + i + 1,
             None => return None,
         };
+        let id2 = &buf[seq_end..id2_end - 1];
 
         // we know the qual scores must be the same length as the sequence
         // so we can just do some arithmatic instead of memchr'ing
@@ -150,7 +152,7 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
             }
             // now do some math to figure out if the file doesn't end with a newline
             let windows_ending = if seq.last() == Some(&b'\r') { 1 } else { 0 };
-            if !(qual_end == buf.len() + 1 + windows_ending) {
+            if qual_end != buf.len() + 1 + windows_ending {
                 return None;
             }
             buffer_used -= 1 + windows_ending;
@@ -159,12 +161,12 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
         let mut qual = &buf[id2_end..qual_end - 1];
 
         // clean up any extra '\r' from the id and seq
-        if raw_id.len() > 0 && raw_id[raw_id.len() - 1] == b'\r' {
+        if !raw_id.is_empty() && raw_id[raw_id.len() - 1] == b'\r' {
             raw_id = &raw_id[..raw_id.len() - 1];
             seq = &seq[..seq.len() - 1];
         }
         // we do qual separately in case this is the end of the file
-        if qual.len() > 0 && qual[qual.len() - 1] == b'\r' {
+        if !qual.is_empty() && qual[qual.len() - 1] == b'\r' {
             qual = &qual[..qual.len() - 1];
         }
 
@@ -180,11 +182,7 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
         }
         self.pos += buffer_used;
         self.count += 1;
-        Some(Ok(FASTQ {
-            id: id,
-            seq: seq,
-            qual: qual,
-        }))
+        Some(Ok(FASTQ { id, seq, id2, qual }))
     }
 }
 
@@ -203,29 +201,9 @@ fn is_finished<T>(rb: &RecBuffer<T>) -> bool {
     true
 }
 
-impl<'a> FindRecord for RecBuffer<'a, FASTA<'a>> {
-    fn move_to_next(&mut self) {
-        unimplemented!("");
-    }
-
-    fn is_finished(&self) -> bool {
-        is_finished(&self)
-    }
-}
-
-impl<'a> FindRecord for RecBuffer<'a, FASTQ<'a>> {
-    fn move_to_next(&mut self) {
-        unimplemented!("");
-    }
-
-    fn is_finished(&self) -> bool {
-        is_finished(&self)
-    }
-}
-
 impl<'a> From<FASTA<'a>> for SeqRecord<'a> {
     fn from(fasta: FASTA<'a>) -> SeqRecord<'a> {
-        SeqRecord::new(fasta.id, Cow::from(strip_whitespace(fasta.seq)), None)
+        SeqRecord::new(fasta.id, strip_whitespace(fasta.seq), None)
     }
 }
 
@@ -239,7 +217,7 @@ impl<'a> From<FASTQ<'a>> for SeqRecord<'a> {
 fn fastx_reader<F, R, T>(
     reader: &mut R,
     first_byte: Option<u8>,
-    ref mut callback: F,
+    mut callback: F,
     type_callback: Option<&mut T>,
 ) -> Result<(), ParseError>
 where
@@ -251,58 +229,50 @@ where
     match first_byte {
         Some(b) => first[0] = b,
         None => {
-            reader.read(&mut first)?;
+            reader.read_exact(&mut first)?;
         },
+    }
+    if let Some(f) = type_callback {
+        match first[0] {
+            b'>' => f("FASTA"),
+            b'@' => f("FASTQ"),
+            _ => (),
+        }
     }
     let mut rec_reader = RecReader::new(reader, 10_000_000, &first)?;
     let mut record_count = 0;
-    match first[0] {
-        b'>' => {
-            if let Some(f) = type_callback {
-                f("FASTA");
-            }
-            loop {
-                let used = {
-                    let mut rec_buffer = rec_reader.get_buffer::<FASTA>(record_count);
-                    for s in rec_buffer.by_ref() {
-                        callback(SeqRecord::from(s?));
-                    }
-                    record_count += rec_buffer.count;
-                    rec_buffer.pos
-                };
-                if rec_reader.refill(used)? {
-                    break;
+    loop {
+        let used = match first[0] {
+            b'>' => {
+                let mut rec_buffer = rec_reader.get_buffer::<FASTA>(record_count);
+                for s in rec_buffer.by_ref() {
+                    callback(SeqRecord::from(s?));
                 }
-            }
-        },
-        b'@' => {
-            if let Some(f) = type_callback {
-                f("FASTQ");
-            }
-            loop {
-                let used = {
-                    let mut rec_buffer = rec_reader.get_buffer::<FASTQ>(record_count);
-                    for s in rec_buffer.by_ref() {
-                        callback(SeqRecord::from(s?));
-                    }
-                    record_count += rec_buffer.count;
-                    rec_buffer.pos
-                };
-                if rec_reader.refill(used)? {
-                    break;
+                record_count += rec_buffer.count;
+                rec_buffer.pos
+            },
+            b'@' => {
+                let mut rec_buffer = rec_reader.get_buffer::<FASTQ>(record_count);
+                for s in rec_buffer.by_ref() {
+                    callback(SeqRecord::from(s?));
                 }
-            }
-        },
-        _ => {
-            return Err(ParseError::new(
-                "Bad starting byte",
-                ParseErrorType::InvalidHeader,
-            ))
-        },
-    };
+                record_count += rec_buffer.count;
+                rec_buffer.pos
+            },
+            _ => {
+                return Err(ParseError::new(
+                    "Bad starting byte",
+                    ParseErrorType::InvalidHeader,
+                ))
+            },
+        };
+        if rec_reader.refill(used)? {
+            break;
+        }
+    }
     // check if there's anything left stuff in the buffer (besides returns)
     let rec_buffer = rec_reader.get_buffer::<FASTA>(record_count);
-    if !rec_buffer.is_finished() {
+    if !is_finished(&rec_buffer) {
         return Err(ParseError::new(
             "File ended abruptly",
             ParseErrorType::PrematureEOF,
@@ -312,7 +282,7 @@ where
 }
 
 /// Parse a array of bytes into FASTX records and calls `callback` on each.
-pub fn fastx_bytes<'b, F>(bytes: &'b [u8], ref mut callback: F) -> Result<(), ParseError>
+pub fn fastx_bytes<'b, F>(bytes: &'b [u8], callback: F) -> Result<(), ParseError>
 where
     F: for<'a> FnMut(SeqRecord<'a>) -> (),
 {
@@ -328,8 +298,8 @@ where
 #[cfg(feature = "compression")]
 pub fn fastx_stream<F, R, T>(
     mut reader: R,
-    ref mut type_callback: T,
-    ref mut callback: F,
+    mut type_callback: T,
+    callback: F,
 ) -> Result<(), ParseError>
 where
     F: for<'a> FnMut(SeqRecord<'a>) -> (),
@@ -340,10 +310,10 @@ where
     //! that gets called as soon as we determine if the records are FASTA or FASTQ.
     //!  If a file starts with a gzip or other header, transparently decompress it.
     let mut first = vec![0];
-    reader.read(&mut first)?;
+    reader.read_exact(&mut first)?;
     if first[0] == 0x1F {
         // gz files
-        reader.read(&mut first)?;
+        reader.read_exact(&mut first)?;
         if first[0] != 0x8B {
             return Err(ParseError::new(
                 "Bad gz header",
@@ -352,10 +322,10 @@ where
         }
         let _ = reader.seek(SeekFrom::Start(0));
         let mut gz_reader = MultiGzDecoder::new(reader);
-        fastx_reader(&mut gz_reader, None, callback, Some(type_callback))
+        fastx_reader(&mut gz_reader, None, callback, Some(&mut type_callback))
     } else if first[0] == 0x42 {
         // bz files
-        reader.read(&mut first)?;
+        reader.read_exact(&mut first)?;
         if first[0] != 0x5A {
             return Err(ParseError::new(
                 "Bad bz header",
@@ -364,10 +334,10 @@ where
         }
         let _ = reader.seek(SeekFrom::Start(0));
         let mut bz_reader = BzDecoder::new(reader);
-        fastx_reader(&mut bz_reader, None, callback, Some(type_callback))
+        fastx_reader(&mut bz_reader, None, callback, Some(&mut type_callback))
     } else if first[0] == 0xFD {
         // xz files
-        reader.read(&mut first)?;
+        reader.read_exact(&mut first)?;
         if first[0] != 0x37 {
             return Err(ParseError::new(
                 "Bad xz header",
@@ -376,10 +346,10 @@ where
         }
         let _ = reader.seek(SeekFrom::Start(0));
         let mut xz_reader = XzDecoder::new(reader);
-        fastx_reader(&mut xz_reader, None, callback, Some(type_callback))
+        fastx_reader(&mut xz_reader, None, callback, Some(&mut type_callback))
     } else if first[0] == 0x50 {
         // zip files
-        reader.read(&mut first)?;
+        reader.read_exact(&mut first)?;
         if first[0] != 0x4b {
             return Err(ParseError::new(
                 "Bad zip header",
@@ -397,17 +367,17 @@ where
             ));
         }
         let mut zip_reader = zip_archive.by_index(0)?;
-        fastx_reader(&mut zip_reader, None, callback, Some(type_callback))
+        fastx_reader(&mut zip_reader, None, callback, Some(&mut type_callback))
     } else {
-        fastx_reader(&mut reader, Some(first[0]), callback, Some(type_callback))
+        fastx_reader(&mut reader, Some(first[0]), callback, Some(&mut type_callback))
     }
 }
 
 #[cfg(feature = "compression")]
 pub fn fastx_cli<F, T>(
     filename: &str,
-    ref mut type_callback: T,
-    ref mut callback: F,
+    mut type_callback: T,
+    callback: F,
 ) -> Result<(), ParseError>
 where
     F: for<'a> FnMut(SeqRecord<'a>) -> (),
@@ -419,7 +389,7 @@ where
     if filename == "-" {
         let sin = stdin();
         let mut lock = sin.lock();
-        return fastx_reader(&mut lock, None, callback, Some(type_callback));
+        return fastx_reader(&mut lock, None, callback, Some(&mut type_callback));
     }
 
     let f = File::open(&Path::new(filename))?;
@@ -791,7 +761,7 @@ fn test_fastq_across_buffer() {
 
     let used = {
         let mut rec_buffer = rec_reader.get_buffer::<FASTQ>(0);
-        for s in rec_buffer.by_ref() {
+        for _s in rec_buffer.by_ref() {
             // record is incomplete
             panic!("No initial record should be parsed")
         }

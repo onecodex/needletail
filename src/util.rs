@@ -100,7 +100,7 @@ impl From<ZipError> for ParseError {
 /// remove newlines from within FASTX records; currently the rate limiting step
 /// in FASTX parsing (in general; readfq also exhibits this behavior)
 #[inline]
-pub fn strip_whitespace<'a>(seq: &'a [u8]) -> Cow<'a, [u8]> {
+pub fn strip_whitespace(seq: &[u8]) -> Cow<[u8]> {
     let mut new_buf = Vec::with_capacity(seq.len());
     let mut i = 0;
     while i < seq.len() {

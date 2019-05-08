@@ -1,11 +1,98 @@
 use std::borrow::Cow;
 
+use memchr::memchr;
+
 use crate::bitkmer::BitNuclKmer;
-use crate::kmer::{complement, is_good_base, normalize};
+use crate::kmer::{complement, NuclKmer};
+
+pub fn normalize(seq: &[u8], iupac: bool) -> (Vec<u8>, bool) {
+    //! Transform a FASTX sequence into it's "normalized" form.
+    //!
+    //! The normalized form is:
+    //!  - only AGCTN and possibly . (for gaps)
+    //!  - lowercase versions of these are uppercased
+    //!  - U is converted to T (make everything a DNA sequence)
+    //!  - some other punctuation is converted to gaps
+    //!  - IUPAC bases may be converted to N's depending on the parameter passed in
+    //!  - everything else is considered a N
+    let mut buf: Vec<u8> = Vec::with_capacity(seq.len());
+    let mut changed: bool = false;
+
+    for n in seq.iter() {
+        let (new_char, char_changed) = match (*n, iupac) {
+            c @ (b'A', _)
+            | c @ (b'C', _)
+            | c @ (b'G', _)
+            | c @ (b'T', _)
+            | c @ (b'N', _)
+            | c @ (b'.', _) => (c.0, false),
+            (b'a', _) => (b'A', true),
+            (b'c', _) => (b'C', true),
+            (b'g', _) => (b'G', true),
+            // normalize uridine to thymine
+            (b't', _) | (b'u', _) | (b'U', _) => (b'T', true),
+            // normalize gaps
+            (b'-', _) | (b'~', _) | (b' ', _) => (b'.', true),
+            // logic for IUPAC bases (a little messy)
+            c @ (b'B', true)
+            | c @ (b'D', true)
+            | c @ (b'H', true)
+            | c @ (b'V', true)
+            | c @ (b'R', true)
+            | c @ (b'Y', true)
+            | c @ (b'S', true)
+            | c @ (b'W', true)
+            | c @ (b'K', true)
+            | c @ (b'M', true) => (c.0, false),
+            (b'b', true) => (b'B', true),
+            (b'd', true) => (b'D', true),
+            (b'h', true) => (b'H', true),
+            (b'v', true) => (b'V', true),
+            (b'r', true) => (b'R', true),
+            (b'y', true) => (b'Y', true),
+            (b's', true) => (b'S', true),
+            (b'w', true) => (b'W', true),
+            (b'k', true) => (b'K', true),
+            (b'm', true) => (b'M', true),
+            _ => (b'N', true),
+        };
+        changed = changed || char_changed;
+        buf.push(new_char);
+    }
+    (buf, changed)
+}
+
+#[test]
+fn test_normalize() {
+    assert_eq!(normalize(b"ACGTU", false), (b"ACGTT".to_vec(), true));
+    assert_eq!(normalize(b"acgtu", false), (b"ACGTT".to_vec(), true));
+
+    assert_eq!(
+        normalize(b"N.N-N~N N", false),
+        (b"N.N.N.N.N".to_vec(), true)
+    );
+
+    assert_eq!(
+        normalize(b"BDHVRYSWKM", true),
+        (b"BDHVRYSWKM".to_vec(), false)
+    );
+    assert_eq!(
+        normalize(b"bdhvryswkm", true),
+        (b"BDHVRYSWKM".to_vec(), true)
+    );
+    assert_eq!(
+        normalize(b"BDHVRYSWKM", false),
+        (b"NNNNNNNNNN".to_vec(), true)
+    );
+    assert_eq!(
+        normalize(b"bdhvryswkm", false),
+        (b"NNNNNNNNNN".to_vec(), true)
+    );
+}
 
 /// A generic FASTX record that also abstracts over several logical operations
 /// that can be performed on nucleic acid sequences.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SeqRecord<'a> {
     pub id: Cow<'a, str>,
     pub seq: Cow<'a, [u8]>,
@@ -16,8 +103,8 @@ pub struct SeqRecord<'a> {
 impl<'a> SeqRecord<'a> {
     pub fn new(id: &'a str, seq: Cow<'a, [u8]>, qual: Option<&'a [u8]>) -> Self {
         SeqRecord {
-            id: Cow::Borrowed(id),
-            seq: seq,
+            id: id.into(),
+            seq,
             qual: qual.map(Cow::Borrowed),
             rev_seq: None,
         }
@@ -25,8 +112,8 @@ impl<'a> SeqRecord<'a> {
 
     pub fn from_bytes(seq: &'a [u8]) -> Self {
         SeqRecord {
-            id: Cow::Borrowed(""),
-            seq: Cow::Borrowed(seq),
+            id: "".into(),
+            seq: seq.into(),
             qual: None,
             rev_seq: None,
         }
@@ -36,7 +123,7 @@ impl<'a> SeqRecord<'a> {
     /// `N` characters.
     ///
     /// Experimental.
-    pub fn quality_mask(self, ref score: u8) -> Self {
+    pub fn quality_mask(self, score: u8) -> Self {
         if self.qual == None {
             return self;
         }
@@ -49,30 +136,40 @@ impl<'a> SeqRecord<'a> {
             .zip(qual.iter())
             .map(
                 |(base, qual)| {
-                    if qual < score {
+                    if *qual < score {
                         b'N'
                     } else {
-                        base.clone()
+                        *base
                     }
                 },
             )
             .collect();
         SeqRecord {
             id: self.id,
-            seq: seq,
+            seq,
             qual: Some(Cow::Owned(qual)),
             rev_seq: None,
         }
     }
 
     /// Capitalize everything and mask unknown bases to N
-    pub fn normalize(self, iupac: bool) -> Self {
-        let seq = normalize(&self.seq, iupac);
-        SeqRecord {
-            id: self.id,
-            seq: Cow::Owned(seq),
-            qual: self.qual,
-            rev_seq: None,
+    pub fn normalize(&'a mut self, iupac: bool) -> bool {
+        let (seq, changed) = normalize(&self.seq, iupac);
+        if changed {
+            self.seq = seq.into();
+        }
+        changed
+    }
+
+    /// Mask tabs in header lines to `|`s
+    ///
+    /// Returns `true` if the header was masked
+    pub fn mask_header(&mut self) -> bool {
+        if memchr(b'\t', self.id.as_ref().as_bytes()).is_some() {
+            self.id = self.id.as_ref().replace("\t", "|").into();
+            true
+        } else {
+            false
         }
     }
 
@@ -82,7 +179,7 @@ impl<'a> SeqRecord<'a> {
         'b: 'c,
     {
         if canonical {
-            self.rev_seq = Some(self.seq.iter().rev().map(|n| complement(n)).collect());
+            self.rev_seq = Some(self.seq.iter().rev().map(|n| complement(*n)).collect());
         }
         match self.rev_seq {
             Some(ref rev_seq) => NuclKmer::new(&self.seq, Some(&rev_seq), k),
@@ -91,7 +188,7 @@ impl<'a> SeqRecord<'a> {
     }
 
     /// Return an iterator the returns valid kmers in 4-bit form
-    pub fn bit_kmers<'b>(&'b self, k: u8, canonical: bool) -> BitNuclKmer<'b> {
+    pub fn bit_kmers(&self, k: u8, canonical: bool) -> BitNuclKmer {
         BitNuclKmer::new(&self.seq, k, canonical)
     }
 
@@ -108,86 +205,13 @@ impl<'a> SeqRecord<'a> {
     }
 }
 
-pub struct NuclKmer<'a> {
-    k: u8,
-    start_pos: usize,
-    buffer: &'a [u8],
-    rc_buffer: Option<&'a [u8]>,
-}
-
-fn update_position(start_pos: &mut usize, k: u8, buffer: &[u8], initial: bool) -> bool {
-    // check if we have enough "physical" space for one more kmer
-    if *start_pos + k as usize > buffer.len() {
-        return false;
-    }
-
-    let mut kmer_len = (k - 1) as usize;
-    let mut stop_len = k as usize;
-    if initial {
-        kmer_len = 0;
-        stop_len = (k - 1) as usize;
-    }
-
-    while kmer_len < stop_len {
-        if is_good_base(buffer[*start_pos + kmer_len]) {
-            kmer_len += 1;
-        } else {
-            kmer_len = 0;
-            *start_pos += kmer_len + 1;
-            if *start_pos + k as usize > buffer.len() {
-                return false;
-            }
-        }
-    }
-    true
-}
-
-impl<'a> NuclKmer<'a> {
-    //! A kmer-izer for a nucleotide/amino acid sequence; returning slices to the original data
-    pub fn new(buffer: &'a [u8], rc_buffer: Option<&'a [u8]>, k: u8) -> NuclKmer<'a> {
-        let mut start_pos = 0;
-        update_position(&mut start_pos, k, buffer, true);
-        NuclKmer {
-            k: k,
-            start_pos: start_pos,
-            buffer: buffer,
-            rc_buffer: rc_buffer,
-        }
-    }
-}
-
-impl<'a> Iterator for NuclKmer<'a> {
-    type Item = (usize, &'a [u8], bool);
-
-    fn next(&mut self) -> Option<(usize, &'a [u8], bool)> {
-        if !update_position(&mut self.start_pos, self.k, self.buffer, false) {
-            return None;
-        }
-        let pos = self.start_pos;
-        self.start_pos += 1;
-
-        let result = &self.buffer[pos..pos + self.k as usize];
-        match self.rc_buffer {
-            None => Some((pos, result, false)),
-            Some(rc_buffer) => {
-                let rc_result =
-                    &rc_buffer[rc_buffer.len() - pos - self.k as usize..rc_buffer.len() - pos];
-                if result < rc_result {
-                    Some((pos, result, false))
-                } else {
-                    Some((pos, rc_result, true))
-                }
-            },
-        }
-    }
-}
-
 #[test]
 fn test_quality_mask() {
     let seq_rec = SeqRecord {
-        id: Cow::Borrowed(""),
-        seq: Cow::Borrowed(&b"AGCT"[..]),
-        qual: Some(Cow::Borrowed(&b"AAA0"[..])),
+        id: "".into(),
+        // seq: Cow::Borrowed(&b"AGCT"[..]),
+        seq: b"AGCT"[..].into(),
+        qual: Some(b"AAA0"[..].into()),
         rev_seq: None,
     };
     let filtered_rec = seq_rec.quality_mask('5' as u8);
