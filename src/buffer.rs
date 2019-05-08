@@ -35,9 +35,9 @@ impl<'a> RecReader<'a> {
         }
 
         Ok(RecReader {
-            file: file,
+            file,
             last: false,
-            buf: buf,
+            buf,
         })
     }
 
@@ -63,7 +63,7 @@ impl<'a> RecReader<'a> {
         Ok(false)
     }
 
-    pub fn get_buffer<'b, T>(&'b self, record_count: usize) -> RecBuffer<'b, T> {
+    pub fn get_buffer<T>(&self, record_count: usize) -> RecBuffer<T> {
         RecBuffer {
             buf: &self.buf,
             pos: 0,
@@ -102,11 +102,6 @@ fn test_from_bytes() {
     let rb: RecBuffer<String> = RecBuffer::from_bytes(b"test");
     assert_eq!(rb.pos, 0);
     assert_eq!(rb.buf, b"test");
-}
-
-pub trait FindRecord {
-    fn move_to_next(&mut self);
-    fn is_finished(&self) -> bool;
 }
 
 // pub fn parse<T, E, F>(reader: &'s mut io::Read, header: &[u8], ref mut callback: F) -> Result<(), E> where

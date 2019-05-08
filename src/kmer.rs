@@ -5,123 +5,57 @@
 use std::borrow::Cow;
 
 #[inline]
-pub fn complement(n: &u8) -> u8 {
+pub fn complement(n: u8) -> u8 {
     //! Returns the complementary base for a given IUPAC base code.
     //!
     //! Does not work for RNA sequences (maybe we should raise an error or something?)
-    match *n as char {
-        'a' => 't' as u8,
-        'A' => 'T' as u8,
-        'c' => 'g' as u8,
-        'C' => 'G' as u8,
-        'g' => 'c' as u8,
-        'G' => 'C' as u8,
-        't' => 'a' as u8,
-        'T' => 'A' as u8,
+    match n {
+        b'a' => b't',
+        b'A' => b'T',
+        b'c' => b'g',
+        b'C' => b'G',
+        b'g' => b'c',
+        b'G' => b'C',
+        b't' => b'a',
+        b'T' => b'A',
 
         // IUPAC codes
-        'r' => 'y' as u8,
-        'y' => 'r' as u8,
-        'k' => 'm' as u8,
-        'm' => 'k' as u8,
-        'b' => 'v' as u8,
-        'v' => 'b' as u8,
-        'd' => 'h' as u8,
-        'h' => 'd' as u8,
-        's' => 's' as u8,
-        'w' => 'w' as u8,
-        'R' => 'Y' as u8,
-        'Y' => 'R' as u8,
-        'K' => 'M' as u8,
-        'M' => 'K' as u8,
-        'B' => 'V' as u8,
-        'V' => 'B' as u8,
-        'D' => 'H' as u8,
-        'H' => 'D' as u8,
-        'S' => 'S' as u8,
-        'W' => 'W' as u8,
+        b'r' => b'y',
+        b'y' => b'r',
+        b'k' => b'm',
+        b'm' => b'k',
+        b'b' => b'v',
+        b'v' => b'b',
+        b'd' => b'h',
+        b'h' => b'd',
+        b's' => b's',
+        b'w' => b'w',
+        b'R' => b'Y',
+        b'Y' => b'R',
+        b'K' => b'M',
+        b'M' => b'K',
+        b'B' => b'V',
+        b'V' => b'B',
+        b'D' => b'H',
+        b'H' => b'D',
+        b'S' => b'S',
+        b'W' => b'W',
 
         // anything else just pass through
         // 'u' | 'U' => panic!("Does not support complements of U"),
-        x => x as u8,
+        x => x,
     }
 }
 
 #[test]
 fn test_complement() {
-    assert_eq!(complement(&b'a'), b't');
-    assert_eq!(complement(&b'c'), b'g');
-    assert_eq!(complement(&b'g'), b'c');
-    assert_eq!(complement(&b'n'), b'n');
+    assert_eq!(complement(b'a'), b't');
+    assert_eq!(complement(b'c'), b'g');
+    assert_eq!(complement(b'g'), b'c');
+    assert_eq!(complement(b'n'), b'n');
 }
 
-pub fn normalize<'a>(seq: &'a [u8], iupac: bool) -> Vec<u8> {
-    //! Transform a FASTX sequence into it's "normalized" form.
-    //!
-    //! The normalized form is:
-    //!  - only AGCTN and possibly . (for gaps)
-    //!  - lowercase versions of these are uppercased
-    //!  - U is converted to T (make everything a DNA sequence)
-    //!  - some other punctuation is converted to gaps
-    //!  - IUPAC bases may be converted to N's depending on the parameter passed in
-    //!  - everything else is considered a N
-    let mut buf: Vec<u8> = Vec::with_capacity(seq.len());
-
-    for n in seq.iter() {
-        buf.push(match (*n as char, iupac) {
-            c @ ('A', _)
-            | c @ ('C', _)
-            | c @ ('G', _)
-            | c @ ('T', _)
-            | c @ ('N', _)
-            | c @ ('.', _) => c.0 as u8,
-            ('a', _) => 'A' as u8,
-            ('c', _) => 'C' as u8,
-            ('g', _) => 'G' as u8,
-            // normalize uridine to thymine
-            ('t', _) | ('u', _) | ('U', _) => 'T' as u8,
-            ('-', _) | ('~', _) | (' ', _) => '.' as u8,
-            // logic for IUPAC bases (a little messy)
-            c @ ('B', true)
-            | c @ ('D', true)
-            | c @ ('H', true)
-            | c @ ('V', true)
-            | c @ ('R', true)
-            | c @ ('Y', true)
-            | c @ ('S', true)
-            | c @ ('W', true)
-            | c @ ('K', true)
-            | c @ ('M', true) => c.0 as u8,
-            ('b', true) => 'B' as u8,
-            ('d', true) => 'D' as u8,
-            ('h', true) => 'H' as u8,
-            ('v', true) => 'V' as u8,
-            ('r', true) => 'R' as u8,
-            ('y', true) => 'Y' as u8,
-            ('s', true) => 'S' as u8,
-            ('w', true) => 'W' as u8,
-            ('k', true) => 'K' as u8,
-            ('m', true) => 'M' as u8,
-            _ => 'N' as u8,
-        });
-    }
-    buf
-}
-
-#[test]
-fn test_normalize() {
-    assert_eq!(normalize(b"ACGTU", false), b"ACGTT");
-    assert_eq!(normalize(b"acgtu", false), b"ACGTT");
-
-    assert_eq!(normalize(b"N.N-N~N N", false), b"N.N.N.N.N");
-
-    assert_eq!(normalize(b"BDHVRYSWKM", true), b"BDHVRYSWKM");
-    assert_eq!(normalize(b"bdhvryswkm", true), b"BDHVRYSWKM");
-    assert_eq!(normalize(b"BDHVRYSWKM", false), b"NNNNNNNNNN");
-    assert_eq!(normalize(b"bdhvryswkm", false), b"NNNNNNNNNN");
-}
-
-pub fn canonical<'a>(seq: &'a [u8]) -> Cow<'a, [u8]> {
+pub fn canonical(seq: &[u8]) -> Cow<[u8]> {
     //! Taking in a sequence string, return the canonical form of the sequence
     //! (e.g. the lexigraphically lowest of either the original sequence or its
     //! reverse complement)
@@ -131,7 +65,7 @@ pub fn canonical<'a>(seq: &'a [u8]) -> Cow<'a, [u8]> {
     let mut original_was_canonical = false;
 
     // loop through the kmer and its reverse complement simultaneously
-    for (rn, n) in seq.iter().rev().map(|n| complement(n)).zip(seq.iter()) {
+    for (rn, n) in seq.iter().rev().map(|n| complement(*n)).zip(seq.iter()) {
         buf.push(rn);
         if !enough && n < &rn {
             original_was_canonical = true;
@@ -143,10 +77,10 @@ pub fn canonical<'a>(seq: &'a [u8]) -> Cow<'a, [u8]> {
     }
     match (original_was_canonical, enough) {
         (true, true) => panic!("Bug: should never set original_was_canonical if enough == true"),
-        (true, false) => Cow::Borrowed(seq),
-        (false, true) => Cow::Owned(buf),
+        (true, false) => seq.into(),
+        (false, true) => buf.into(),
         // the sequences were completely equal, return the ref
-        (false, false) => Cow::Borrowed(seq),
+        (false, false) => seq.into(),
     }
 }
 
@@ -162,16 +96,16 @@ fn can_canonicalize() {
 /// Find the lexigraphically smallest substring of `seq` of length `length`
 ///
 /// There's probably a faster algorithm for this somewhere...
-pub fn minimizer<'a>(seq: &'a [u8], length: usize) -> Cow<'a, [u8]> {
-    let reverse_complement: Vec<u8> = seq.iter().rev().map(|n| complement(n)).collect();
+pub fn minimizer(seq: &[u8], length: usize) -> Cow<[u8]> {
+    let reverse_complement: Vec<u8> = seq.iter().rev().map(|n| complement(*n)).collect();
     let mut minmer = Cow::Borrowed(&seq[..length]);
 
     for (kmer, rc_kmer) in seq.windows(length).zip(reverse_complement.windows(length)) {
         if kmer < &minmer[..] {
-            minmer = Cow::Borrowed(kmer);
+            minmer = kmer.into();
         }
         if rc_kmer < &minmer[..] {
-            minmer = Cow::Owned(rc_kmer.to_vec());
+            minmer = rc_kmer.to_vec().into();
         }
     }
     minmer
@@ -183,11 +117,6 @@ fn can_minimize() {
     assert_eq!(&minmer[..], b"AAA");
 }
 
-// TODO
-// pub fn skip_n<'a, T>(iter: T) -> T where T: Iterator<Item=&'a [u8]> {
-//    iter.filter(|kmer| kmer.contains(&('N' as u8)) || kmer.contains(&('n' as u8)))
-// }
-
 pub fn is_good_base(chr: u8) -> bool {
     match chr as char {
         'a' | 'c' | 'g' | 't' | 'A' | 'C' | 'G' | 'T' => true,
@@ -195,14 +124,75 @@ pub fn is_good_base(chr: u8) -> bool {
     }
 }
 
-pub fn has_no_n<'a>(seq: &'a [u8]) -> bool {
-    //! Determines if a sequence has any non-primary four bases
-    //! characters in it
-    seq.iter().all(|n| is_good_base(*n))
+pub struct NuclKmer<'a> {
+    k: u8,
+    start_pos: usize,
+    buffer: &'a [u8],
+    rc_buffer: Option<&'a [u8]>,
 }
 
-#[test]
-fn can_detect_no_n() {
-    assert!(has_no_n(b"AAGT"));
-    assert!(!has_no_n(b"NAGT"));
+fn update_position(start_pos: &mut usize, k: u8, buffer: &[u8], initial: bool) -> bool {
+    // check if we have enough "physical" space for one more kmer
+    if *start_pos + k as usize > buffer.len() {
+        return false;
+    }
+
+    let (mut kmer_len, stop_len) = if initial {
+        (0, (k - 1) as usize)
+    } else {
+        ((k - 1) as usize, k as usize)
+    };
+
+    while kmer_len < stop_len {
+        if is_good_base(buffer[*start_pos + kmer_len]) {
+            kmer_len += 1;
+        } else {
+            kmer_len = 0;
+            *start_pos += kmer_len + 1;
+            if *start_pos + k as usize > buffer.len() {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+impl<'a> NuclKmer<'a> {
+    //! A kmer-izer for a nucleotide/amino acid sequence; returning slices to the original data
+    pub fn new(buffer: &'a [u8], rc_buffer: Option<&'a [u8]>, k: u8) -> NuclKmer<'a> {
+        let mut start_pos = 0;
+        update_position(&mut start_pos, k, buffer, true);
+        NuclKmer {
+            k,
+            start_pos,
+            buffer,
+            rc_buffer,
+        }
+    }
+}
+
+impl<'a> Iterator for NuclKmer<'a> {
+    type Item = (usize, &'a [u8], bool);
+
+    fn next(&mut self) -> Option<(usize, &'a [u8], bool)> {
+        if !update_position(&mut self.start_pos, self.k, self.buffer, false) {
+            return None;
+        }
+        let pos = self.start_pos;
+        self.start_pos += 1;
+
+        let result = &self.buffer[pos..pos + self.k as usize];
+        match self.rc_buffer {
+            None => Some((pos, result, false)),
+            Some(rc_buffer) => {
+                let rc_result =
+                    &rc_buffer[rc_buffer.len() - pos - self.k as usize..rc_buffer.len() - pos];
+                if result < rc_result {
+                    Some((pos, result, false))
+                } else {
+                    Some((pos, rc_result, true))
+                }
+            },
+        }
+    }
 }

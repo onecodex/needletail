@@ -3,19 +3,19 @@ pub type BitKmer = (BitKmerSeq, u8);
 
 /// Takes a BitKmer and adds a new base on the end, optionally loping off the
 /// first base if the resulting kmer is too long.
-fn extend_kmer(kmer: &mut BitKmer, new_char: &u8) -> bool {
+fn extend_kmer(kmer: &mut BitKmer, new_char: u8) -> bool {
     let new_char_int;
     match new_char {
-        &b'A' | &b'a' => new_char_int = 0 as BitKmerSeq,
-        &b'C' | &b'c' => new_char_int = 1 as BitKmerSeq,
-        &b'G' | &b'g' => new_char_int = 2 as BitKmerSeq,
-        &b'T' | &b't' => new_char_int = 3 as BitKmerSeq,
+        b'A' | b'a' => new_char_int = 0 as BitKmerSeq,
+        b'C' | b'c' => new_char_int = 1 as BitKmerSeq,
+        b'G' | b'g' => new_char_int = 2 as BitKmerSeq,
+        b'T' | b't' => new_char_int = 3 as BitKmerSeq,
         _ => return false,
     };
     let new_kmer = (kmer.0 << 2) + new_char_int;
 
     // mask out any overflowed bits
-    kmer.0 = new_kmer & (BitKmerSeq::pow(2, (2 * kmer.1) as u32) - 1) as BitKmerSeq;
+    kmer.0 = new_kmer & (BitKmerSeq::pow(2, u32::from(2 * kmer.1)) - 1) as BitKmerSeq;
     true
 }
 
@@ -30,16 +30,15 @@ fn update_position(
         return false;
     }
 
-    let mut kmer_len = (kmer.1 - 1) as usize;
-    let mut stop_len = kmer.1 as usize;
-    if initial {
-        kmer_len = 0;
-        stop_len = (kmer.1 - 1) as usize;
-    }
+    let (mut kmer_len, stop_len) = if initial {
+        (0, (kmer.1 - 1) as usize)
+    } else {
+        ((kmer.1 - 1) as usize, kmer.1 as usize)
+    };
 
     let mut cur_kmer = kmer;
     while kmer_len < stop_len {
-        if extend_kmer(&mut cur_kmer, &buffer[*start_pos + kmer_len]) {
+        if extend_kmer(&mut cur_kmer, buffer[*start_pos + kmer_len]) {
             kmer_len += 1;
         } else {
             kmer_len = 0;
@@ -67,10 +66,10 @@ impl<'a> BitNuclKmer<'a> {
         update_position(&mut start_pos, &mut kmer, slice, true);
 
         BitNuclKmer {
-            start_pos: start_pos,
+            start_pos,
             cur_kmer: kmer,
             buffer: slice,
-            canonical: canonical,
+            canonical,
         }
     }
 }
@@ -159,15 +158,15 @@ pub fn reverse_complement(kmer: BitKmer) -> BitKmer {
     // inspired from https://www.biostars.org/p/113640/
     let mut new_kmer = kmer.0;
     // reverse it
-    new_kmer = (new_kmer >> 2 & 0x3333333333333333) | (new_kmer & 0x3333333333333333) << 2;
-    new_kmer = (new_kmer >> 4 & 0x0F0F0F0F0F0F0F0F) | (new_kmer & 0x0F0F0F0F0F0F0F0F) << 4;
-    new_kmer = (new_kmer >> 8 & 0x00FF00FF00FF00FF) | (new_kmer & 0x00FF00FF00FF00FF) << 8;
-    new_kmer = (new_kmer >> 16 & 0x0000FFFF0000FFFF) | (new_kmer & 0x0000FFFF0000FFFF) << 16;
-    new_kmer = (new_kmer >> 32 & 0x00000000FFFFFFFF) | (new_kmer & 0x00000000FFFFFFFF) << 32;
+    new_kmer = (new_kmer >> 2 & 0x3333_3333_3333_3333) | (new_kmer & 0x3333_3333_3333_3333) << 2;
+    new_kmer = (new_kmer >> 4 & 0x0F0F_0F0F_0F0F_0F0F) | (new_kmer & 0x0F0F_0F0F_0F0F_0F0F) << 4;
+    new_kmer = (new_kmer >> 8 & 0x00FF_00FF_00FF_00FF) | (new_kmer & 0x00FF_00FF_00FF_00FF) << 8;
+    new_kmer = (new_kmer >> 16 & 0x0000_FFFF_0000_FFFF) | (new_kmer & 0x0000_FFFF_0000_FFFF) << 16;
+    new_kmer = (new_kmer >> 32 & 0x0000_0000_FFFF_FFFF) | (new_kmer & 0x0000_0000_FFFF_FFFF) << 32;
     // complement it
-    new_kmer ^= 0xFFFFFFFFFFFFFFFF;
+    new_kmer ^= 0xFFFF_FFFF_FFFF_FFFF;
     // shift it to the right size
-    new_kmer = new_kmer >> (2 * (32 - kmer.1));
+    new_kmer >>= 2 * (32 - kmer.1);
     (new_kmer, kmer.1)
 }
 
@@ -194,8 +193,8 @@ pub fn canonical(kmer: BitKmer) -> (BitKmer, bool) {
 pub fn minimizer(kmer: BitKmer, minmer_size: u8) -> BitKmer {
     let mut new_kmer = kmer.0;
     let mut lowest = !(0 as BitKmerSeq);
-    let bitmask = (BitKmerSeq::pow(2, (2 * minmer_size) as u32) - 1) as BitKmerSeq;
-    for _ in 0..(kmer.1 - minmer_size + 1) {
+    let bitmask = (BitKmerSeq::pow(2, u32::from(2 * minmer_size)) - 1) as BitKmerSeq;
+    for _ in 0..=(kmer.1 - minmer_size) {
         let cur = bitmask & new_kmer;
         if cur < lowest {
             lowest = cur;
@@ -225,7 +224,7 @@ pub fn bitmer_to_bytes(kmer: BitKmer) -> Vec<u8> {
     // of the working buffer as we read them off "left to right")
     let offset = (kmer.1 - 1) * 2;
     let bitmask =
-        BitKmerSeq::pow(2, (2 * kmer.1 - 1) as u32) + BitKmerSeq::pow(2, (2 * kmer.1 - 2) as u32);
+        BitKmerSeq::pow(2, u32::from(2 * kmer.1 - 1)) + BitKmerSeq::pow(2, u32::from(2 * kmer.1 - 2));
 
     for _ in 0..kmer.1 {
         let new_char = (new_kmer & bitmask) >> offset;
@@ -253,7 +252,7 @@ pub fn bytes_to_bitmer(kmer: &[u8]) -> BitKmer {
 
     let mut bit_kmer = (0u64, k);
     for i in 0..k {
-        extend_kmer(&mut bit_kmer, &kmer[i as usize]);
+        extend_kmer(&mut bit_kmer, kmer[i as usize]);
     }
     bit_kmer
 }
