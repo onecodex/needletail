@@ -29,7 +29,7 @@ fn main() {
     n_bases += seq.seq.len();
     
     // keep track of the number of AAAA (or TTTT via canonicalization) in the 
-    /// file (normalize makes sure ever base is capitalized for comparison)
+    // file (normalize makes sure ever base is capitalized for comparison)
     for (_, kmer, _) in seq.normalize(false).kmers(4, true) {
       if kmer == b"AAAA" {
         n_valid_kmers += 1;
