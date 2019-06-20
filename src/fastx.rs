@@ -73,9 +73,12 @@ impl<'a> Iterator for RecBuffer<'a, FASTA<'static>> {
         let seq_end;
         match (memchr_both(b'\n', b'>', &buf[id_end..]), self.last) {
             (Some(i), _) => seq_end = id_end + i + 1,
-            (None, true) => seq_end = self.buf.len(),
+            (None, true) => seq_end = buf.len(),
             (None, false) => return None,
         };
+        if id_end == seq_end {
+            return Some(Err(ParseError::PrematureEOF))
+        }
         let mut seq = &buf[id_end..seq_end];
         if seq[seq.len() - 1] == b'\r' {
             seq = &seq[..seq.len()];
@@ -640,6 +643,24 @@ fn test_premature_endings() {
     );
     assert_eq!(i, 1);
     assert_eq!(res, Err(ParseError::PrematureEOF));
+
+    // test that an abrupt stop in a FASTA triggers an error
+    let mut i = 0;
+    let res = fastx_bytes(
+        &b">test\nACGT\n>test2\n"[..],
+        |seq| {
+            match i {
+                0 => {
+                    assert_eq!(seq.id, "test");
+                    assert_eq!(&seq.seq[..], &b"ACGT"[..]);
+                },
+                _ => unreachable!("Too many records"),
+            }
+            i += 1;
+        },
+    );
+    assert_eq!(i, 1);
+    assert_eq!(res, Err(ParseError::PrematureEOF));
 }
 
 #[test]
@@ -725,7 +746,7 @@ fn test_fastq_across_buffer() {
 
     let used = {
         let mut rec_buffer = rec_reader.get_buffer::<FASTQ>();
-        for s in rec_buffer.by_ref() {
+        for _s in rec_buffer.by_ref() {
             // record is incomplete
             panic!("No initial record should be parsed")
         }
