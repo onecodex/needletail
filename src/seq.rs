@@ -134,15 +134,7 @@ impl<'a> SeqRecord<'a> {
             .seq
             .iter()
             .zip(qual.iter())
-            .map(
-                |(base, qual)| {
-                    if *qual < score {
-                        b'N'
-                    } else {
-                        *base
-                    }
-                },
-            )
+            .map(|(base, qual)| if *qual < score { b'N' } else { *base })
             .collect();
         SeqRecord {
             id: self.id,
@@ -153,24 +145,22 @@ impl<'a> SeqRecord<'a> {
     }
 
     /// Capitalize everything and mask unknown bases to N
-    pub fn normalize(&'a mut self, iupac: bool) -> bool {
+    pub fn normalize(mut self, iupac: bool) -> Self {
         let (seq, changed) = normalize(&self.seq, iupac);
         if changed {
             self.seq = seq.into();
         }
-        changed
+        self
     }
 
     /// Mask tabs in header lines to `|`s
     ///
     /// Returns `true` if the header was masked
-    pub fn mask_header(&mut self) -> bool {
+    pub fn mask_header(mut self) -> Self {
         if memchr(b'\t', self.id.as_ref().as_bytes()).is_some() {
             self.id = self.id.as_ref().replace("\t", "|").into();
-            true
-        } else {
-            false
         }
+        self
     }
 
     /// Return an iterator the returns valid kmers

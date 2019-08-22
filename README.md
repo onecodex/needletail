@@ -13,14 +13,15 @@ Needletail's goal is to be as fast as the [readfq](https://github.com/lh3/readfq
 ```rust
 extern crate needletail;
 use std::env;
-use needletail::{fastx};
+use std::fs::File;
+use needletail::parse_sequences;
 
 fn main() {
   let filename: String = env::args().nth(1).unwrap();
 
   let mut n_bases = 0;
   let mut n_valid_kmers = 0;
-  fastx::fastx_cli(&filename[..], |_| {}, |seq| {
+  parse_sequences(File::open(filename).expect("missing file"), |_| {}, |seq| {
     // seq.id is the name of the record
     // seq.seq is the base sequence
     // seq.qual is an optional quality score
@@ -35,7 +36,7 @@ fn main() {
         n_valid_kmers += 1;
       }
     }
-  });
+  }).expect("parsing failed");
   println!("There are {} bases in your file.", n_bases);
   println!("There are {} AAAAs in your file.", n_valid_kmers);
 }
@@ -49,7 +50,7 @@ Please use either your local package manager (`homebrew`, `apt-get`, `pacman`, e
 Once you have Rust set up, you can include needletail in your `Cargo.toml` file like:
 ```shell
 [dependencies]
-needletail = "^0.2.0"
+needletail = "^0.3.0"
 ```
 
 To install needletail itself for development:
