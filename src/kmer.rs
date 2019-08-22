@@ -67,10 +67,10 @@ pub fn canonical(seq: &[u8]) -> Cow<[u8]> {
     // loop through the kmer and its reverse complement simultaneously
     for (rn, n) in seq.iter().rev().map(|n| complement(*n)).zip(seq.iter()) {
         buf.push(rn);
-        if !enough && n < &rn {
+        if !enough && (*n < rn) {
             original_was_canonical = true;
             break;
-        } else if !enough && &rn < n {
+        } else if !enough && (rn < *n) {
             enough = true;
         }
         // unstated if branch: if rn == n, keep comparing
@@ -101,10 +101,10 @@ pub fn minimizer(seq: &[u8], length: usize) -> Cow<[u8]> {
     let mut minmer = Cow::Borrowed(&seq[..length]);
 
     for (kmer, rc_kmer) in seq.windows(length).zip(reverse_complement.windows(length)) {
-        if kmer < &minmer[..] {
+        if *kmer < minmer[..] {
             minmer = kmer.into();
         }
-        if rc_kmer < &minmer[..] {
+        if *rc_kmer < minmer[..] {
             minmer = rc_kmer.to_vec().into();
         }
     }

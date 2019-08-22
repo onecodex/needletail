@@ -6,9 +6,6 @@ use std::str;
 
 use memchr::{memchr, memchr2};
 
-#[cfg(feature = "compression")]
-use zip::result::ZipError;
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseErrorType {
     BadCompression,
@@ -73,7 +70,7 @@ impl error::Error for ParseError {
         "ParseError"
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         None
     }
 }
@@ -87,13 +84,6 @@ impl From<io::Error> for ParseError {
 impl From<str::Utf8Error> for ParseError {
     fn from(err: str::Utf8Error) -> ParseError {
         ParseError::new(err.to_string(), ParseErrorType::Invalid)
-    }
-}
-
-#[cfg(feature = "compression")]
-impl From<ZipError> for ParseError {
-    fn from(err: ZipError) -> ParseError {
-        ParseError::new(err.to_string(), ParseErrorType::BadCompression)
     }
 }
 
