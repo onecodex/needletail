@@ -163,6 +163,8 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
         // clean up any extra '\r' from the id and seq
         if !raw_id.is_empty() && raw_id[raw_id.len() - 1] == b'\r' {
             raw_id = &raw_id[..raw_id.len() - 1];
+        }
+        if !seq.is_empty() && seq[seq.len() - 1] == b'\r' {
             seq = &seq[..seq.len() - 1];
         }
         // we do qual separately in case this is the end of the file
@@ -519,6 +521,19 @@ mod test {
         );
         assert_eq!(res, Ok(()));
         assert_eq!(i, 2);
+    }
+
+    #[test]
+    fn test_fastq_endings() {
+        //! Check for the absence of a panic. The parser previously assumed
+        //! if the ID ended with an `\r\n` then the sequence did also.
+        //! (Discovered via fuzzing)
+        let res = parse_sequences(
+            seq(b"@\r\n\n+A\n@"),
+            |_| (),
+            |_seq| {},
+        );
+        assert_eq!(res, Ok(()));
     }
 
     #[test]
