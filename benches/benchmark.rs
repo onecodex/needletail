@@ -3,7 +3,7 @@ extern crate bencher;
 extern crate needletail;
 
 use bencher::Bencher;
-use needletail::fastx;
+use needletail::parse_sequences;
 use std::fs::File;
 use std::io::{Cursor, Read};
 
@@ -18,7 +18,7 @@ fn bench_kmer_speed(bench: &mut Bencher) {
         let mut n_total = 0;
         let mut n_canonical = 0;
         let file = File::open(filename).unwrap();
-        fastx::parse_sequences(
+        parse_sequences(
             file,
             |_| {},
             |seq| {
@@ -44,7 +44,7 @@ fn bench_bitkmer_speed(bench: &mut Bencher) {
         let mut n_total = 0;
         let mut n_canonical = 0;
         let file = File::open(filename).unwrap();
-        fastx::parse_sequences(
+        parse_sequences(
             file,
             |_| {},
             |seq| {
@@ -71,7 +71,7 @@ fn bench_fastq_bytes(bench: &mut Bencher) {
 
     bench.iter(|| {
         let mut n_bases = 0;
-        fastx::parse_sequences(
+        parse_sequences(
             Cursor::new(&data),
             |_| {},
             |seq| {
@@ -90,7 +90,7 @@ fn bench_fastq_file(bench: &mut Bencher) {
     // fastx::fastx_file(&filename[..], |seq| { assert!(seq.1.len() > 0) }).unwrap();
     bench.iter(|| {
         let mut n_bases = 0;
-        fastx::parse_sequences(
+        parse_sequences(
             File::open(filename).unwrap(),
             |_| {},
             |seq| {
@@ -111,7 +111,7 @@ fn bench_fasta_bytes(bench: &mut Bencher) {
 
     bench.iter(|| {
         let mut n_bases = 0;
-        fastx::parse_sequences(
+        parse_sequences(
             Cursor::new(&data),
             |_| {},
             |seq| {
@@ -130,7 +130,7 @@ fn bench_fasta_file(bench: &mut Bencher) {
     // fastx::fastx_file(&filename[..], |seq| { assert!(seq.1.len() > 0) }).unwrap();
     bench.iter(|| {
         let mut n_bases = 0;
-        fastx::parse_sequences(
+        parse_sequences(
             File::open(filename).unwrap(),
             |_| {},
             |seq| {

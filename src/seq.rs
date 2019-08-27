@@ -93,16 +93,16 @@ fn test_normalize() {
 /// A generic FASTX record that also abstracts over several logical operations
 /// that can be performed on nucleic acid sequences.
 #[derive(Clone, Debug)]
-pub struct SeqRecord<'a> {
-    pub id: Cow<'a, str>,
+pub struct Sequence<'a> {
+    pub id: Cow<'a, [u8]>,
     pub seq: Cow<'a, [u8]>,
     pub qual: Option<Cow<'a, [u8]>>,
     rev_seq: Option<Vec<u8>>,
 }
 
-impl<'a> SeqRecord<'a> {
-    pub fn new(id: &'a str, seq: Cow<'a, [u8]>, qual: Option<&'a [u8]>) -> Self {
-        SeqRecord {
+impl<'a> Sequence<'a> {
+    pub fn new(id: &'a [u8], seq: Cow<'a, [u8]>, qual: Option<&'a [u8]>) -> Self {
+        Sequence {
             id: id.into(),
             seq,
             qual: qual.map(Cow::Borrowed),
@@ -111,8 +111,8 @@ impl<'a> SeqRecord<'a> {
     }
 
     pub fn from_bytes(seq: &'a [u8]) -> Self {
-        SeqRecord {
-            id: "".into(),
+        Sequence {
+            id: b""[..].into(),
             seq: seq.into(),
             qual: None,
             rev_seq: None,
@@ -136,7 +136,7 @@ impl<'a> SeqRecord<'a> {
             .zip(qual.iter())
             .map(|(base, qual)| if *qual < score { b'N' } else { *base })
             .collect();
-        SeqRecord {
+        Sequence {
             id: self.id,
             seq,
             qual: Some(Cow::Owned(qual)),
@@ -157,8 +157,14 @@ impl<'a> SeqRecord<'a> {
     ///
     /// Returns `true` if the header was masked
     pub fn mask_header(mut self) -> Self {
-        if memchr(b'\t', self.id.as_ref().as_bytes()).is_some() {
-            self.id = self.id.as_ref().replace("\t", "|").into();
+        if memchr(b'\t', self.id.as_ref()).is_some() {
+            self.id = self.id.iter().map(|x| {
+                if *x == b'\t' {
+                    b'|'
+                } else {
+                    *x
+                }
+            }).collect();
         }
         self
     }
@@ -185,8 +191,8 @@ impl<'a> SeqRecord<'a> {
     /// Construct an owned version of `self` to, e.g. pass across threads
     /// (it's not clear why this can't be the `impl for Clone`, but the
     /// 'static lifetime doesn't work there for some reason)
-    pub fn into_owned(self) -> SeqRecord<'static> {
-        SeqRecord {
+    pub fn into_owned(self) -> Sequence<'static> {
+        Sequence {
             id: Cow::Owned(self.id.clone().into_owned()),
             seq: Cow::Owned(self.seq.clone().into_owned()),
             qual: self.qual.clone().map(Cow::into_owned).map(Cow::Owned),
@@ -197,8 +203,8 @@ impl<'a> SeqRecord<'a> {
 
 #[test]
 fn test_quality_mask() {
-    let seq_rec = SeqRecord {
-        id: "".into(),
+    let seq_rec = Sequence {
+        id: b""[..].into(),
         // seq: Cow::Borrowed(&b"AGCT"[..]),
         seq: b"AGCT"[..].into(),
         qual: Some(b"AAA0"[..].into()),
@@ -212,7 +218,7 @@ fn test_quality_mask() {
 fn can_kmerize() {
     // test general function
     let mut i = 0;
-    for (_, k, _) in SeqRecord::from_bytes(b"AGCT").kmers(1, false) {
+    for (_, k, _) in Sequence::from_bytes(b"AGCT").kmers(1, false) {
         match i {
             0 => assert_eq!(k, &b"A"[..]),
             1 => assert_eq!(k, &b"G"[..]),
@@ -225,7 +231,7 @@ fn can_kmerize() {
 
     // test that we skip over N's
     i = 0;
-    for (_, k, _) in SeqRecord::from_bytes(b"ACNGT").kmers(2, false) {
+    for (_, k, _) in Sequence::from_bytes(b"ACNGT").kmers(2, false) {
         match i {
             0 => assert_eq!(k, &b"AC"[..]),
             1 => assert_eq!(k, &b"GT"[..]),
@@ -236,7 +242,7 @@ fn can_kmerize() {
 
     // test that we skip over N's and handle short kmers
     i = 0;
-    for (ix, k, _) in SeqRecord::from_bytes(b"ACNG").kmers(2, false) {
+    for (ix, k, _) in Sequence::from_bytes(b"ACNG").kmers(2, false) {
         match i {
             0 => {
                 assert_eq!(ix, 0);
@@ -248,7 +254,7 @@ fn can_kmerize() {
     }
 
     // test that the minimum length works
-    for (_, k, _) in SeqRecord::from_bytes(b"AC").kmers(2, false) {
+    for (_, k, _) in Sequence::from_bytes(b"AC").kmers(2, false) {
         assert_eq!(k, &b"AC"[..]);
     }
 }
@@ -257,7 +263,7 @@ fn can_kmerize() {
 fn can_canonicalize() {
     // test general function
     let mut i = 0;
-    for (_, k, is_c) in SeqRecord::from_bytes(b"AGCT").kmers(1, true) {
+    for (_, k, is_c) in Sequence::from_bytes(b"AGCT").kmers(1, true) {
         match i {
             0 => {
                 assert_eq!(k, &b"A"[..]);
@@ -281,7 +287,7 @@ fn can_canonicalize() {
     }
 
     let mut i = 0;
-    for (_, k, _) in SeqRecord::from_bytes(b"AGCTA").kmers(2, true) {
+    for (_, k, _) in Sequence::from_bytes(b"AGCTA").kmers(2, true) {
         match i {
             0 => assert_eq!(k, &b"AG"[..]),
             1 => assert_eq!(k, &b"GC"[..]),
@@ -293,7 +299,7 @@ fn can_canonicalize() {
     }
 
     let mut i = 0;
-    for (ix, k, _) in SeqRecord::from_bytes(b"AGNTA").kmers(2, true) {
+    for (ix, k, _) in Sequence::from_bytes(b"AGNTA").kmers(2, true) {
         match i {
             0 => {
                 assert_eq!(ix, 0);

@@ -44,9 +44,9 @@ impl ParseError {
 
     pub fn context<S>(mut self, context: S) -> Self
     where
-        S: Into<String>,
+        S: ToString,
     {
-        self.context = context.into();
+        self.context = context.to_string();
         self
     }
 }

@@ -1,9 +1,9 @@
 #![crate_name = "needletail"]
 pub mod bitkmer;
 mod buffer;
-pub mod fastx;
+pub mod formats;
 pub mod kmer;
 pub mod seq;
 mod util;
 
-pub use fastx::parse_sequences;
+pub use formats::parse_sequences;
