@@ -158,13 +158,11 @@ impl<'a> Sequence<'a> {
     /// Returns `true` if the header was masked
     pub fn mask_header(mut self) -> Self {
         if memchr(b'\t', self.id.as_ref()).is_some() {
-            self.id = self.id.iter().map(|x| {
-                if *x == b'\t' {
-                    b'|'
-                } else {
-                    *x
-                }
-            }).collect();
+            self.id = self
+                .id
+                .iter()
+                .map(|x| if *x == b'\t' { b'|' } else { *x })
+                .collect();
         }
         self
     }

@@ -1,18 +1,19 @@
 use std::io;
-use std::marker::PhantomData;
 
 use crate::util::ParseError;
 
-pub struct RecReader<'a> {
-    file: &'a mut dyn io::Read,
-    last: bool,
+pub struct RecBuffer<'a> {
+    file: Option<&'a mut dyn io::Read>,
     pub buf: Vec<u8>,
+    pub pos: usize,
+    pub last: bool,
+    pub count: usize,
 }
 
 /// A buffer that wraps an object with the `Read` trait and allows extracting
 /// a set of slices to data. Acts as a lower-level primitive for our FASTX
 /// readers.
-impl<'a> RecReader<'a> {
+impl<'a> RecBuffer<'a> {
     /// Instantiate a new buffer.
     ///
     /// # Panics
@@ -23,7 +24,7 @@ impl<'a> RecReader<'a> {
         file: &'a mut dyn io::Read,
         buf_size: usize,
         header: &[u8],
-    ) -> Result<RecReader<'a>, ParseError> {
+    ) -> Result<Self, ParseError> {
         let mut buf = Vec::with_capacity(buf_size + header.len());
         unsafe {
             buf.set_len(buf_size + header.len());
@@ -34,74 +35,81 @@ impl<'a> RecReader<'a> {
             buf.set_len(amt_read + header.len());
         }
 
-        Ok(RecReader {
-            file,
-            last: false,
+        Ok(RecBuffer {
+            file: Some(file),
             buf,
+            pos: 0,
+            last: false,
+            count: 0,
         })
     }
 
+    pub fn from_bytes(data: &'a [u8]) -> Self {
+        RecBuffer {
+            file: None,
+            buf: data.to_vec(),
+            pos: 0,
+            last: true,
+            count: 0,
+        }
+    }
+
     /// Refill the buffer and increase its capacity if it's not big enough
-    pub fn refill(&mut self, used: usize) -> Result<bool, ParseError> {
-        if used == 0 && self.last {
+    pub fn refill(&mut self, data: &[u8]) -> Result<bool, ParseError> {
+        if self.pos == 0 && self.last {
             return Ok(true);
         }
-        let cur_length = self.buf.len() - used;
+        let cur_length = self.buf.len() - self.pos;
         let new_length = cur_length + self.buf.capacity();
 
         let mut new_buf = Vec::with_capacity(new_length);
         unsafe {
             new_buf.set_len(new_length);
         }
-        new_buf[..cur_length].copy_from_slice(&self.buf[used..]);
-        let amt_read = self.file.read(&mut new_buf[cur_length..])?;
+        new_buf[..cur_length].copy_from_slice(&self.buf[self.pos..]);
+        new_buf[cur_length..cur_length + data.len()].copy_from_slice(data);
+        let amt_read = if let Some(file) = &mut self.file {
+            file.read(&mut new_buf[cur_length + data.len()..])?
+        } else {
+            0
+        };
         unsafe {
-            new_buf.set_len(cur_length + amt_read);
+            new_buf.set_len(cur_length + data.len() + amt_read);
         }
         self.buf = new_buf;
         self.last = amt_read == 0;
         Ok(false)
     }
 
-    pub fn get_buffer<T>(&self, record_count: usize) -> RecBuffer<T> {
-        RecBuffer {
-            buf: &self.buf,
-            pos: 0,
-            last: self.last,
-            record_type: PhantomData,
-            count: record_count,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct RecBuffer<'a, T> {
-    pub buf: &'a [u8],
-    pub pos: usize,
-    pub last: bool,
-    record_type: PhantomData<T>,
-    pub count: usize,
-}
-
-impl<'a, T> RecBuffer<'a, T> {
-    pub fn from_bytes(data: &'a [u8]) -> Self {
-        RecBuffer {
-            buf: data,
-            pos: 0,
-            last: true,
-            record_type: PhantomData,
-            count: 0,
+    pub fn next<'s: 'b, 'b, T>(&'s mut self) -> Option<Result<T, ParseError>>
+    where
+        T: RecordFormat<'b>,
+    {
+        loop {
+            if let Some(x) = T::parse(self) {
+                return Some(x);
+            }
+            match self.refill(b"") {
+                Err(e) => return Some(Err(e)),
+                Ok(true) => return None,
+                Ok(false) => {},
+            };
         }
     }
 }
 
 #[test]
 fn test_from_bytes() {
-    // this is not a useful test, but it does get the compiler to shut up
-    // about `from_bytes` not being used
-    let rb: RecBuffer<String> = RecBuffer::from_bytes(b"test");
+    // this is not a great test
+    let rb: RecBuffer = RecBuffer::from_bytes(b"test");
     assert_eq!(rb.pos, 0);
     assert_eq!(rb.buf, b"test");
+}
+
+pub trait RecordFormat<'b> {
+    fn parse(rbuf: &'b mut RecBuffer) -> Option<Result<Self, ParseError>>
+    where
+        Self: Sized;
 }
 
 // pub fn parse<T, E, F>(reader: &'s mut io::Read, header: &[u8], ref mut callback: F) -> Result<(), E> where

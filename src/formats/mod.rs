@@ -26,12 +26,11 @@ use flate2::read::MultiGzDecoder;
 #[cfg(feature = "compression")]
 use xz2::read::XzDecoder;
 
-use crate::buffer::RecReader;
+use crate::buffer::RecBuffer;
 pub use crate::formats::fasta::FASTA;
 pub use crate::formats::fastq::FASTQ;
 use crate::seq::Sequence;
 use crate::util::{ParseError, ParseErrorType};
-
 
 /// Internal function abstracting over byte and file FASTX parsing
 fn seq_reader<F, R, T>(
@@ -46,60 +45,49 @@ where
 {
     let mut first = vec![0];
     reader.read_exact(&mut first)?;
-    match first[0] {
-        b'>' => type_callback("FASTA"),
-        b'@' => type_callback("FASTQ"),
-        _ => (),
-    }
-    let mut rec_reader = RecReader::new(reader, 10_000_000, &first)?;
-    let mut record_count = 0;
-    loop {
-        let used = match first[0] {
-            b'>' => {
-                let mut rec_buffer = rec_reader.get_buffer::<FASTA>(record_count);
-                for s in rec_buffer.by_ref() {
-                    callback(Sequence::from(s?));
-                }
-                record_count += rec_buffer.count;
-                rec_buffer.pos
-            },
-            b'@' => {
-                let mut rec_buffer = rec_reader.get_buffer::<FASTQ>(record_count);
-                for s in rec_buffer.by_ref() {
-                    callback(Sequence::from(s?));
-                }
-                record_count += rec_buffer.count;
-                rec_buffer.pos
-            },
-            _ => {
-                return Err(
-                    ParseError::new("Bad starting byte", ParseErrorType::InvalidHeader)
-                        .record(0)
-                        .context(String::from_utf8_lossy(&first)),
-                )
-            },
-        };
-        if rec_reader.refill(used)? {
-            break;
-        }
-    }
-    // check if there's anything left stuff in the buffer (besides returns)
-    let rec_buffer = rec_reader.get_buffer::<FASTA>(record_count);
-    if !rec_buffer.last {
+    let ft = match first[0] {
+        b'>' => "FASTA",
+        b'@' => "FASTQ",
+        _ => "",
+    };
+    type_callback(ft);
+
+    let mut rec_reader = RecBuffer::new(reader, 10_000_000, &first)?;
+    match ft {
+        "FASTA" => {
+            // while let Some(s) = rec_reader.next::<FASTA>() {
+            //     callback(Sequence::from(s?));
+            // }
+        },
+        "FASTQ" => {
+            while let Some(s) = rec_reader.next::<FASTQ>() {
+                callback(Sequence::from(s?));
+            }
+        },
+        _ => {
+            return Err(
+                ParseError::new("Bad starting byte", ParseErrorType::InvalidHeader)
+                    .record(0)
+                    .context(String::from_utf8_lossy(&first)),
+            )
+        },
+    };
+
+    if !rec_reader.last {
         return Err(
             ParseError::new("File ended abruptly", ParseErrorType::PrematureEOF)
-                .record(record_count),
+                .record(rec_reader.count),
         );
     }
-    for c in &rec_buffer.buf[rec_buffer.pos..] {
+    for c in &rec_reader.buf[rec_reader.pos..] {
         if c != &b'\r' && c != &b'\n' {
-            let end = min(rec_buffer.pos + 16, rec_buffer.buf.len());
-            let context = String::from_utf8_lossy(&rec_buffer.buf[rec_buffer.pos..end]);
+            let end = min(rec_reader.pos + 16, rec_reader.buf.len());
+            let context = String::from_utf8_lossy(&rec_reader.buf[rec_reader.pos..end]);
             return Err(ParseError::new(
                 "File had extra data past end of records",
                 ParseErrorType::PrematureEOF,
             )
-            .record(record_count)
+            .record(rec_reader.count)
             .context(context));
         }
     }
@@ -181,470 +169,5 @@ where
         let cursor = Cursor::new(first);
         let mut reader = cursor.chain(reader);
         seq_reader(&mut reader, callback, &mut type_callback)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use std::fs::File;
-    use std::io::Cursor;
-    use std::path::Path;
-
-    use crate::buffer::{RecBuffer, RecReader};
-    use crate::formats::{parse_sequences, FASTA, FASTQ};
-    use crate::util::ParseErrorType;
-
-    fn seq(s: &[u8]) -> Cursor<&[u8]> {
-        Cursor::new(&s[..])
-    }
-
-    #[test]
-    fn test_callback() {
-        let mut i = 0;
-        let res = parse_sequences(
-            seq(b">test\nAGCT\n>test2\nGATC"),
-            |_| {},
-            |seq| {
-                match i {
-                    0 => {
-                        assert_eq!(&seq.id[..], b"test");
-                        assert_eq!(&seq.seq[..], b"AGCT");
-                        assert_eq!(seq.qual, None);
-                    },
-                    1 => {
-                        assert_eq!(&seq.id[..], b"test2");
-                        assert_eq!(&seq.seq[..], b"GATC");
-                        assert_eq!(seq.qual, None);
-                    },
-                    _ => unreachable!("Too many records"),
-                }
-                i += 1;
-            },
-        );
-        assert_eq!(res, Ok(()));
-        assert_eq!(i, 2);
-
-        i = 0;
-        let file = File::open(&Path::new("./tests/data/test.fa")).unwrap();
-        let res = parse_sequences(
-            file,
-            |filetype| {
-                assert_eq!(filetype, "FASTA");
-            },
-            |seq| {
-                match i {
-                    0 => {
-                        assert_eq!(&seq.id[..], b"test");
-                        assert_eq!(&seq.seq[..], b"AGCTGATCGA");
-                        assert_eq!(seq.qual, None);
-                    },
-                    1 => {
-                        assert_eq!(&seq.id[..], b"test2");
-                        assert_eq!(&seq.seq[..], b"TAGC");
-                        assert_eq!(seq.qual, None);
-                    },
-                    _ => unreachable!("Too many records"),
-                }
-                i += 1;
-            },
-        );
-        assert_eq!(res, Ok(()));
-        assert_eq!(i, 2);
-
-        let file = File::open(&Path::new("./tests/data/bad_test.fa")).unwrap();
-        let res = parse_sequences(
-            file,
-            |_| {
-                unreachable!("This is not a valid file type");
-            },
-            |_| {
-                unreachable!("No valid records in this file to parse");
-            },
-        );
-        let e = res.unwrap_err();
-        assert_eq!(e.error_type, ParseErrorType::InvalidHeader);
-        assert_eq!(e.record, 0);
-        assert_eq!(e.msg, String::from("Bad starting byte"));
-    }
-
-    #[cfg(feature = "compression")]
-    #[test]
-    fn test_compressed() {
-        let test_files = [
-            "./tests/data/test.fa.gz",
-            "./tests/data/test.fa.bz2",
-            "./tests/data/test.fa.xz",
-        ];
-
-        for test_file in test_files.iter() {
-            let mut i = 0;
-            let file = File::open(&Path::new(test_file)).unwrap();
-            let res = parse_sequences(
-                file,
-                |filetype| {
-                    assert_eq!(filetype, "FASTA");
-                },
-                |seq| {
-                    match i {
-                        0 => {
-                            assert_eq!(&seq.id[..], b"test");
-                            assert_eq!(&seq.seq[..], b"AGCTGATCGA");
-                            assert_eq!(seq.qual, None);
-                        },
-                        1 => {
-                            assert_eq!(&seq.id[..], b"test2");
-                            assert_eq!(&seq.seq[..], b"TAGC");
-                            assert_eq!(seq.qual, None);
-                        },
-                        _ => unreachable!("Too many records"),
-                    }
-                    i += 1;
-                },
-            );
-            assert_eq!(res, Ok(()));
-            assert_eq!(i, 2);
-        }
-    }
-
-    #[test]
-    fn test_fastq() {
-        let mut i = 0;
-        let res = parse_sequences(
-            seq(b"@test\nAGCT\n+test\n~~a!\n@test2\nTGCA\n+test\nWUI9"),
-            |_| (),
-            |seq| {
-                match i {
-                    0 => {
-                        assert_eq!(&seq.id[..], b"test");
-                        assert_eq!(&seq.seq[..], b"AGCT");
-                        assert_eq!(&seq.qual.unwrap()[..], b"~~a!");
-                    },
-                    1 => {
-                        assert_eq!(&seq.id[..], b"test2");
-                        assert_eq!(&seq.seq[..], b"TGCA");
-                        assert_eq!(&seq.qual.unwrap()[..], b"WUI9");
-                    },
-                    _ => unreachable!("Too many records"),
-                }
-                i += 1;
-            },
-        );
-        assert_eq!(i, 2);
-        assert_eq!(res, Ok(()));
-
-        let mut i = 0;
-        let res = parse_sequences(
-            seq(b"@test\r\nAGCT\r\n+test\r\n~~a!\r\n@test2\r\nTGCA\r\n+test\r\nWUI9"),
-            |_| {},
-            |seq| {
-                match i {
-                    0 => {
-                        assert_eq!(&seq.id[..], b"test");
-                        assert_eq!(&seq.seq[..], b"AGCT");
-                        assert_eq!(&seq.qual.unwrap()[..], b"~~a!");
-                    },
-                    1 => {
-                        assert_eq!(&seq.id[..], b"test2");
-                        assert_eq!(&seq.seq[..], b"TGCA");
-                        assert_eq!(&seq.qual.unwrap()[..], b"WUI9");
-                    },
-                    _ => unreachable!("Too many records"),
-                }
-                i += 1;
-            },
-        );
-        assert_eq!(res, Ok(()));
-        assert_eq!(i, 2);
-    }
-
-    #[test]
-    fn test_fastq_endings() {
-        //! Check for the absence of a panic. The parser previously assumed
-        //! if the ID ended with an `\r\n` then the sequence did also.
-        //! (Discovered via fuzzing)
-        let res = parse_sequences(seq(b"@\r\n\n+A\n@"), |_| (), |_seq| {});
-        assert_eq!(res, Ok(()));
-    }
-
-    #[test]
-    fn test_wrapped_fasta() {
-        let mut i = 0;
-        let res = parse_sequences(
-            seq(b">test\nAGCT\nTCG\n>test2\nG"),
-            |_| {},
-            |seq| {
-                match i {
-                    0 => {
-                        assert_eq!(&seq.id[..], b"test");
-                        assert_eq!(&seq.seq[..], b"AGCTTCG");
-                        assert_eq!(seq.qual, None);
-                    },
-                    1 => {
-                        assert_eq!(&seq.id[..], b"test2");
-                        assert_eq!(&seq.seq[..], b"G");
-                        assert_eq!(seq.qual, None);
-                    },
-                    _ => unreachable!("Too many records"),
-                }
-                i += 1;
-            },
-        );
-        assert_eq!(res, Ok(()));
-        assert_eq!(i, 2);
-
-        let mut i = 0;
-        let res = parse_sequences(
-            seq(b">test\r\nAGCT\r\nTCG\r\n>test2\r\nG"),
-            |_| {},
-            |seq| {
-                match i {
-                    0 => {
-                        assert_eq!(&seq.id[..], b"test");
-                        assert_eq!(&seq.seq[..], b"AGCTTCG");
-                        assert_eq!(seq.qual, None);
-                    },
-                    1 => {
-                        assert_eq!(&seq.id[..], b"test2");
-                        assert_eq!(&seq.seq[..], b"G");
-                        assert_eq!(seq.qual, None);
-                    },
-                    _ => unreachable!("Too many records"),
-                }
-                i += 1;
-            },
-        );
-        assert_eq!(res, Ok(()));
-        assert_eq!(i, 2);
-    }
-
-    #[test]
-    fn test_premature_endings() {
-        let mut i = 0;
-        let res = parse_sequences(
-            seq(b">test\nAGCT\n>test2"),
-            |_| {},
-            |seq| {
-                match i {
-                    0 => {
-                        assert_eq!(&seq.id[..], b"test");
-                        assert_eq!(&seq.seq[..], b"AGCT");
-                        assert_eq!(seq.qual, None);
-                    },
-                    _ => unreachable!("Too many records"),
-                }
-                i += 1;
-            },
-        );
-        assert_eq!(i, 1);
-        let e = res.unwrap_err();
-        assert_eq!(e.error_type, ParseErrorType::PrematureEOF);
-        assert_eq!(e.record, 2);
-
-        let mut i = 0;
-        let res = parse_sequences(
-            seq(b"@test\nAGCT\n+test\n~~a!\n@test2\nTGCA"),
-            |_| {},
-            |seq| {
-                match i {
-                    0 => {
-                        assert_eq!(&seq.id[..], b"test");
-                        assert_eq!(&seq.seq[..], b"AGCT");
-                        assert_eq!(&seq.qual.unwrap()[..], b"~~a!");
-                    },
-                    _ => unreachable!("Too many records"),
-                }
-                i += 1;
-            },
-        );
-        assert_eq!(i, 1);
-        let e = res.unwrap_err();
-        assert_eq!(e.error_type, ParseErrorType::PrematureEOF);
-        assert_eq!(e.record, 2);
-
-        // we allow a few extra newlines at the ends of FASTQs
-        let mut i = 0;
-        let res = parse_sequences(
-            seq(b"@test\nAGCT\n+test\n~~a!\n\n"),
-            |_| {},
-            |seq| {
-                match i {
-                    0 => {
-                        assert_eq!(&seq.id[..], b"test");
-                        assert_eq!(&seq.seq[..], b"AGCT");
-                        assert_eq!(&seq.qual.unwrap()[..], b"~~a!");
-                    },
-                    _ => unreachable!("Too many records"),
-                }
-                i += 1;
-            },
-        );
-        assert_eq!(i, 1);
-        assert_eq!(res, Ok(()));
-
-        // but if there's additional data past the newlines it's an error
-        let mut i = 0;
-        let res = parse_sequences(
-            seq(b"@test\nAGCT\n+test\n~~a!\n\n@TEST\nA\n+TEST\n~"),
-            |_| {},
-            |seq| {
-                match i {
-                    0 => {
-                        assert_eq!(&seq.id[..], b"test");
-                        assert_eq!(&seq.seq[..], b"AGCT");
-                        assert_eq!(&seq.qual.unwrap()[..], b"~~a!");
-                    },
-                    _ => unreachable!("Too many records"),
-                }
-                i += 1;
-            },
-        );
-        assert_eq!(i, 1);
-        let e = res.unwrap_err();
-        assert_eq!(e.error_type, ParseErrorType::PrematureEOF);
-        assert_eq!(e.record, 2);
-
-        // test that an abrupt stop in a FASTA triggers an error
-        let mut i = 0;
-        let res = parse_sequences(
-            seq(b">test\nACGT\n>test2\n"),
-            |_| {},
-            |seq| {
-                match i {
-                    0 => {
-                        assert_eq!(&seq.id[..], b"test");
-                        assert_eq!(&seq.seq[..], b"ACGT");
-                    },
-                    _ => unreachable!("Too many records"),
-                }
-                i += 1;
-            },
-        );
-        assert_eq!(i, 1);
-        let e = res.unwrap_err();
-        assert_eq!(e.error_type, ParseErrorType::PrematureEOF);
-        assert_eq!(e.record, 2);
-    }
-
-    #[test]
-    fn test_empty_records() {
-        let mut i = 0;
-        let res = parse_sequences(
-            seq(b"@\n\n+\n\n@test2\nTGCA\n+test2\n~~~~\n"),
-            |stype| {
-                assert_eq!(stype, "FASTQ");
-            },
-            |seq| {
-                match i {
-                    0 => {
-                        assert_eq!(&seq.id[..], b"");
-                        assert_eq!(&seq.seq[..], b"");
-                        assert_eq!(&seq.qual.unwrap()[..], b"");
-                    },
-                    1 => {
-                        assert_eq!(&seq.id[..], b"test2");
-                        assert_eq!(&seq.seq[..], b"TGCA");
-                        assert_eq!(&seq.qual.unwrap()[..], b"~~~~");
-                    },
-                    _ => unreachable!("Too many records"),
-                }
-                i += 1;
-            },
-        );
-        assert_eq!(res, Ok(()));
-        assert_eq!(i, 2);
-
-        let mut i = 0;
-        let res = parse_sequences(
-            seq(b">\n\n>shine\nAGGAGGU"),
-            |_| {},
-            |seq| {
-                match i {
-                    0 => {
-                        assert_eq!(&seq.id[..], b"");
-                        assert_eq!(&seq.seq[..], b"");
-                        assert_eq!(seq.qual, None);
-                    },
-                    1 => {
-                        assert_eq!(&seq.id[..], b"shine");
-                        assert_eq!(&seq.seq[..], b"AGGAGGU");
-                        assert_eq!(seq.qual, None);
-                    },
-                    _ => unreachable!("Too many records"),
-                }
-                i += 1;
-            },
-        );
-        assert_eq!(i, 2);
-        assert_eq!(res, Ok(()));
-
-        let mut i = 0;
-        let res = parse_sequences(
-            seq(b">\r\n\r\n>shine\r\nAGGAGGU"),
-            |_| {},
-            |seq| {
-                match i {
-                    0 => {
-                        assert_eq!(&seq.id[..], b"");
-                        assert_eq!(&seq.seq[..], b"");
-                        assert_eq!(seq.qual, None);
-                    },
-                    1 => {
-                        assert_eq!(&seq.id[..], b"shine");
-                        assert_eq!(&seq.seq[..], b"AGGAGGU");
-                        assert_eq!(seq.qual, None);
-                    },
-                    _ => unreachable!("Too many records"),
-                }
-                i += 1;
-            },
-        );
-        assert_eq!(i, 2);
-        assert_eq!(res, Ok(()));
-    }
-
-    #[test]
-    fn test_buffer() {
-        let mut buf: RecBuffer<FASTA> = RecBuffer::from_bytes(b">test\nACGT");
-        let rec = buf.next().unwrap().unwrap();
-        assert_eq!(rec.id, b"test", "Record has the right ID");
-        assert_eq!(rec.seq, b"ACGT", "Record has the right sequence");
-
-        let mut buf: RecBuffer<FASTA> = RecBuffer::from_bytes(b">test");
-        assert!(buf.next().is_none(), "Incomplete record returns None");
-    }
-
-    #[test]
-    fn test_fastq_across_buffer() {
-        let test_seq = b"@A\nA\n+A\nA\n@B\nA\n+B\n!";
-        let mut cursor = Cursor::new(test_seq);
-        // the buffer is aligned to the first record
-        let mut rec_reader = RecReader::new(&mut cursor, 9, b"").unwrap();
-
-        let used = {
-            let mut rec_buffer = rec_reader.get_buffer::<FASTQ>(0);
-            for _s in rec_buffer.by_ref() {
-                // record is incomplete
-                panic!("No initial record should be parsed")
-            }
-            rec_buffer.pos
-        };
-
-        // refill the buffer, but we're not done quite yet
-        assert_eq!(rec_reader.refill(used).unwrap(), false);
-
-        // now we should see both records
-        let mut rec_buffer = rec_reader.get_buffer::<FASTQ>(0);
-
-        // there should be a record assuming the parser
-        // handled the buffer boundary
-        let iterated_seq = rec_buffer.by_ref().next();
-        let seq = iterated_seq.unwrap();
-        assert_eq!(seq.unwrap().id, b"A");
-
-        // but not another because the buffer's too short
-        let iterated_seq = rec_buffer.by_ref().next();
-        assert!(iterated_seq.is_none());
-
-        // TODO: refill and check for the last record
     }
 }
