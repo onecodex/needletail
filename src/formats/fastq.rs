@@ -36,8 +36,8 @@ impl<'a> FASTQ<'a> {
     }
 }
 
-impl<'a> RecordFormat<'a> for FASTQ<'a> {
-    fn parse(rbuf: &'a mut RecBuffer) -> Option<Result<Self, ParseError>> {
+impl<'a, 'b: 'a> RecordFormat<'b> for FASTQ<'a> {
+    fn parse(rbuf: &'b mut RecBuffer) -> Option<Result<Self, ParseError>> {
         if rbuf.pos >= rbuf.buf.len() {
             return None;
         }

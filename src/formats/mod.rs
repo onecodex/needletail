@@ -12,7 +12,7 @@
 //!
 //! See: https://github.com/emk/rust-streaming
 
-mod fasta;
+// mod fasta;
 mod fastq;
 
 use std::cmp::min;
@@ -27,7 +27,7 @@ use flate2::read::MultiGzDecoder;
 use xz2::read::XzDecoder;
 
 use crate::buffer::RecBuffer;
-pub use crate::formats::fasta::FASTA;
+// pub use crate::formats::fasta::FASTA;
 pub use crate::formats::fastq::FASTQ;
 use crate::seq::Sequence;
 use crate::util::{ParseError, ParseErrorType};

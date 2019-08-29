@@ -26,8 +26,8 @@ impl<'a> FASTA<'a> {
     }
 }
 
-impl<'a> RecordFormat<'a> for FASTA<'a> {
-    fn parse(rbuf: &'a mut RecBuffer) -> Option<Result<Self, ParseError>> {
+impl<'a> RecordFormat for FASTA<'a> {
+    fn parse(rbuf: &mut RecBuffer) -> Option<Result<Self, ParseError>> {
         let buf = &rbuf.buf[rbuf.pos..];
         if buf.is_empty() {
             return None;
