@@ -3,16 +3,35 @@ use std::marker::PhantomData;
 
 use crate::util::ParseError;
 
-pub struct RecReader<'a> {
-    file: &'a mut dyn io::Read,
-    last: bool,
+fn fill_buffer(
+    file: &mut dyn io::Read,
+    data: &[u8],
+    buf_size: usize,
+) -> Result<(Vec<u8>, bool), ParseError> {
+    let mut buf = Vec::with_capacity(buf_size + data.len());
+    unsafe {
+        buf.set_len(buf_size + data.len());
+    }
+    buf[..data.len()].copy_from_slice(data);
+    let amt_read = file.read(&mut buf[data.len()..])?;
+    unsafe {
+        buf.set_len(amt_read + data.len());
+    }
+    Ok((buf, amt_read == 0))
+}
+
+pub struct RecReader<'a, T> {
+    rec_type: PhantomData<T>,
+    file: Option<&'a mut dyn io::Read>,
     pub buf: Vec<u8>,
+    last: bool,
+    count: usize,
 }
 
 /// A buffer that wraps an object with the `Read` trait and allows extracting
 /// a set of slices to data. Acts as a lower-level primitive for our FASTX
 /// readers.
-impl<'a> RecReader<'a> {
+impl<'a, T> RecReader<'a, T> {
     /// Instantiate a new buffer.
     ///
     /// # Panics
@@ -23,63 +42,70 @@ impl<'a> RecReader<'a> {
         file: &'a mut dyn io::Read,
         buf_size: usize,
         header: &[u8],
-    ) -> Result<RecReader<'a>, ParseError> {
-        let mut buf = Vec::with_capacity(buf_size + header.len());
-        unsafe {
-            buf.set_len(buf_size + header.len());
-        }
-        buf[..header.len()].copy_from_slice(header);
-        let amt_read = file.read(&mut buf[header.len()..])?;
-        unsafe {
-            buf.set_len(amt_read + header.len());
-        }
-
+    ) -> Result<RecReader<'a, T>, ParseError> {
+        let (buf, last) = fill_buffer(file, header, buf_size)?;
         Ok(RecReader {
-            file,
-            last: false,
+            rec_type: PhantomData,
+            file: Some(file),
+            last,
             buf,
+            count: 0,
         })
     }
 
-    /// Refill the buffer and increase its capacity if it's not big enough
-    pub fn refill(&mut self, used: usize) -> Result<bool, ParseError> {
-        if used == 0 && self.last {
+    pub fn new_chunked() -> Result<RecReader<'a, T>, ParseError> {
+        Ok(RecReader {
+            rec_type: PhantomData,
+            file: None,
+            last: false,
+            buf: Vec::new(),
+            count: 0,
+        })
+    }
+
+    pub fn fill(&mut self, data: &[u8], last: bool) -> Result<(), ParseError> {
+        let mut data = io::Cursor::new(data);
+        let (buf, _) = fill_buffer(&mut data, &self.buf, self.buf.capacity())?;
+        self.buf = buf;
+        self.last = last;
+        Ok(())
+    }
+
+    /// Refill the buffer and increase its capacity if it's not big enough.
+    /// Takes a tuple of the bytes used and how many records returned so far.
+    pub fn refill(&mut self, used: (usize, usize)) -> Result<bool, ParseError> {
+        if used.0 == 0 && self.last {
             return Ok(true);
         }
-        let cur_length = self.buf.len() - used;
-        let new_length = cur_length + self.buf.capacity();
-
-        let mut new_buf = Vec::with_capacity(new_length);
-        unsafe {
-            new_buf.set_len(new_length);
-        }
-        new_buf[..cur_length].copy_from_slice(&self.buf[used..]);
-        let amt_read = self.file.read(&mut new_buf[cur_length..])?;
-        unsafe {
-            new_buf.set_len(cur_length + amt_read);
-        }
-        self.buf = new_buf;
-        self.last = amt_read == 0;
+        let data = &self.buf[used.0..];
+        let (buf, last) = if let Some(f) = &mut self.file {
+            fill_buffer(f, &data, self.buf.capacity())?
+        } else {
+            (data.to_vec(), self.last)
+        };
+        self.buf = buf;
+        self.last = last;
+        self.count += used.1;
         Ok(false)
     }
 
-    pub fn get_buffer<T>(&self, record_count: usize) -> RecBuffer<T> {
+    pub fn get_buffer<'b>(&'b self) -> RecBuffer<'b, T> {
         RecBuffer {
             buf: &self.buf,
             pos: 0,
             last: self.last,
             record_type: PhantomData,
-            count: record_count,
+            count: self.count,
         }
     }
 }
 
 #[derive(Debug)]
 pub struct RecBuffer<'a, T> {
+    record_type: PhantomData<T>,
     pub buf: &'a [u8],
     pub pos: usize,
     pub last: bool,
-    record_type: PhantomData<T>,
     pub count: usize,
 }
 
@@ -92,6 +118,10 @@ impl<'a, T> RecBuffer<'a, T> {
             record_type: PhantomData,
             count: 0,
         }
+    }
+
+    pub fn used(&self) -> (usize, usize) {
+        (self.pos, self.count)
     }
 }
 
