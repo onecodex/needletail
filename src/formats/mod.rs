@@ -13,7 +13,7 @@
 //! See: https://github.com/emk/rust-streaming
 
 // mod fasta;
-mod fastq;
+pub mod fastq;
 
 use std::cmp::min;
 use std::io::{Cursor, Read};
@@ -28,7 +28,7 @@ use xz2::read::XzDecoder;
 
 use crate::buffer::RecBuffer;
 // pub use crate::formats::fasta::FASTA;
-pub use crate::formats::fastq::FASTQ;
+pub use crate::formats::fastq::{get_fastq, FASTQ};
 use crate::seq::Sequence;
 use crate::util::{ParseError, ParseErrorType};
 
@@ -60,7 +60,7 @@ where
             // }
         },
         "FASTQ" => {
-            while let Some(s) = rec_reader.next::<FASTQ>() {
+            while let Some(s) = get_fastq(&mut rec_reader) {
                 callback(Sequence::from(s?));
             }
         },

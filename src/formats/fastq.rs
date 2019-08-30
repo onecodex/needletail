@@ -4,7 +4,7 @@ use std::io::Write;
 
 use memchr::memchr;
 
-use crate::buffer::{RecBuffer, RecordFormat};
+use crate::buffer::{RecBuffer};
 use crate::seq::Sequence;
 use crate::util::{memchr_both, ParseError, ParseErrorType};
 
@@ -36,83 +36,78 @@ impl<'a> FASTQ<'a> {
     }
 }
 
-impl<'a, 'b: 'a> RecordFormat<'b> for FASTQ<'a> {
-    fn parse(rbuf: &'b mut RecBuffer) -> Option<Result<Self, ParseError>> {
-        if rbuf.pos >= rbuf.buf.len() {
+
+pub fn get_fastq<'a>(rbuf: &'a mut RecBuffer) -> Option<Result<FASTQ<'a>, ParseError>> {
+    let buf = rbuf.get_buffer()?;
+
+    if buf[0] != b'@' {
+        // sometimes there are extra returns at the end of a file so we shouldn't blow up
+        if buf[0] == b'\r' || buf[0] == b'\n' {
+            return None;
+        } else {
+            let context = String::from_utf8_lossy(&buf[0..min(16, buf.len())]);
+            let e =
+                ParseError::new("Record must start with '@'", ParseErrorType::InvalidHeader)
+                    .record(rbuf.count)
+                    .context(context);
+            return Some(Err(e));
+        }
+    }
+
+    let id_end;
+    match memchr(b'\n', &buf) {
+        Some(i) => id_end = i + 1,
+        None => return None,
+    };
+    let mut id = &buf[1..id_end - 1];
+
+    let seq_end;
+    match memchr_both(b'\n', b'+', &buf[id_end..]) {
+        Some(i) => seq_end = id_end + i + 1,
+        None => return None,
+    };
+    let mut seq = &buf[id_end..seq_end - 1];
+
+    let id2_end;
+    match memchr(b'\n', &buf[seq_end..]) {
+        Some(i) => id2_end = seq_end + i + 1,
+        None => return None,
+    };
+    let id2 = &buf[seq_end..id2_end - 1];
+
+    // we know the qual scores must be the same length as the sequence
+    // so we can just do some arithmatic instead of memchr'ing
+    let mut qual_end = id2_end + seq.len() + 1;
+    let mut buffer_used = qual_end;
+    if qual_end > buf.len() {
+        if !rbuf.last() {
+            // we need to pull more into the buffer
             return None;
         }
-        let buf = &rbuf.buf[rbuf.pos..];
-
-        if buf[0] != b'@' {
-            // sometimes there are extra returns at the end of a file so we shouldn't blow up
-            if buf[0] == b'\r' || buf[0] == b'\n' {
-                return None;
-            } else {
-                let context = String::from_utf8_lossy(&buf[0..min(16, buf.len())]);
-                let e =
-                    ParseError::new("Record must start with '@'", ParseErrorType::InvalidHeader)
-                        .record(rbuf.count)
-                        .context(context);
-                return Some(Err(e));
-            }
+        // now do some math to figure out if the file doesn't end with a newline
+        let windows_ending = if seq.last() == Some(&b'\r') { 1 } else { 0 };
+        if qual_end != buf.len() + 1 + windows_ending {
+            return None;
         }
-
-        let id_end;
-        match memchr(b'\n', &buf) {
-            Some(i) => id_end = i + 1,
-            None => return None,
-        };
-        let mut id = &buf[1..id_end - 1];
-
-        let seq_end;
-        match memchr_both(b'\n', b'+', &buf[id_end..]) {
-            Some(i) => seq_end = id_end + i + 1,
-            None => return None,
-        };
-        let mut seq = &buf[id_end..seq_end - 1];
-
-        let id2_end;
-        match memchr(b'\n', &buf[seq_end..]) {
-            Some(i) => id2_end = seq_end + i + 1,
-            None => return None,
-        };
-        let id2 = &buf[seq_end..id2_end - 1];
-
-        // we know the qual scores must be the same length as the sequence
-        // so we can just do some arithmatic instead of memchr'ing
-        let mut qual_end = id2_end + seq.len() + 1;
-        let mut buffer_used = qual_end;
-        if qual_end > buf.len() {
-            if !rbuf.last {
-                // we need to pull more into the buffer
-                return None;
-            }
-            // now do some math to figure out if the file doesn't end with a newline
-            let windows_ending = if seq.last() == Some(&b'\r') { 1 } else { 0 };
-            if qual_end != buf.len() + 1 + windows_ending {
-                return None;
-            }
-            buffer_used -= 1 + windows_ending;
-            qual_end -= windows_ending;
-        }
-        let mut qual = &buf[id2_end..qual_end - 1];
-
-        // clean up any extra '\r' from the id and seq
-        if !id.is_empty() && id[id.len() - 1] == b'\r' {
-            id = &id[..id.len() - 1];
-        }
-        if !seq.is_empty() && seq[seq.len() - 1] == b'\r' {
-            seq = &seq[..seq.len() - 1];
-        }
-        // we do qual separately in case this is the end of the file
-        if !qual.is_empty() && qual[qual.len() - 1] == b'\r' {
-            qual = &qual[..qual.len() - 1];
-        }
-
-        rbuf.pos += buffer_used;
-        rbuf.count += 1;
-        Some(Ok(FASTQ { id, seq, id2, qual }))
+        buffer_used -= 1 + windows_ending;
+        qual_end -= windows_ending;
     }
+    let mut qual = &buf[id2_end..qual_end - 1];
+
+    // clean up any extra '\r' from the id and seq
+    if !id.is_empty() && id[id.len() - 1] == b'\r' {
+        id = &id[..id.len() - 1];
+    }
+    if !seq.is_empty() && seq[seq.len() - 1] == b'\r' {
+        seq = &seq[..seq.len() - 1];
+    }
+    // we do qual separately in case this is the end of the file
+    if !qual.is_empty() && qual[qual.len() - 1] == b'\r' {
+        qual = &qual[..qual.len() - 1];
+    }
+
+    rbuf.add_record(buffer_used);
+    Some(Ok(FASTQ { id, seq, id2, qual }))
 }
 
 impl<'a> From<FASTQ<'a>> for Sequence<'a> {

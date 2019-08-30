@@ -1,9 +1,12 @@
 use std::io;
+use std::marker::PhantomData;
 use std::mem::transmute;
 
 use crate::util::ParseError;
+use crate::formats::fastq::{get_fastq, FASTQ};
 
 pub struct RecBuffer {
+    // rec_type: PhantomData<T>,
     file: Box<dyn io::Read>,
     pub buf: Vec<u8>,
     pub pos: usize,
@@ -51,6 +54,7 @@ impl RecBuffer {
         };
 
         Ok(RecBuffer {
+            // rec_type: PhantomData,
             file,
             buf,
             pos: 0,
@@ -61,6 +65,7 @@ impl RecBuffer {
 
     pub fn from_bytes(data: &[u8]) -> Self {
         RecBuffer {
+            // rec_type: PhantomData,
             file: Box::new(io::empty()),
             buf: data.to_vec(),
             pos: 0,
@@ -81,12 +86,25 @@ impl RecBuffer {
         Ok(false)
     }
 
-    pub fn next<'b, T>(&'b mut self) -> Option<Result<T, ParseError>>
-    where
-        T: RecordFormat<'b>,
-    {
+    pub fn get_buffer(&self) -> Option<&[u8]> {
+        if self.pos >= self.buf.len() {
+            return None;
+        }
+        Some(&self.buf[self.pos..])
+    }
+
+    pub fn last(&self) -> bool {
+        self.last
+    }
+
+    pub fn add_record(&mut self, buffer_used: usize) {
+        self.pos += buffer_used;
+        self.count += 1;
+    }
+
+    pub fn next<'a>(&'a mut self) -> Option<Result<FASTQ<'a>, ParseError>> {
         loop {
-            if let Some(x) = T::parse(self) {
+            if let Some(x) = get_fastq(self) {
                 return Some(x);
             }
             match self.refill() {
@@ -106,11 +124,6 @@ fn test_from_bytes() {
     assert_eq!(rb.buf, b"test");
 }
 
-pub trait RecordFormat<'b> {
-    fn parse(rbuf: &'b mut RecBuffer) -> Option<Result<Self, ParseError>>
-    where
-        Self: Sized;
-}
 
 // pub fn parse<T, E, F>(reader: &'s mut io::Read, header: &[u8], ref mut callback: F) -> Result<(), E> where
 //     E: From<ParseError>,
