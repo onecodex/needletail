@@ -16,7 +16,6 @@ mod buffer;
 mod fasta;
 mod fastq;
 
-use std::cmp::min;
 use std::io::{Cursor, Read};
 use std::str;
 
@@ -27,37 +26,46 @@ use flate2::read::MultiGzDecoder;
 #[cfg(feature = "compression")]
 use xz2::read::XzDecoder;
 
-use crate::formats::buffer::RecReader;
-pub use crate::formats::fasta::FASTA;
-pub use crate::formats::fastq::FASTQ;
+pub use crate::formats::buffer::{RecBuffer, RecReader};
+pub use crate::formats::fasta::{Fasta, FastaReader};
+pub use crate::formats::fastq::{Fastq, FastqReader};
 use crate::seq::Sequence;
 use crate::util::{ParseError, ParseErrorType};
 
-fn check_end<T>(rec_reader: &RecReader<T>) -> Result<(), ParseError> {
-    // check if there's anything left stuff in the buffer (besides returns)
-    let rec_buffer = rec_reader.get_buffer();
-    if !rec_buffer.last {
-        return Err(
-            ParseError::new("File ended abruptly", ParseErrorType::PrematureEOF)
-                .record(rec_buffer.count),
-        );
-    }
-    for c in &rec_buffer.buf[rec_buffer.pos..] {
-        if c != &b'\r' && c != &b'\n' {
-            let end = min(rec_buffer.pos + 16, rec_buffer.buf.len());
-            let context = String::from_utf8_lossy(&rec_buffer.buf[rec_buffer.pos..end]);
-            return Err(ParseError::new(
-                "File had extra data past end of records",
-                ParseErrorType::PrematureEOF,
-            )
-            .record(rec_buffer.count + 1)
-            .context(context));
+
+#[macro_export]
+macro_rules! parse_stream {
+    ($reader:expr, $first:expr, $reader_type: ty, $rec: ident, $handler: block) => {{
+        use $crate::formats::{RecBuffer, RecReader};
+        let mut buffer = RecBuffer::<$reader_type>::new($reader, 10_000_000, &$first)?;
+        let mut rec_reader = buffer.get_reader();
+        // TODO: do something with the header?
+        let mut record_count: usize = 0;
+        rec_reader.header().map_err(|e| e.record(record_count))?;
+        let used = rec_reader.used();
+        if !buffer.refill(used).map_err(|e| e.record(record_count))? {
+            loop {
+                let used = {
+                    let mut rec_reader = buffer.get_reader();
+                    for s in rec_reader.by_ref() {
+                        record_count += 1;
+                        let $rec = s.map_err(|e| e.record(record_count))?;
+                        $handler
+                    }
+                    rec_reader.used()
+                };
+                if buffer.refill(used).map_err(|e| e.record(record_count))? {
+                    break;
+                }
+            }
         }
-    }
-    Ok(())
+        let rec_reader = buffer.get_reader();
+        rec_reader.eof().map_err(|e| e.record(record_count + 1))?;
+    }};
 }
 
 /// Internal function abstracting over byte and file FASTX parsing
+#[inline]
 fn seq_reader<F, R, T>(
     reader: &mut R,
     mut callback: F,
@@ -83,40 +91,14 @@ where
     type_callback(file_type);
 
     match file_type {
-        "FASTA" => {
-            let mut rec_reader = RecReader::<FASTA>::new(reader, 10_000_000, &first)?;
-            loop {
-                let used = {
-                    let mut rec_buffer = rec_reader.get_buffer();
-                    for s in rec_buffer.by_ref() {
-                        callback(Sequence::from(s?));
-                    }
-                    rec_buffer.used()
-                };
-                if rec_reader.refill(used)? {
-                    break;
-                }
-            }
-            check_end(&rec_reader)?;
-        },
-        "FASTQ" => {
-            let mut rec_reader = RecReader::<FASTQ>::new(reader, 10_000_000, &first)?;
-            loop {
-                let used = {
-                    let mut rec_buffer = rec_reader.get_buffer();
-                    for s in rec_buffer.by_ref() {
-                        callback(Sequence::from(s?));
-                    }
-                    rec_buffer.used()
-                };
-                if rec_reader.refill(used)? {
-                    break;
-                }
-            }
-            check_end(&rec_reader)?;
-        },
+        "FASTA" => parse_stream!(reader, first, FastaReader, rec, {
+            callback(Sequence::from(rec))
+        }),
+        "FASTQ" => parse_stream!(reader, first, FastqReader, rec, {
+            callback(Sequence::from(rec))
+        }),
         _ => panic!("A file type was inferred that could not be parsed"),
-    }
+    };
     Ok(())
 }
 
@@ -149,7 +131,7 @@ where
 {
     //! Opens a `Read` stream and parses the FASTX records out. Also takes a "type_callback"
     //! that gets called as soon as we determine if the records are FASTA or FASTQ.
-    //!  If a file starts with a gzip or other header, transparently decompress it.
+    //! If a file starts with a gzip or other header, transparently decompress it.
     let mut first = vec![0];
     reader.read_exact(&mut first)?;
     if first[0] == 0x1F {
