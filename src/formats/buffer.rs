@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 
 use crate::util::ParseError;
 
+#[inline]
 fn fill_buffer(
     file: &mut dyn io::Read,
     data: &[u8],
@@ -20,18 +21,20 @@ fn fill_buffer(
     Ok((buf, amt_read == 0))
 }
 
-pub struct RecReader<'a, T> {
+pub struct RecBuffer<'a, T> {
     rec_type: PhantomData<T>,
     file: Option<&'a mut dyn io::Read>,
     pub buf: Vec<u8>,
-    last: bool,
-    count: usize,
+    pub last: bool,
 }
 
 /// A buffer that wraps an object with the `Read` trait and allows extracting
 /// a set of slices to data. Acts as a lower-level primitive for our FASTX
 /// readers.
-impl<'a, T> RecReader<'a, T> {
+impl<'a, 'b, T> RecBuffer<'a, T>
+where
+    T: RecReader<'b>,
+{
     /// Instantiate a new buffer.
     ///
     /// # Panics
@@ -42,24 +45,22 @@ impl<'a, T> RecReader<'a, T> {
         file: &'a mut dyn io::Read,
         buf_size: usize,
         header: &[u8],
-    ) -> Result<RecReader<'a, T>, ParseError> {
+    ) -> Result<RecBuffer<'a, T>, ParseError> {
         let (buf, last) = fill_buffer(file, header, buf_size)?;
-        Ok(RecReader {
+        Ok(RecBuffer {
             rec_type: PhantomData,
             file: Some(file),
             last,
             buf,
-            count: 0,
         })
     }
 
-    pub fn new_chunked() -> Result<RecReader<'a, T>, ParseError> {
-        Ok(RecReader {
+    pub fn new_chunked() -> Result<RecBuffer<'a, T>, ParseError> {
+        Ok(RecBuffer {
             rec_type: PhantomData,
             file: None,
             last: false,
             buf: Vec::new(),
-            count: 0,
         })
     }
 
@@ -73,11 +74,12 @@ impl<'a, T> RecReader<'a, T> {
 
     /// Refill the buffer and increase its capacity if it's not big enough.
     /// Takes a tuple of the bytes used and how many records returned so far.
-    pub fn refill(&mut self, used: (usize, usize)) -> Result<bool, ParseError> {
-        if used.0 == 0 && self.last {
+    #[inline]
+    pub fn refill(&mut self, used: usize) -> Result<bool, ParseError> {
+        if used == 0 && self.last {
             return Ok(true);
         }
-        let data = &self.buf[used.0..];
+        let data = &self.buf[used..];
         let (buf, last) = if let Some(f) = &mut self.file {
             fill_buffer(f, &data, self.buf.capacity())?
         } else {
@@ -85,54 +87,62 @@ impl<'a, T> RecReader<'a, T> {
         };
         self.buf = buf;
         self.last = last;
-        self.count += used.1;
         Ok(false)
     }
 
-    pub fn get_buffer<'b>(&'b self) -> RecBuffer<'b, T> {
-        RecBuffer {
-            buf: &self.buf,
-            pos: 0,
-            last: self.last,
-            record_type: PhantomData,
-            count: self.count,
-        }
+    pub fn get_reader(&'b self) -> T {
+        T::from_buffer(self)
     }
 }
 
-#[derive(Debug)]
-pub struct RecBuffer<'a, T> {
-    record_type: PhantomData<T>,
-    pub buf: &'a [u8],
-    pub pos: usize,
-    pub last: bool,
-    pub count: usize,
+/// RecReader is an adaptor trait that allows new file format parsers to be
+/// defined. It takes a chunk from a RecBuffer (`from_reader`), optionally
+/// parses an initial header out (`header`) and then provides an iterator
+/// interface to parse a record stream. When finished, it provides a `eof`
+/// function to determine if the stream is completely exhausted.
+///
+pub trait RecReader<'s>: Sized + Iterator {
+    type Header;
+
+    fn from_buffer(reader: &'s RecBuffer<Self>) -> Self;
+    fn header(&mut self) -> Result<Self::Header, ParseError>;
+    fn eof(&self) -> Result<(), ParseError>;
+    fn used(&self) -> usize;
 }
 
-impl<'a, T> RecBuffer<'a, T> {
-    pub fn from_bytes(data: &'a [u8]) -> Self {
-        RecBuffer {
-            buf: data,
-            pos: 0,
-            last: true,
-            record_type: PhantomData,
-            count: 0,
-        }
-    }
-
-    pub fn used(&self) -> (usize, usize) {
-        (self.pos, self.count)
-    }
-}
-
-#[test]
-fn test_from_bytes() {
-    // this is not a useful test, but it does get the compiler to shut up
-    // about `from_bytes` not being used
-    let rb: RecBuffer<String> = RecBuffer::from_bytes(b"test");
-    assert_eq!(rb.pos, 0);
-    assert_eq!(rb.buf, b"test");
-}
+// #[derive(Debug)]
+// pub struct RecBuffer<'a, T> {
+//     record_type: PhantomData<T>,
+//     pub buf: &'a [u8],
+//     pub pos: usize,
+//     pub last: bool,
+//     pub count: usize,
+// }
+//
+// impl<'a, T> RecBuffer<'a, T> {
+//     pub fn from_bytes(data: &'a [u8]) -> Self {
+//         RecBuffer {
+//             buf: data,
+//             pos: 0,
+//             last: true,
+//             record_type: PhantomData,
+//             count: 0,
+//         }
+//     }
+//
+//     pub fn used(&self) -> (usize, usize) {
+//         (self.pos, self.count)
+//     }
+// }
+//
+// #[test]
+// fn test_from_bytes() {
+//     // this is not a useful test, but it does get the compiler to shut up
+//     // about `from_bytes` not being used
+//     let rb: RecBuffer<String> = RecBuffer::from_bytes(b"test");
+//     assert_eq!(rb.pos, 0);
+//     assert_eq!(rb.buf, b"test");
+// }
 
 // pub fn parse<T, E, F>(reader: &'s mut io::Read, header: &[u8], ref mut callback: F) -> Result<(), E> where
 //     E: From<ParseError>,

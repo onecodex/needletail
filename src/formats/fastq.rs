@@ -4,19 +4,20 @@ use std::io::Write;
 
 use memchr::memchr;
 
-use crate::formats::buffer::RecBuffer;
+use crate::formats::buffer::{RecBuffer, RecReader};
+use crate::formats::fasta::check_end;
 use crate::seq::Sequence;
 use crate::util::{memchr_both, ParseError, ParseErrorType};
 
 #[derive(Debug)]
-pub struct FASTQ<'a> {
+pub struct Fastq<'a> {
     pub id: &'a [u8],
     pub seq: &'a [u8],
     pub id2: &'a [u8],
     pub qual: &'a [u8],
 }
 
-impl<'a> FASTQ<'a> {
+impl<'a> Fastq<'a> {
     pub fn write<W>(&self, writer: &mut W) -> Result<(), ParseError>
     where
         W: Write,
@@ -36,9 +37,42 @@ impl<'a> FASTQ<'a> {
     }
 }
 
-impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
-    type Item = Result<FASTQ<'a>, ParseError>;
+impl<'a> From<Fastq<'a>> for Sequence<'a> {
+    fn from(fastq: Fastq<'a>) -> Sequence<'a> {
+        let qual = if fastq.seq.len() != fastq.qual.len() {
+            None
+        } else {
+            Some(fastq.qual)
+        };
+        Sequence::new(fastq.id, Cow::from(fastq.seq), qual)
+    }
+}
 
+impl<'a> From<&'a Sequence<'a>> for Fastq<'a> {
+    fn from(seq: &'a Sequence<'a>) -> Fastq<'a> {
+        let qual = match &seq.qual {
+            None => &b""[..],
+            Some(q) => &q,
+        };
+        Fastq {
+            id: &seq.id,
+            seq: &seq.seq,
+            id2: b"",
+            qual: qual,
+        }
+    }
+}
+
+pub struct FastqReader<'a> {
+    buf: &'a [u8],
+    last: bool,
+    pos: usize,
+}
+
+impl<'a> Iterator for FastqReader<'a> {
+    type Item = Result<Fastq<'a>, ParseError>;
+
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos >= self.buf.len() {
             return None;
@@ -50,10 +84,9 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
             if buf[0] == b'\r' || buf[0] == b'\n' {
                 return None;
             } else {
-                let context = String::from_utf8_lossy(&buf[0..min(16, buf.len())]);
+                let context = String::from_utf8_lossy(&buf[..min(16, buf.len())]);
                 let e =
                     ParseError::new("Record must start with '@'", ParseErrorType::InvalidHeader)
-                        .record(self.count)
                         .context(context);
                 return Some(Err(e));
             }
@@ -112,34 +145,31 @@ impl<'a> Iterator for RecBuffer<'a, FASTQ<'a>> {
         }
 
         self.pos += buffer_used;
-        self.count += 1;
-        Some(Ok(FASTQ { id, seq, id2, qual }))
+        Some(Ok(Fastq { id, seq, id2, qual }))
     }
 }
 
-impl<'a> From<FASTQ<'a>> for Sequence<'a> {
-    fn from(fastq: FASTQ<'a>) -> Sequence<'a> {
-        let qual = if fastq.seq.len() != fastq.qual.len() {
-            None
-        } else {
-            Some(fastq.qual)
-        };
-        Sequence::new(fastq.id, Cow::from(fastq.seq), qual)
-    }
-}
+impl<'a> RecReader<'a> for FastqReader<'a> {
+    type Header = ();
 
-impl<'a> From<&'a Sequence<'a>> for FASTQ<'a> {
-    fn from(seq: &'a Sequence<'a>) -> FASTQ<'a> {
-        let qual = match &seq.qual {
-            None => &b""[..],
-            Some(q) => &q,
-        };
-        FASTQ {
-            id: &seq.id,
-            seq: &seq.seq,
-            id2: b"",
-            qual: qual,
+    fn from_buffer<'s>(reader: &'s RecBuffer<Self>) -> FastqReader<'s> {
+        FastqReader {
+            buf: &reader.buf,
+            last: reader.last,
+            pos: 0,
         }
+    }
+
+    fn header(&mut self) -> Result<Self::Header, ParseError> {
+        Ok(())
+    }
+
+    fn eof(&self) -> Result<(), ParseError> {
+        check_end(&self.buf[self.pos..], self.last)
+    }
+
+    fn used(&self) -> usize {
+        self.pos
     }
 }
 
@@ -147,8 +177,8 @@ impl<'a> From<&'a Sequence<'a>> for FASTQ<'a> {
 mod test {
     use std::io::Cursor;
 
-    use super::FASTQ;
-    use crate::formats::buffer::RecReader;
+    use super::FastqReader;
+    use crate::formats::buffer::{RecBuffer, RecReader};
     use crate::formats::parse_sequences;
     use crate::util::ParseErrorType;
 
@@ -316,10 +346,10 @@ mod test {
         let test_seq = b"@A\nA\n+A\nA\n@B\nA\n+B\n!";
         let mut cursor = Cursor::new(test_seq);
         // the buffer is aligned to the first record
-        let mut rec_reader = RecReader::<FASTQ>::new(Some(&mut cursor), 9, b"").unwrap();
+        let mut rec_reader = RecBuffer::<FastqReader>::new(&mut cursor, 9, b"").unwrap();
 
         let used = {
-            let mut rec_buffer = rec_reader.get_buffer();
+            let mut rec_buffer = rec_reader.get_reader();
             for _s in rec_buffer.by_ref() {
                 // record is incomplete
                 panic!("No initial record should be parsed")
@@ -331,7 +361,7 @@ mod test {
         assert_eq!(rec_reader.refill(used).unwrap(), false);
 
         // now we should see both records
-        let mut rec_buffer = rec_reader.get_buffer();
+        let mut rec_buffer = rec_reader.get_reader();
 
         // there should be a record assuming the parser
         // handled the buffer boundary

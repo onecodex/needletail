@@ -2,17 +2,17 @@ use std::io::Write;
 
 use memchr::memchr;
 
-use crate::formats::buffer::RecBuffer;
+use crate::formats::buffer::{RecBuffer, RecReader};
 use crate::seq::Sequence;
 use crate::util::{memchr_both, strip_whitespace, ParseError, ParseErrorType};
 
 #[derive(Debug)]
-pub struct FASTA<'a> {
+pub struct Fasta<'a> {
     pub id: &'a [u8],
     pub seq: &'a [u8],
 }
 
-impl<'a> FASTA<'a> {
+impl<'a> Fasta<'a> {
     pub fn write<W>(&self, writer: &mut W) -> Result<(), ParseError>
     where
         W: Write,
@@ -26,9 +26,41 @@ impl<'a> FASTA<'a> {
     }
 }
 
-impl<'a> Iterator for RecBuffer<'a, FASTA<'a>> {
-    type Item = Result<FASTA<'a>, ParseError>;
+impl<'a> From<Fasta<'a>> for Sequence<'a> {
+    fn from(fasta: Fasta<'a>) -> Sequence<'a> {
+        Sequence::new(fasta.id, strip_whitespace(fasta.seq), None)
+    }
+}
 
+impl<'a> From<&'a Sequence<'a>> for Fasta<'a> {
+    fn from(seq: &'a Sequence<'a>) -> Fasta<'a> {
+        Fasta {
+            id: &seq.id,
+            seq: &seq.seq,
+        }
+    }
+}
+
+pub struct FastaReader<'a> {
+    buf: &'a [u8],
+    last: bool,
+    pos: usize,
+}
+
+impl<'a> FastaReader<'a> {
+    pub fn new(buf: &'a [u8]) -> Self {
+        FastaReader {
+            buf,
+            last: true,
+            pos: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for FastaReader<'a> {
+    type Item = Result<Fasta<'a>, ParseError>;
+
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let buf = &self.buf[self.pos..];
         if buf.is_empty() {
@@ -57,7 +89,6 @@ impl<'a> Iterator for RecBuffer<'a, FASTA<'a>> {
                 "Sequence completely empty",
                 ParseErrorType::PrematureEOF,
             )
-            .record(self.count + 1)
             .context(context)));
         }
         let mut seq = &buf[id_end..seq_end];
@@ -66,24 +97,57 @@ impl<'a> Iterator for RecBuffer<'a, FASTA<'a>> {
         }
 
         self.pos += seq_end;
-        self.count += 1;
-        Some(Ok(FASTA { id, seq }))
+        Some(Ok(Fasta { id, seq }))
     }
 }
 
-impl<'a> From<FASTA<'a>> for Sequence<'a> {
-    fn from(fasta: FASTA<'a>) -> Sequence<'a> {
-        Sequence::new(fasta.id, strip_whitespace(fasta.seq), None)
-    }
-}
+impl<'a> RecReader<'a> for FastaReader<'a> {
+    type Header = ();
 
-impl<'a> From<&'a Sequence<'a>> for FASTA<'a> {
-    fn from(seq: &'a Sequence<'a>) -> FASTA<'a> {
-        FASTA {
-            id: &seq.id,
-            seq: &seq.seq,
+    fn from_buffer<'s>(reader: &'s RecBuffer<Self>) -> FastaReader<'s> {
+        FastaReader {
+            buf: &reader.buf,
+            last: reader.last,
+            pos: 0,
         }
     }
+
+    fn header(&mut self) -> Result<Self::Header, ParseError> {
+        Ok(())
+    }
+
+    fn eof(&self) -> Result<(), ParseError> {
+        check_end(&self.buf[self.pos..], self.last)
+    }
+
+    fn used(&self) -> usize {
+        self.pos
+    }
+}
+
+pub fn check_end(buf: &[u8], last: bool) -> Result<(), ParseError> {
+    use std::cmp::min;
+
+    // check if there's anything left stuff in the buffer (besides returns)
+    if !last {
+        return Err(
+            ParseError::new("File ended abruptly", ParseErrorType::PrematureEOF),
+            // .record(count + 1),
+        );
+    }
+    for c in &buf[..] {
+        if c != &b'\r' && c != &b'\n' {
+            let end = min(16, buf.len());
+            let context = String::from_utf8_lossy(&buf[..end]);
+            return Err(ParseError::new(
+                "File had extra data past end of records",
+                ParseErrorType::PrematureEOF,
+            )
+            // .record(count + 1)
+            .context(context));
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -92,8 +156,7 @@ mod test {
     use std::io::Cursor;
     use std::path::Path;
 
-    use super::FASTA;
-    use crate::formats::buffer::RecBuffer;
+    use super::FastaReader;
     use crate::formats::parse_sequences;
     use crate::util::ParseErrorType;
 
@@ -357,13 +420,13 @@ mod test {
     }
 
     #[test]
-    fn test_buffer() {
-        let mut buf: RecBuffer<FASTA> = RecBuffer::from_bytes(b">test\nACGT");
-        let rec = buf.next().unwrap().unwrap();
+    fn test_reader() {
+        let mut reader = FastaReader::new(b">test\nACGT");
+        let rec = reader.next().unwrap().unwrap();
         assert_eq!(rec.id, b"test", "Record has the right ID");
         assert_eq!(rec.seq, b"ACGT", "Record has the right sequence");
 
-        let mut buf: RecBuffer<FASTA> = RecBuffer::from_bytes(b">test");
-        assert!(buf.next().is_none(), "Incomplete record returns None");
+        let mut reader = FastaReader::new(b">test");
+        assert!(reader.next().is_none(), "Incomplete record returns None");
     }
 }
