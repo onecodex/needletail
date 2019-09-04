@@ -2,9 +2,9 @@ use std::io::Write;
 
 use memchr::memchr;
 
-use crate::formats::buffer::{RecBuffer, RecReader};
+use crate::formats::buffer::RecReader;
 use crate::seq::Sequence;
-use crate::util::{memchr_both, strip_whitespace, ParseError, ParseErrorType};
+use crate::util::{memchr_both_last, strip_whitespace, ParseError, ParseErrorType};
 
 #[derive(Debug)]
 pub struct Fasta<'a> {
@@ -17,11 +17,11 @@ impl<'a> Fasta<'a> {
     where
         W: Write,
     {
-        writer.write(b">")?;
-        writer.write(&self.id)?;
-        writer.write(b"\n")?;
-        writer.write(&self.seq)?;
-        writer.write(b"\n")?;
+        writer.write_all(b">")?;
+        writer.write_all(&self.id)?;
+        writer.write_all(b"\n")?;
+        writer.write_all(&self.seq)?;
+        writer.write_all(b"\n")?;
         Ok(())
     }
 }
@@ -78,7 +78,7 @@ impl<'a> Iterator for FastaReader<'a> {
         }
 
         let seq_end;
-        match (memchr_both(b'\n', b'>', &buf[id_end..]), self.last) {
+        match (memchr_both_last(b'\n', b'>', &buf[id_end..]), self.last) {
             (Some(i), _) => seq_end = id_end + i + 1,
             (None, true) => seq_end = buf.len(),
             (None, false) => return None,
@@ -104,12 +104,8 @@ impl<'a> Iterator for FastaReader<'a> {
 impl<'a> RecReader<'a> for FastaReader<'a> {
     type Header = ();
 
-    fn from_buffer<'s>(reader: &'s RecBuffer<Self>) -> FastaReader<'s> {
-        FastaReader {
-            buf: &reader.buf,
-            last: reader.last,
-            pos: 0,
-        }
+    fn from_buffer(buf: &[u8], last: bool) -> FastaReader {
+        FastaReader { buf, last, pos: 0 }
     }
 
     fn header(&mut self) -> Result<Self::Header, ParseError> {

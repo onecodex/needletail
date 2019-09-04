@@ -4,7 +4,7 @@ use std::fmt;
 use std::io;
 use std::str;
 
-use memchr::{memchr, memchr2};
+use memchr::{memchr2, memchr_iter};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseErrorType {
@@ -114,24 +114,12 @@ pub fn strip_whitespace(seq: &[u8]) -> Cow<[u8]> {
 /// Also returns if any other `b1`s were found in the sequence
 #[inline]
 pub fn memchr_both(b1: u8, b2: u8, seq: &[u8]) -> Option<usize> {
-    // TODO: b2 is going to be much rarer for us in FASTAs, so we should search for that instead
-    // (but b1 is going to be the rarer character in FASTQs so this is optimized for that and we
-    // should allow a choice between the two)
-    let mut pos = 0;
-    loop {
-        match memchr(b1, &seq[pos..]) {
-            None => return None,
-            Some(match_pos) => {
-                if pos + match_pos + 1 == seq.len() {
-                    return None;
-                } else if seq[pos + match_pos + 1] == b2 {
-                    return Some(pos + match_pos);
-                } else {
-                    pos += match_pos + 1;
-                }
-            },
+    for idx in memchr_iter(b1, &seq) {
+        if idx + 1 < seq.len() && seq[idx + 1] == b2 {
+            return Some(idx);
         }
     }
+    None
 }
 
 #[test]
@@ -141,4 +129,26 @@ fn test_memchr_both() {
 
     let pos = memchr_both(b'\n', b'-', &b"te\nst\n-this"[..]);
     assert_eq!(pos, Some(5));
+}
+
+#[inline]
+pub fn memchr_both_last(b1: u8, b2: u8, seq: &[u8]) -> Option<usize> {
+    for idx in memchr_iter(b2, &seq) {
+        if idx != 0 && seq[idx - 1] == b1 {
+            return Some(idx - 1);
+        }
+    }
+    None
+}
+
+#[test]
+fn test_memchr_both_last() {
+    let pos = memchr_both_last(b'\n', b'-', &b"test\n-this"[..]);
+    assert_eq!(pos, Some(4));
+
+    let pos = memchr_both_last(b'\n', b'-', &b"te\nst\n-this"[..]);
+    assert_eq!(pos, Some(5));
+
+    let pos = memchr_both_last(b'\n', b'-', &b"-te\nst\n-this"[..]);
+    assert_eq!(pos, Some(6));
 }

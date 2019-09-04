@@ -4,7 +4,7 @@ use std::io::Write;
 
 use memchr::memchr;
 
-use crate::formats::buffer::{RecBuffer, RecReader};
+use crate::formats::buffer::RecReader;
 use crate::formats::fasta::check_end;
 use crate::seq::Sequence;
 use crate::util::{memchr_both, ParseError, ParseErrorType};
@@ -22,17 +22,17 @@ impl<'a> Fastq<'a> {
     where
         W: Write,
     {
-        writer.write(b"@")?;
-        writer.write(&self.id)?;
-        writer.write(b"\n")?;
-        writer.write(&self.seq)?;
-        writer.write(b"+\n")?;
+        writer.write_all(b"@")?;
+        writer.write_all(&self.id)?;
+        writer.write_all(b"\n")?;
+        writer.write_all(&self.seq)?;
+        writer.write_all(b"+\n")?;
         if self.seq.len() != self.qual.len() {
-            writer.write(&vec![b'I'; self.seq.len()])?;
+            writer.write_all(&vec![b'I'; self.seq.len()])?;
         } else {
-            writer.write(&self.qual)?;
+            writer.write_all(&self.qual)?;
         }
-        writer.write(b"\n")?;
+        writer.write_all(b"\n")?;
         Ok(())
     }
 }
@@ -58,7 +58,7 @@ impl<'a> From<&'a Sequence<'a>> for Fastq<'a> {
             id: &seq.id,
             seq: &seq.seq,
             id2: b"",
-            qual: qual,
+            qual,
         }
     }
 }
@@ -152,12 +152,8 @@ impl<'a> Iterator for FastqReader<'a> {
 impl<'a> RecReader<'a> for FastqReader<'a> {
     type Header = ();
 
-    fn from_buffer<'s>(reader: &'s RecBuffer<Self>) -> FastqReader<'s> {
-        FastqReader {
-            buf: &reader.buf,
-            last: reader.last,
-            pos: 0,
-        }
+    fn from_buffer(buf: &[u8], last: bool) -> FastqReader {
+        FastqReader { buf, last, pos: 0 }
     }
 
     fn header(&mut self) -> Result<Self::Header, ParseError> {

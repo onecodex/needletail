@@ -91,7 +91,7 @@ where
     }
 
     pub fn get_reader(&'b self) -> T {
-        T::from_buffer(self)
+        T::from_buffer(&self.buf, self.last)
     }
 }
 
@@ -104,67 +104,8 @@ where
 pub trait RecReader<'s>: Sized + Iterator {
     type Header;
 
-    fn from_buffer(reader: &'s RecBuffer<Self>) -> Self;
+    fn from_buffer(buf: &'s [u8], last: bool) -> Self;
     fn header(&mut self) -> Result<Self::Header, ParseError>;
     fn eof(&self) -> Result<(), ParseError>;
     fn used(&self) -> usize;
 }
-
-// #[derive(Debug)]
-// pub struct RecBuffer<'a, T> {
-//     record_type: PhantomData<T>,
-//     pub buf: &'a [u8],
-//     pub pos: usize,
-//     pub last: bool,
-//     pub count: usize,
-// }
-//
-// impl<'a, T> RecBuffer<'a, T> {
-//     pub fn from_bytes(data: &'a [u8]) -> Self {
-//         RecBuffer {
-//             buf: data,
-//             pos: 0,
-//             last: true,
-//             record_type: PhantomData,
-//             count: 0,
-//         }
-//     }
-//
-//     pub fn used(&self) -> (usize, usize) {
-//         (self.pos, self.count)
-//     }
-// }
-//
-// #[test]
-// fn test_from_bytes() {
-//     // this is not a useful test, but it does get the compiler to shut up
-//     // about `from_bytes` not being used
-//     let rb: RecBuffer<String> = RecBuffer::from_bytes(b"test");
-//     assert_eq!(rb.pos, 0);
-//     assert_eq!(rb.buf, b"test");
-// }
-
-// pub fn parse<T, E, F>(reader: &'s mut io::Read, header: &[u8], ref mut callback: F) -> Result<(), E> where
-//     E: From<ParseError>,
-//     F: FnMut(T) -> Result<(), E>,
-//     for<'s> RecBuffer<'s, T>: Iterator<Item=Result<T, ParseError>>,
-// {
-//     let mut rec_reader = RecReader::new(reader, 10_000_000, header)?;
-//     loop {
-//         let used = {
-//             let mut rec_buffer = rec_reader.get_buffer();
-//             for s in rec_buffer.by_ref() {
-//                 callback(s?)?;
-//             }
-//             rec_buffer.pos
-//         };
-//         if rec_reader.refill(used)? {
-//             break;
-//         }
-//     }
-//     if rec_reader.get_buffer::<T>().is_finished(true) {
-//         Ok(())
-//     } else {
-//         Err(ParseError::PrematureEOF.into())
-//     }
-// }
