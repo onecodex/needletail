@@ -32,12 +32,11 @@ pub use crate::formats::fastq::{Fastq, FastqReader};
 use crate::seq::Sequence;
 use crate::util::{ParseError, ParseErrorType};
 
-
 #[macro_export]
 macro_rules! parse_stream {
     ($reader:expr, $first:expr, $reader_type: ty, $rec: ident, $handler: block) => {{
         use $crate::formats::{RecBuffer, RecReader};
-        let mut buffer = RecBuffer::<$reader_type>::new($reader, 10_000_000, &$first)?;
+        let mut buffer = RecBuffer::<$reader_type>::new($reader, 1_000_000, &$first)?;
         let mut rec_reader = buffer.get_reader();
         // TODO: do something with the header?
         let mut record_count: usize = 0;

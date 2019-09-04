@@ -18,10 +18,12 @@ compression = ["bzip2", "flate2", "xz2"]
 flate2 = { version="1.0.6", optional=true }
 bzip2 = { version="0.3.3", optional=true }
 xz2 = { version="0.1.6", optional=true }
-memchr = "2.2.0"
+memchr = "2.2.1"
 
 [dev-dependencies]
-bencher = "0.1.5"
+criterion = "0.3"
+bio = "0.28"
+seq_io = "0.3"
 
 [[bench]]
 name = "benchmark"
