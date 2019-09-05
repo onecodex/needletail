@@ -5,11 +5,12 @@ use memchr::memchr;
 use crate::bitkmer::BitNuclKmer;
 use crate::kmer::{complement, NuclKmer};
 
-pub fn normalize(seq: &[u8], iupac: bool) -> (Vec<u8>, bool) {
+pub fn normalize(seq: &[u8], allow_iupac: bool) -> Option<Vec<u8>> {
     //! Transform a FASTX sequence into it's "normalized" form.
     //!
     //! The normalized form is:
-    //!  - only AGCTN and possibly . (for gaps)
+    //!  - only AGCTN and possibly - (for gaps)
+    //!  - strip out any whitespace or line endings
     //!  - lowercase versions of these are uppercased
     //!  - U is converted to T (make everything a DNA sequence)
     //!  - some other punctuation is converted to gaps
@@ -19,20 +20,20 @@ pub fn normalize(seq: &[u8], iupac: bool) -> (Vec<u8>, bool) {
     let mut changed: bool = false;
 
     for n in seq.iter() {
-        let (new_char, char_changed) = match (*n, iupac) {
+        let (new_char, char_changed) = match (*n, allow_iupac) {
             c @ (b'A', _)
             | c @ (b'C', _)
             | c @ (b'G', _)
             | c @ (b'T', _)
             | c @ (b'N', _)
-            | c @ (b'.', _) => (c.0, false),
+            | c @ (b'-', _) => (c.0, false),
             (b'a', _) => (b'A', true),
             (b'c', _) => (b'C', true),
             (b'g', _) => (b'G', true),
             // normalize uridine to thymine
             (b't', _) | (b'u', _) | (b'U', _) => (b'T', true),
             // normalize gaps
-            (b'-', _) | (b'~', _) | (b' ', _) => (b'.', true),
+            (b'.', _) | (b'~', _) => (b'-', true),
             // logic for IUPAC bases (a little messy)
             c @ (b'B', true)
             | c @ (b'D', true)
@@ -54,40 +55,59 @@ pub fn normalize(seq: &[u8], iupac: bool) -> (Vec<u8>, bool) {
             (b'w', true) => (b'W', true),
             (b'k', true) => (b'K', true),
             (b'm', true) => (b'M', true),
+            // remove all whitespace and line endings
+            (b' ', _) | (b'\t', _) | (b'\r', _) | (b'\n', _) => (b' ', true),
+            // everything else is an N
             _ => (b'N', true),
         };
         changed = changed || char_changed;
-        buf.push(new_char);
+        if new_char != b' ' {
+            buf.push(new_char);
+        }
     }
-    (buf, changed)
+    if changed {
+        Some(buf)
+    } else {
+        None
+    }
 }
 
 #[test]
 fn test_normalize() {
-    assert_eq!(normalize(b"ACGTU", false), (b"ACGTT".to_vec(), true));
-    assert_eq!(normalize(b"acgtu", false), (b"ACGTT".to_vec(), true));
+    assert_eq!(normalize(b"ACGTU", false), Some(b"ACGTT".to_vec()));
+    assert_eq!(normalize(b"acgtu", false), Some(b"ACGTT".to_vec()));
 
-    assert_eq!(
-        normalize(b"N.N-N~N N", false),
-        (b"N.N.N.N.N".to_vec(), true)
-    );
+    assert_eq!(normalize(b"N.N-N~N N", false), Some(b"N.N.N.N.N".to_vec()));
 
-    assert_eq!(
-        normalize(b"BDHVRYSWKM", true),
-        (b"BDHVRYSWKM".to_vec(), false)
-    );
-    assert_eq!(
-        normalize(b"bdhvryswkm", true),
-        (b"BDHVRYSWKM".to_vec(), true)
-    );
+    assert_eq!(normalize(b"BDHVRYSWKM", true), None);
+    assert_eq!(normalize(b"bdhvryswkm", true), Some(b"BDHVRYSWKM".to_vec()));
     assert_eq!(
         normalize(b"BDHVRYSWKM", false),
-        (b"NNNNNNNNNN".to_vec(), true)
+        Some(b"NNNNNNNNNN".to_vec())
     );
     assert_eq!(
         normalize(b"bdhvryswkm", false),
-        (b"NNNNNNNNNN".to_vec(), true)
+        Some(b"NNNNNNNNNN".to_vec())
     );
+}
+
+/// Mask tabs in header lines to `|`s
+pub fn mask_header_tabs(id: &[u8]) -> Option<Vec<u8>> {
+    memchr(b'\t', id).map(|_| {
+        id.iter()
+            .map(|x| if *x == b'\t' { b'|' } else { *x })
+            .collect()
+    })
+}
+
+/// Convert bad UTF8 characters into �s
+pub fn mask_header_utf8(id: &[u8]) -> Option<Vec<u8>> {
+    // this may potentially change the length of the id; we should probably
+    // be doing something trickier like converting
+    match String::from_utf8_lossy(id) {
+        Cow::Owned(s) => Some(s.into_bytes()),
+        Cow::Borrowed(_) => None,
+    }
 }
 
 /// A generic FASTX record that also abstracts over several logical operations
@@ -146,23 +166,22 @@ impl<'a> Sequence<'a> {
 
     /// Capitalize everything and mask unknown bases to N
     pub fn normalize(mut self, iupac: bool) -> Self {
-        let (seq, changed) = normalize(&self.seq, iupac);
-        if changed {
+        if let Some(seq) = normalize(&self.seq, iupac) {
             self.seq = seq.into();
         }
         self
     }
 
-    /// Mask tabs in header lines to `|`s
-    ///
-    /// Returns `true` if the header was masked
+    /// Fixes up potential problems with sequence headers including tabs being
+    /// present (may break downstream analyses with headers in TSVs) and with
+    /// non-UTF8 characters being present, e.g. non-breaking spaces on Windows
+    /// encodings (0x0A) breaks some tools.
     pub fn mask_header(mut self) -> Self {
-        if memchr(b'\t', self.id.as_ref()).is_some() {
-            self.id = self
-                .id
-                .iter()
-                .map(|x| if *x == b'\t' { b'|' } else { *x })
-                .collect();
+        if let Some(id) = mask_header_tabs(&self.id) {
+            self.id = id.into();
+        }
+        if let Some(id) = mask_header_utf8(&self.id) {
+            self.id = id.into();
         }
         self
     }

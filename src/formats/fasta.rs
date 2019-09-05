@@ -2,7 +2,7 @@ use std::io::Write;
 
 use memchr::memchr;
 
-use crate::formats::buffer::RecReader;
+use crate::formats::buffer::RecParser;
 use crate::seq::Sequence;
 use crate::util::{memchr_both_last, strip_whitespace, ParseError, ParseErrorType};
 
@@ -13,10 +13,7 @@ pub struct Fasta<'a> {
 }
 
 impl<'a> Fasta<'a> {
-    pub fn write<W>(&self, writer: &mut W) -> Result<(), ParseError>
-    where
-        W: Write,
-    {
+    pub fn write(&self, writer: &mut dyn Write) -> Result<(), ParseError> {
         writer.write_all(b">")?;
         writer.write_all(&self.id)?;
         writer.write_all(b"\n")?;
@@ -41,15 +38,15 @@ impl<'a> From<&'a Sequence<'a>> for Fasta<'a> {
     }
 }
 
-pub struct FastaReader<'a> {
+pub struct FastaParser<'a> {
     buf: &'a [u8],
     last: bool,
     pos: usize,
 }
 
-impl<'a> FastaReader<'a> {
+impl<'a> FastaParser<'a> {
     pub fn new(buf: &'a [u8]) -> Self {
-        FastaReader {
+        FastaParser {
             buf,
             last: true,
             pos: 0,
@@ -57,7 +54,7 @@ impl<'a> FastaReader<'a> {
     }
 }
 
-impl<'a> Iterator for FastaReader<'a> {
+impl<'a> Iterator for FastaParser<'a> {
     type Item = Result<Fasta<'a>, ParseError>;
 
     #[inline]
@@ -101,11 +98,11 @@ impl<'a> Iterator for FastaReader<'a> {
     }
 }
 
-impl<'a> RecReader<'a> for FastaReader<'a> {
+impl<'a> RecParser<'a> for FastaParser<'a> {
     type Header = ();
 
-    fn from_buffer(buf: &[u8], last: bool) -> FastaReader {
-        FastaReader { buf, last, pos: 0 }
+    fn from_buffer(buf: &[u8], last: bool) -> FastaParser {
+        FastaParser { buf, last, pos: 0 }
     }
 
     fn header(&mut self) -> Result<Self::Header, ParseError> {
@@ -152,7 +149,7 @@ mod test {
     use std::io::Cursor;
     use std::path::Path;
 
-    use super::FastaReader;
+    use super::FastaParser;
     use crate::formats::parse_sequences;
     use crate::util::ParseErrorType;
 
@@ -417,12 +414,12 @@ mod test {
 
     #[test]
     fn test_reader() {
-        let mut reader = FastaReader::new(b">test\nACGT");
+        let mut reader = FastaParser::new(b">test\nACGT");
         let rec = reader.next().unwrap().unwrap();
         assert_eq!(rec.id, b"test", "Record has the right ID");
         assert_eq!(rec.seq, b"ACGT", "Record has the right sequence");
 
-        let mut reader = FastaReader::new(b">test");
+        let mut reader = FastaParser::new(b">test");
         assert!(reader.next().is_none(), "Incomplete record returns None");
     }
 }
