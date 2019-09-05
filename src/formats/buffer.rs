@@ -33,7 +33,7 @@ pub struct RecBuffer<'a, T> {
 /// readers.
 impl<'a, 'b, T> RecBuffer<'a, T>
 where
-    T: RecReader<'b>,
+    T: RecParser<'b>,
 {
     /// Instantiate a new buffer.
     ///
@@ -95,13 +95,13 @@ where
     }
 }
 
-/// RecReader is an adaptor trait that allows new file format parsers to be
+/// RecParser is an adaptor trait that allows new file format parsers to be
 /// defined. It takes a chunk from a RecBuffer (`from_reader`), optionally
 /// parses an initial header out (`header`) and then provides an iterator
 /// interface to parse a record stream. When finished, it provides a `eof`
 /// function to determine if the stream is completely exhausted.
 ///
-pub trait RecReader<'s>: Sized + Iterator {
+pub trait RecParser<'s>: Sized + Iterator {
     type Header;
 
     fn from_buffer(buf: &'s [u8], last: bool) -> Self;

@@ -4,7 +4,7 @@ use std::io::Write;
 
 use memchr::memchr;
 
-use crate::formats::buffer::RecReader;
+use crate::formats::buffer::RecParser;
 use crate::formats::fasta::check_end;
 use crate::seq::Sequence;
 use crate::util::{memchr_both, ParseError, ParseErrorType};
@@ -18,10 +18,7 @@ pub struct Fastq<'a> {
 }
 
 impl<'a> Fastq<'a> {
-    pub fn write<W>(&self, writer: &mut W) -> Result<(), ParseError>
-    where
-        W: Write,
-    {
+    pub fn write(&self, writer: &mut dyn Write) -> Result<(), ParseError> {
         writer.write_all(b"@")?;
         writer.write_all(&self.id)?;
         writer.write_all(b"\n")?;
@@ -63,13 +60,13 @@ impl<'a> From<&'a Sequence<'a>> for Fastq<'a> {
     }
 }
 
-pub struct FastqReader<'a> {
+pub struct FastqParser<'a> {
     buf: &'a [u8],
     last: bool,
     pos: usize,
 }
 
-impl<'a> Iterator for FastqReader<'a> {
+impl<'a> Iterator for FastqParser<'a> {
     type Item = Result<Fastq<'a>, ParseError>;
 
     #[inline]
@@ -149,11 +146,11 @@ impl<'a> Iterator for FastqReader<'a> {
     }
 }
 
-impl<'a> RecReader<'a> for FastqReader<'a> {
+impl<'a> RecParser<'a> for FastqParser<'a> {
     type Header = ();
 
-    fn from_buffer(buf: &[u8], last: bool) -> FastqReader {
-        FastqReader { buf, last, pos: 0 }
+    fn from_buffer(buf: &[u8], last: bool) -> FastqParser {
+        FastqParser { buf, last, pos: 0 }
     }
 
     fn header(&mut self) -> Result<Self::Header, ParseError> {
@@ -173,8 +170,8 @@ impl<'a> RecReader<'a> for FastqReader<'a> {
 mod test {
     use std::io::Cursor;
 
-    use super::FastqReader;
-    use crate::formats::buffer::{RecBuffer, RecReader};
+    use super::FastqParser;
+    use crate::formats::buffer::{RecBuffer, RecParser};
     use crate::formats::parse_sequences;
     use crate::util::ParseErrorType;
 
@@ -342,7 +339,7 @@ mod test {
         let test_seq = b"@A\nA\n+A\nA\n@B\nA\n+B\n!";
         let mut cursor = Cursor::new(test_seq);
         // the buffer is aligned to the first record
-        let mut rec_reader = RecBuffer::<FastqReader>::new(&mut cursor, 9, b"").unwrap();
+        let mut rec_reader = RecBuffer::<FastqParser>::new(&mut cursor, 9, b"").unwrap();
 
         let used = {
             let mut rec_buffer = rec_reader.get_reader();

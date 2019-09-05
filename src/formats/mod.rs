@@ -26,16 +26,16 @@ use flate2::read::MultiGzDecoder;
 #[cfg(feature = "compression")]
 use xz2::read::XzDecoder;
 
-pub use crate::formats::buffer::{RecBuffer, RecReader};
-pub use crate::formats::fasta::{Fasta, FastaReader};
-pub use crate::formats::fastq::{Fastq, FastqReader};
+pub use crate::formats::buffer::{RecBuffer, RecParser};
+pub use crate::formats::fasta::{Fasta, FastaParser};
+pub use crate::formats::fastq::{Fastq, FastqParser};
 use crate::seq::Sequence;
 use crate::util::{ParseError, ParseErrorType};
 
 #[macro_export]
 macro_rules! parse_stream {
     ($reader:expr, $first:expr, $reader_type: ty, $rec: ident, $handler: block) => {{
-        use $crate::formats::{RecBuffer, RecReader};
+        use $crate::formats::{RecBuffer, RecParser};
         let mut buffer = RecBuffer::<$reader_type>::new($reader, 1_000_000, &$first)?;
         let mut rec_reader = buffer.get_reader();
         // TODO: do something with the header?
@@ -90,10 +90,10 @@ where
     type_callback(file_type);
 
     match file_type {
-        "FASTA" => parse_stream!(reader, first, FastaReader, rec, {
+        "FASTA" => parse_stream!(reader, first, FastaParser, rec, {
             callback(Sequence::from(rec))
         }),
-        "FASTQ" => parse_stream!(reader, first, FastqReader, rec, {
+        "FASTQ" => parse_stream!(reader, first, FastqParser, rec, {
             callback(Sequence::from(rec))
         }),
         _ => panic!("A file type was inferred that could not be parsed"),
