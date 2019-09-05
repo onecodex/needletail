@@ -15,6 +15,7 @@
 mod buffer;
 mod fasta;
 mod fastq;
+mod validation;
 
 use std::io::{Cursor, Read};
 use std::str;
