@@ -77,7 +77,7 @@ fn test_normalize() {
     assert_eq!(normalize(b"ACGTU", false), Some(b"ACGTT".to_vec()));
     assert_eq!(normalize(b"acgtu", false), Some(b"ACGTT".to_vec()));
 
-    assert_eq!(normalize(b"N.N-N~N N", false), Some(b"N.N.N.N.N".to_vec()));
+    assert_eq!(normalize(b"N.N-N~N N", false), Some(b"N-N-N-NN".to_vec()));
 
     assert_eq!(normalize(b"BDHVRYSWKM", true), None);
     assert_eq!(normalize(b"bdhvryswkm", true), Some(b"BDHVRYSWKM".to_vec()));
@@ -227,15 +227,14 @@ fn test_quality_mask() {
         qual: Some(b"AAA0"[..].into()),
         rev_seq: None,
     };
-    let filtered_rec = seq_rec.quality_mask('5' as u8);
+    let filtered_rec = seq_rec.quality_mask(b'5');
     assert_eq!(&filtered_rec.seq[..], &b"AGCN"[..]);
 }
 
 #[test]
 fn can_kmerize() {
     // test general function
-    let mut i = 0;
-    for (_, k, _) in Sequence::from_bytes(b"AGCT").kmers(1, false) {
+    for (i, (_, k, _)) in Sequence::from_bytes(b"AGCT").kmers(1, false).enumerate() {
         match i {
             0 => assert_eq!(k, &b"A"[..]),
             1 => assert_eq!(k, &b"G"[..]),
@@ -243,31 +242,26 @@ fn can_kmerize() {
             3 => assert_eq!(k, &b"T"[..]),
             _ => unreachable!("Too many kmers"),
         }
-        i += 1;
     }
 
     // test that we skip over N's
-    i = 0;
-    for (_, k, _) in Sequence::from_bytes(b"ACNGT").kmers(2, false) {
+    for (i, (_, k, _)) in Sequence::from_bytes(b"ACNGT").kmers(2, false).enumerate() {
         match i {
             0 => assert_eq!(k, &b"AC"[..]),
             1 => assert_eq!(k, &b"GT"[..]),
             _ => unreachable!("Too many kmers"),
         }
-        i += 1;
     }
 
     // test that we skip over N's and handle short kmers
-    i = 0;
-    for (ix, k, _) in Sequence::from_bytes(b"ACNG").kmers(2, false) {
+    for (i, (ix, k, _)) in Sequence::from_bytes(b"ACNG").kmers(2, false).enumerate() {
         match i {
             0 => {
                 assert_eq!(ix, 0);
                 assert_eq!(k, &b"AC"[..]);
-            },
+            }
             _ => unreachable!("Too many kmers"),
         }
-        i += 1;
     }
 
     // test that the minimum length works
@@ -279,32 +273,29 @@ fn can_kmerize() {
 #[test]
 fn can_canonicalize() {
     // test general function
-    let mut i = 0;
-    for (_, k, is_c) in Sequence::from_bytes(b"AGCT").kmers(1, true) {
+    for (i, (_, k, is_c)) in Sequence::from_bytes(b"AGCT").kmers(1, true).enumerate() {
         match i {
             0 => {
                 assert_eq!(k, &b"A"[..]);
                 assert_eq!(is_c, false);
-            },
+            }
             1 => {
                 assert_eq!(k, &b"C"[..]);
                 assert_eq!(is_c, true);
-            },
+            }
             2 => {
                 assert_eq!(k, &b"C"[..]);
                 assert_eq!(is_c, false);
-            },
+            }
             3 => {
                 assert_eq!(k, &b"A"[..]);
                 assert_eq!(is_c, true);
-            },
+            }
             _ => unreachable!("Too many kmers"),
         }
-        i += 1;
     }
 
-    let mut i = 0;
-    for (_, k, _) in Sequence::from_bytes(b"AGCTA").kmers(2, true) {
+    for (i, (_, k, _)) in Sequence::from_bytes(b"AGCTA").kmers(2, true).enumerate() {
         match i {
             0 => assert_eq!(k, &b"AG"[..]),
             1 => assert_eq!(k, &b"GC"[..]),
@@ -312,22 +303,19 @@ fn can_canonicalize() {
             3 => assert_eq!(k, &b"TA"[..]),
             _ => unreachable!("Too many kmers"),
         }
-        i += 1;
     }
 
-    let mut i = 0;
-    for (ix, k, _) in Sequence::from_bytes(b"AGNTA").kmers(2, true) {
+    for (i, (ix, k, _)) in Sequence::from_bytes(b"AGNTA").kmers(2, true).enumerate() {
         match i {
             0 => {
                 assert_eq!(ix, 0);
                 assert_eq!(k, &b"AG"[..]);
-            },
+            }
             1 => {
                 assert_eq!(ix, 3);
                 assert_eq!(k, &b"TA"[..]);
-            },
+            }
             _ => unreachable!("Too many kmers"),
         }
-        i += 1;
     }
 }

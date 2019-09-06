@@ -1,29 +1,11 @@
 use std::io;
-use std::marker::PhantomData;
+
+use safemem::copy_over;
 
 use crate::util::ParseError;
 
-#[inline]
-fn fill_buffer(
-    file: &mut dyn io::Read,
-    data: &[u8],
-    buf_size: usize,
-) -> Result<(Vec<u8>, bool), ParseError> {
-    let mut buf = Vec::with_capacity(buf_size + data.len());
-    unsafe {
-        buf.set_len(buf_size + data.len());
-    }
-    buf[..data.len()].copy_from_slice(data);
-    let amt_read = file.read(&mut buf[data.len()..])?;
-    unsafe {
-        buf.set_len(amt_read + data.len());
-    }
-    Ok((buf, amt_read == 0))
-}
-
-pub struct RecBuffer<'a, T> {
-    rec_type: PhantomData<T>,
-    file: Option<&'a mut dyn io::Read>,
+pub struct RecBuffer<'a> {
+    file: &'a mut dyn io::Read,
     pub buf: Vec<u8>,
     pub last: bool,
 }
@@ -31,10 +13,7 @@ pub struct RecBuffer<'a, T> {
 /// A buffer that wraps an object with the `Read` trait and allows extracting
 /// a set of slices to data. Acts as a lower-level primitive for our FASTX
 /// readers.
-impl<'a, 'b, T> RecBuffer<'a, T>
-where
-    T: RecParser<'b>,
-{
+impl<'a> RecBuffer<'a> {
     /// Instantiate a new buffer.
     ///
     /// # Panics
@@ -45,31 +24,22 @@ where
         file: &'a mut dyn io::Read,
         buf_size: usize,
         header: &[u8],
-    ) -> Result<RecBuffer<'a, T>, ParseError> {
-        let (buf, last) = fill_buffer(file, header, buf_size)?;
+    ) -> Result<RecBuffer<'a>, ParseError> {
+        let mut buf = Vec::with_capacity(buf_size);
+        unsafe {
+            buf.set_len(buf_size + header.len());
+        }
+        buf[..header.len()].copy_from_slice(header);
+        let amt_read = file.read(&mut buf[header.len()..])?;
+        unsafe {
+            buf.set_len(amt_read + header.len());
+        }
+
         Ok(RecBuffer {
-            rec_type: PhantomData,
-            file: Some(file),
-            last,
+            file,
+            last: amt_read == 0,
             buf,
         })
-    }
-
-    pub fn new_chunked() -> Result<RecBuffer<'a, T>, ParseError> {
-        Ok(RecBuffer {
-            rec_type: PhantomData,
-            file: None,
-            last: false,
-            buf: Vec::new(),
-        })
-    }
-
-    pub fn fill(&mut self, data: &[u8], last: bool) -> Result<(), ParseError> {
-        let mut data = io::Cursor::new(data);
-        let (buf, _) = fill_buffer(&mut data, &self.buf, self.buf.capacity())?;
-        self.buf = buf;
-        self.last = last;
-        Ok(())
     }
 
     /// Refill the buffer and increase its capacity if it's not big enough.
@@ -79,19 +49,24 @@ where
         if used == 0 && self.last {
             return Ok(true);
         }
-        let data = &self.buf[used..];
-        let (buf, last) = if let Some(f) = &mut self.file {
-            fill_buffer(f, &data, self.buf.capacity())?
-        } else {
-            (data.to_vec(), self.last)
-        };
-        self.buf = buf;
-        self.last = last;
+        let remaining = self.buf.len() - used;
+        if used == 0 {
+            // double the buffer size (i tried using buf.reserve, but that doesn't work _at all_)
+            let mut new_buf = Vec::with_capacity(2 * self.buf.capacity());
+            unsafe {
+                new_buf.set_len(new_buf.capacity());
+            }
+            new_buf[..self.buf.len()].copy_from_slice(&self.buf);
+            self.buf = new_buf;
+        } else if remaining != 0 {
+            copy_over(&mut self.buf, used, 0, remaining);
+        }
+        let amt_read = self.file.read(&mut self.buf[remaining..])?;
+        unsafe {
+            self.buf.set_len(remaining + amt_read);
+        }
+        self.last = amt_read == 0;
         Ok(false)
-    }
-
-    pub fn get_reader(&'b self) -> T {
-        T::from_buffer(&self.buf, self.last)
     }
 }
 

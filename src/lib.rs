@@ -6,4 +6,4 @@ pub mod seq;
 mod util;
 
 pub use formats::parse_sequences;
-pub use util::ParseError;
+pub use util::{ParseError, ParseErrorType};

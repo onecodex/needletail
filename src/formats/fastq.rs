@@ -66,27 +66,37 @@ pub struct FastqParser<'a> {
     pos: usize,
 }
 
+impl<'a> FastqParser<'a> {
+    pub fn new(buf: &'a [u8], last: bool) -> Result<Self, ParseError> {
+        if buf[0] != b'@' {
+            // sometimes there are extra returns at the end of a file so we shouldn't blow up
+            if !(last && (buf[0] == b'\r' && buf[0] == b'\n')) {
+                let context = String::from_utf8_lossy(&buf[..min(32, buf.len())]);
+                let e = ParseError::new(
+                    "FASTQ record must start with '@'",
+                    ParseErrorType::InvalidHeader,
+                )
+                .context(context);
+                return Err(e);
+            }
+        }
+
+        Ok(FastqParser { buf, last, pos: 0 })
+    }
+}
+
 impl<'a> Iterator for FastqParser<'a> {
     type Item = Result<Fastq<'a>, ParseError>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos >= self.buf.len() {
+        let buf = &self.buf[self.pos..];
+        if buf.is_empty() {
             return None;
         }
-        let buf = &self.buf[self.pos..];
-
-        if buf[0] != b'@' {
-            // sometimes there are extra returns at the end of a file so we shouldn't blow up
-            if buf[0] == b'\r' || buf[0] == b'\n' {
-                return None;
-            } else {
-                let context = String::from_utf8_lossy(&buf[..min(16, buf.len())]);
-                let e =
-                    ParseError::new("Record must start with '@'", ParseErrorType::InvalidHeader)
-                        .context(context);
-                return Some(Err(e));
-            }
+        if buf[0] == b'\n' {
+            // sometimes the last "record" is just newlines
+            return None;
         }
 
         let id_end;
@@ -129,6 +139,20 @@ impl<'a> Iterator for FastqParser<'a> {
         }
         let mut qual = &buf[id2_end..qual_end - 1];
 
+        if (qual_end + 1 < buf.len()
+            && buf[qual_end] != b'@'
+            && buf[qual_end] != b'\r'
+            && buf[qual_end] != b'\n')
+            || (qual_end < buf.len() && buf[qual_end - 1] != b'\n')
+        {
+            let context = String::from_utf8_lossy(id);
+            return Some(Err(ParseError::new(
+                "Sequence and quality lengths differed",
+                ParseErrorType::InvalidRecord,
+            )
+            .context(context)));
+        }
+
         // clean up any extra '\r' from the id and seq
         if !id.is_empty() && id[id.len() - 1] == b'\r' {
             id = &id[..id.len() - 1];
@@ -139,6 +163,16 @@ impl<'a> Iterator for FastqParser<'a> {
         // we do qual separately in case this is the end of the file
         if !qual.is_empty() && qual[qual.len() - 1] == b'\r' {
             qual = &qual[..qual.len() - 1];
+        }
+        if !qual.is_empty() && qual[qual.len() - 1] == b'\n' {
+            // special case for FASTQs that are a single character short on the
+            // quality line, but still have a terminal newline
+            let context = String::from_utf8_lossy(id);
+            return Some(Err(ParseError::new(
+                "Quality length was shorter than expected",
+                ParseErrorType::PrematureEOF,
+            )
+            .context(context)));
         }
 
         self.pos += buffer_used;
@@ -191,12 +225,12 @@ mod test {
                         assert_eq!(&seq.id[..], b"test");
                         assert_eq!(&seq.seq[..], b"AGCT");
                         assert_eq!(&seq.qual.unwrap()[..], b"~~a!");
-                    },
+                    }
                     1 => {
                         assert_eq!(&seq.id[..], b"test2");
                         assert_eq!(&seq.seq[..], b"TGCA");
                         assert_eq!(&seq.qual.unwrap()[..], b"WUI9");
-                    },
+                    }
                     _ => unreachable!("Too many records"),
                 }
                 i += 1;
@@ -215,12 +249,12 @@ mod test {
                         assert_eq!(&seq.id[..], b"test");
                         assert_eq!(&seq.seq[..], b"AGCT");
                         assert_eq!(&seq.qual.unwrap()[..], b"~~a!");
-                    },
+                    }
                     1 => {
                         assert_eq!(&seq.id[..], b"test2");
                         assert_eq!(&seq.seq[..], b"TGCA");
                         assert_eq!(&seq.qual.unwrap()[..], b"WUI9");
-                    },
+                    }
                     _ => unreachable!("Too many records"),
                 }
                 i += 1;
@@ -241,6 +275,13 @@ mod test {
 
     #[test]
     fn test_premature_endings() {
+        let test = b"@test\nACGT\n+\nIII\n";
+        let mut fp = FastqParser::new(test, true).unwrap();
+        let result = fp.next().unwrap();
+        assert!(result.is_err());
+        let e = result.unwrap_err();
+        assert!(e.error_type == ParseErrorType::PrematureEOF);
+
         let mut i = 0;
         let res = parse_sequences(
             seq(b"@test\nAGCT\n+test\n~~a!\n@test2\nTGCA"),
@@ -251,7 +292,7 @@ mod test {
                         assert_eq!(&seq.id[..], b"test");
                         assert_eq!(&seq.seq[..], b"AGCT");
                         assert_eq!(&seq.qual.unwrap()[..], b"~~a!");
-                    },
+                    }
                     _ => unreachable!("Too many records"),
                 }
                 i += 1;
@@ -273,7 +314,7 @@ mod test {
                         assert_eq!(&seq.id[..], b"test");
                         assert_eq!(&seq.seq[..], b"AGCT");
                         assert_eq!(&seq.qual.unwrap()[..], b"~~a!");
-                    },
+                    }
                     _ => unreachable!("Too many records"),
                 }
                 i += 1;
@@ -283,6 +324,9 @@ mod test {
         assert_eq!(res, Ok(()));
 
         // but if there's additional data past the newlines it's an error
+        // note this is slightly easier to output than the "Sequence and
+        // quality lengths differed" error because the end of the file may
+        // normally have multiple newlines
         let mut i = 0;
         let res = parse_sequences(
             seq(b"@test\nAGCT\n+test\n~~a!\n\n@TEST\nA\n+TEST\n~"),
@@ -293,7 +337,7 @@ mod test {
                         assert_eq!(&seq.id[..], b"test");
                         assert_eq!(&seq.seq[..], b"AGCT");
                         assert_eq!(&seq.qual.unwrap()[..], b"~~a!");
-                    },
+                    }
                     _ => unreachable!("Too many records"),
                 }
                 i += 1;
@@ -319,12 +363,12 @@ mod test {
                         assert_eq!(&seq.id[..], b"");
                         assert_eq!(&seq.seq[..], b"");
                         assert_eq!(&seq.qual.unwrap()[..], b"");
-                    },
+                    }
                     1 => {
                         assert_eq!(&seq.id[..], b"test2");
                         assert_eq!(&seq.seq[..], b"TGCA");
                         assert_eq!(&seq.qual.unwrap()[..], b"~~~~");
-                    },
+                    }
                     _ => unreachable!("Too many records"),
                 }
                 i += 1;
@@ -335,14 +379,31 @@ mod test {
     }
 
     #[test]
+    fn test_mismatched_lengths() {
+        let mut fp = FastqParser::new(b"@test\nAGCT\n+\nIII\n@TEST\nA\n+\nI", true).unwrap();
+        let result = fp.next().unwrap();
+        assert!(result.is_err());
+        let e = result.unwrap_err();
+        assert!(e.error_type == ParseErrorType::InvalidRecord);
+        assert!(e.msg == "Sequence and quality lengths differed");
+
+        let mut fp = FastqParser::new(b"@test\nAGCT\n+\nIIIII\n@TEST\nA\n+\nI", true).unwrap();
+        let result = fp.next().unwrap();
+        assert!(result.is_err());
+        let e = result.unwrap_err();
+        assert!(e.error_type == ParseErrorType::InvalidRecord);
+        assert!(e.msg == "Sequence and quality lengths differed");
+    }
+
+    #[test]
     fn test_fastq_across_buffer() {
         let test_seq = b"@A\nA\n+A\nA\n@B\nA\n+B\n!";
         let mut cursor = Cursor::new(test_seq);
         // the buffer is aligned to the first record
-        let mut rec_reader = RecBuffer::<FastqParser>::new(&mut cursor, 9, b"").unwrap();
+        let mut rec_reader = RecBuffer::new(&mut cursor, 9, b"").unwrap();
 
         let used = {
-            let mut rec_buffer = rec_reader.get_reader();
+            let mut rec_buffer = FastqParser::from_buffer(&rec_reader.buf, rec_reader.last);
             for _s in rec_buffer.by_ref() {
                 // record is incomplete
                 panic!("No initial record should be parsed")
@@ -354,7 +415,7 @@ mod test {
         assert_eq!(rec_reader.refill(used).unwrap(), false);
 
         // now we should see both records
-        let mut rec_buffer = rec_reader.get_reader();
+        let mut rec_buffer = FastqParser::from_buffer(&rec_reader.buf, rec_reader.last);
 
         // there should be a record assuming the parser
         // handled the buffer boundary

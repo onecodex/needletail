@@ -1,3 +1,0 @@
-match_block_trailing_comma = true
-newline_style = "Unix"
-edition = "2018"

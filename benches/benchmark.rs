@@ -38,8 +38,8 @@ fn bench_kmer_speed(c: &mut Criterion) {
                 },
             )
             .unwrap();
-            assert_eq!(718007, n_total);
-            assert_eq!(350983, n_canonical);
+            assert_eq!(718_007, n_total);
+            assert_eq!(350_983, n_canonical);
         });
     });
 
@@ -61,8 +61,8 @@ fn bench_kmer_speed(c: &mut Criterion) {
                 },
             )
             .unwrap();
-            assert_eq!(718007, n_total);
-            assert_eq!(350983, n_canonical);
+            assert_eq!(718_007, n_total);
+            assert_eq!(350_983, n_canonical);
         });
     });
 }
@@ -89,7 +89,7 @@ fn bench_fastq_file(c: &mut Criterion) {
                 let record = record.unwrap();
                 n_bases += record.seq().len()
             }
-            assert_eq!(250000, n_bases);
+            assert_eq!(250_000, n_bases);
         });
     });
 
@@ -103,7 +103,7 @@ fn bench_fastq_file(c: &mut Criterion) {
                 let seqlen = record.seq().len();
                 n_bases += seqlen;
             }
-            assert_eq!(250000, n_bases);
+            assert_eq!(250_000, n_bases);
         });
     });
 
@@ -119,38 +119,19 @@ fn bench_fastq_file(c: &mut Criterion) {
                 },
             )
             .unwrap();
-            assert_eq!(250000, n_bases);
-        });
-    });
-
-    group.bench_function("Needletail (Macro)", |bench| {
-        use needletail::formats::FastqReader;
-        use needletail::{parse_stream, ParseError};
-        #[inline]
-        fn get_n_bases(mut fastq_data: &mut dyn Read) -> Result<usize, ParseError> {
-            let mut n_bases = 0;
-            parse_stream!(&mut fastq_data, &b""[..], FastqReader, rec, {
-                n_bases += rec.seq.len();
-            });
-            Ok(n_bases)
-        }
-
-        bench.iter(|| {
-            let mut fastq_data = Cursor::new(data.clone());
-            let n_bases = get_n_bases(&mut fastq_data).unwrap();
-            assert_eq!(250000, n_bases);
+            assert_eq!(250_000, n_bases);
         });
     });
 
     group.bench_function("Needletail (No Buffer)", |bench| {
-        use needletail::formats::{FastqReader, RecReader};
+        use needletail::formats::{FastqParser, RecParser};
         bench.iter(|| {
-            let mut reader = FastqReader::from_buffer(&data, true);
+            let mut reader = FastqParser::from_buffer(&data, true);
             let mut n_bases = 0;
             for seq in reader.by_ref() {
                 n_bases += seq.unwrap().seq.len();
             }
-            assert_eq!(250000, n_bases);
+            assert_eq!(250_000, n_bases);
         });
     });
 }
@@ -174,7 +155,7 @@ fn bench_fasta_file(c: &mut Criterion) {
                 let record = record.unwrap();
                 n_bases += record.seq().len()
             }
-            assert_eq!(738580, n_bases);
+            assert_eq!(738_580, n_bases);
         });
     });
 
@@ -189,7 +170,7 @@ fn bench_fasta_file(c: &mut Criterion) {
                     n_bases += s.len();
                 }
             }
-            assert_eq!(738580, n_bases);
+            assert_eq!(738_580, n_bases);
         });
     });
 
@@ -205,42 +186,21 @@ fn bench_fasta_file(c: &mut Criterion) {
                 },
             )
             .unwrap();
-            assert_eq!(738580, n_bases);
-        });
-    });
-
-    group.bench_function("Needletail (Macro)", |bench| {
-        use needletail::formats::FastaReader;
-        use needletail::seq::Sequence;
-        use needletail::{parse_stream, ParseError};
-        #[inline]
-        fn get_n_bases(mut fasta_data: &mut dyn Read) -> Result<usize, ParseError> {
-            let mut n_bases = 0;
-            parse_stream!(&mut fasta_data, &b""[..], FastaReader, rec, {
-                let seq = Sequence::from(rec);
-                n_bases += seq.seq.len();
-            });
-            Ok(n_bases)
-        }
-
-        bench.iter(|| {
-            let mut fasta_data = Cursor::new(data.clone());
-            let n_bases = get_n_bases(&mut fasta_data).unwrap();
-            assert_eq!(738580, n_bases);
+            assert_eq!(738_580, n_bases);
         });
     });
 
     group.bench_function("Needletail (No Buffer)", |bench| {
-        use needletail::formats::{FastaReader, RecReader};
+        use needletail::formats::{FastaParser, RecParser};
         use needletail::seq::Sequence;
         bench.iter(|| {
-            let mut reader = FastaReader::from_buffer(&data, true);
+            let mut reader = FastaParser::from_buffer(&data, true);
             let mut n_bases = 0;
             for rec in reader.by_ref() {
                 let seq = Sequence::from(rec.unwrap());
                 n_bases += seq.seq.len();
             }
-            assert_eq!(738580, n_bases);
+            assert_eq!(738_580, n_bases);
         });
     });
 }

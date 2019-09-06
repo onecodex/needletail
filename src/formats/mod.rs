@@ -36,8 +36,8 @@ use crate::util::{ParseError, ParseErrorType};
 macro_rules! parse_stream {
     ($reader:expr, $first:expr, $reader_type: ty, $rec: ident, $handler: block) => {{
         use $crate::formats::{RecBuffer, RecParser};
-        let mut buffer = RecBuffer::<$reader_type>::new($reader, 1_000_000, &$first)?;
-        let mut rec_reader = buffer.get_reader();
+        let mut buffer = RecBuffer::new($reader, 500_000, &$first)?;
+        let mut rec_reader = <$reader_type>::from_buffer(&buffer.buf, buffer.last);
         // TODO: do something with the header?
         let mut record_count: usize = 0;
         rec_reader.header().map_err(|e| e.record(record_count))?;
@@ -45,7 +45,7 @@ macro_rules! parse_stream {
         if !buffer.refill(used).map_err(|e| e.record(record_count))? {
             loop {
                 let used = {
-                    let mut rec_reader = buffer.get_reader();
+                    let mut rec_reader = <$reader_type>::from_buffer(&buffer.buf, buffer.last);
                     for s in rec_reader.by_ref() {
                         record_count += 1;
                         let $rec = s.map_err(|e| e.record(record_count))?;
@@ -58,7 +58,7 @@ macro_rules! parse_stream {
                 }
             }
         }
-        let rec_reader = buffer.get_reader();
+        let rec_reader = <$reader_type>::from_buffer(&buffer.buf, buffer.last);
         rec_reader.eof().map_err(|e| e.record(record_count + 1))?;
     }};
 }

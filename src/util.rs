@@ -98,11 +98,11 @@ pub fn strip_whitespace(seq: &[u8]) -> Cow<[u8]> {
             None => {
                 new_buf.extend_from_slice(&seq[i..]);
                 break;
-            },
+            }
             Some(match_pos) => {
                 new_buf.extend_from_slice(&seq[i..i + match_pos]);
                 i += match_pos + 1;
-            },
+            }
         }
     }
     Cow::Owned(new_buf)
