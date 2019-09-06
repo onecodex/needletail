@@ -192,7 +192,7 @@ impl<'a> Iterator for NuclKmer<'a> {
                 } else {
                     Some((pos, rc_result, true))
                 }
-            },
+            }
         }
     }
 }

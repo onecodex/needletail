@@ -140,14 +140,14 @@ fn can_kmerize() {
 
 #[test]
 fn test_iterator() {
-    let seq = "ACGTA".as_bytes();
+    let seq = b"ACGTA";
     let mut kmer_iter = BitNuclKmer::new(seq, 3, false);
     assert_eq!(kmer_iter.next(), Some((0, (6, 3), false)));
     assert_eq!(kmer_iter.next(), Some((1, (27, 3), false)));
     assert_eq!(kmer_iter.next(), Some((2, (44, 3), false)));
     assert_eq!(kmer_iter.next(), None);
 
-    let seq = "TA".as_bytes();
+    let seq = b"TA";
     let mut kmer_iter = BitNuclKmer::new(seq, 3, false);
     assert_eq!(kmer_iter.next(), None);
 }
@@ -172,10 +172,10 @@ pub fn reverse_complement(kmer: BitKmer) -> BitKmer {
 
 #[test]
 fn test_reverse_complement() {
-    assert_eq!(reverse_complement((0b000000, 3)).0, 0b111111);
-    assert_eq!(reverse_complement((0b111111, 3)).0, 0b000000);
-    assert_eq!(reverse_complement((0b00000000, 4)).0, 0b11111111);
-    assert_eq!(reverse_complement((0b00011011, 4)).0, 0b00011011);
+    assert_eq!(reverse_complement((0b00_0000, 3)).0, 0b11_1111);
+    assert_eq!(reverse_complement((0b11_1111, 3)).0, 0b00_0000);
+    assert_eq!(reverse_complement((0b0000_0000, 4)).0, 0b1111_1111);
+    assert_eq!(reverse_complement((0b0001_1011, 4)).0, 0b0001_1011);
 }
 
 /// Return the lexigraphically lowest of the BitKmer and its reverse complement and
@@ -210,10 +210,10 @@ pub fn minimizer(kmer: BitKmer, minmer_size: u8) -> BitKmer {
 
 #[test]
 fn test_minimizer() {
-    assert_eq!(minimizer((0b001011, 3), 2).0, 0b0010);
-    assert_eq!(minimizer((0b001011, 3), 1).0, 0b00);
-    assert_eq!(minimizer((0b11000011, 4), 2).0, 0b0000);
-    assert_eq!(minimizer((0b110001, 3), 2).0, 0b0001);
+    assert_eq!(minimizer((0b00_1011, 3), 2).0, 0b0010);
+    assert_eq!(minimizer((0b00_1011, 3), 1).0, 0b00);
+    assert_eq!(minimizer((0b1100_0011, 4), 2).0, 0b0000);
+    assert_eq!(minimizer((0b11_0001, 3), 2).0, 0b0001);
 }
 
 pub fn bitmer_to_bytes(kmer: BitKmer) -> Vec<u8> {
@@ -259,12 +259,12 @@ pub fn bytes_to_bitmer(kmer: &[u8]) -> BitKmer {
 
 #[test]
 fn test_bytes_to_bitkmer() {
-    let mut ikmer: BitKmer = bytes_to_bitmer("C".as_bytes());
+    let mut ikmer: BitKmer = bytes_to_bitmer(b"C");
     assert_eq!(ikmer.0, 1 as BitKmerSeq);
 
-    ikmer = bytes_to_bitmer("TTA".as_bytes());
+    ikmer = bytes_to_bitmer(b"TTA");
     assert_eq!(ikmer.0, 60 as BitKmerSeq);
 
-    ikmer = bytes_to_bitmer("AAA".as_bytes());
+    ikmer = bytes_to_bitmer(b"AAA");
     assert_eq!(ikmer.0, 0 as BitKmerSeq);
 }

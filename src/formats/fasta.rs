@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::io::Write;
 
 use memchr::memchr;
@@ -45,12 +46,17 @@ pub struct FastaParser<'a> {
 }
 
 impl<'a> FastaParser<'a> {
-    pub fn new(buf: &'a [u8]) -> Self {
-        FastaParser {
-            buf,
-            last: true,
-            pos: 0,
+    pub fn new(buf: &'a [u8], last: bool) -> Result<Self, ParseError> {
+        if buf[0] != b'>' {
+            let context = String::from_utf8_lossy(&buf[..min(32, buf.len())]);
+            return Err(ParseError::new(
+                "FASTA record must start with '>'",
+                ParseErrorType::InvalidHeader,
+            )
+            .context(context));
         }
+
+        Ok(FastaParser { buf, last, pos: 0 })
     }
 }
 
@@ -119,8 +125,6 @@ impl<'a> RecParser<'a> for FastaParser<'a> {
 }
 
 pub fn check_end(buf: &[u8], last: bool) -> Result<(), ParseError> {
-    use std::cmp::min;
-
     // check if there's anything left stuff in the buffer (besides returns)
     if !last {
         return Err(
@@ -130,7 +134,7 @@ pub fn check_end(buf: &[u8], last: bool) -> Result<(), ParseError> {
     }
     for c in &buf[..] {
         if c != &b'\r' && c != &b'\n' {
-            let end = min(16, buf.len());
+            let end = min(32, buf.len());
             let context = String::from_utf8_lossy(&buf[..end]);
             return Err(ParseError::new(
                 "File had extra data past end of records",
@@ -169,12 +173,12 @@ mod test {
                         assert_eq!(&seq.id[..], b"test");
                         assert_eq!(&seq.seq[..], b"AGCT");
                         assert_eq!(seq.qual, None);
-                    },
+                    }
                     1 => {
                         assert_eq!(&seq.id[..], b"test2");
                         assert_eq!(&seq.seq[..], b"GATC");
                         assert_eq!(seq.qual, None);
-                    },
+                    }
                     _ => unreachable!("Too many records"),
                 }
                 i += 1;
@@ -196,12 +200,12 @@ mod test {
                         assert_eq!(&seq.id[..], b"test");
                         assert_eq!(&seq.seq[..], b"AGCTGATCGA");
                         assert_eq!(seq.qual, None);
-                    },
+                    }
                     1 => {
                         assert_eq!(&seq.id[..], b"test2");
                         assert_eq!(&seq.seq[..], b"TAGC");
                         assert_eq!(seq.qual, None);
-                    },
+                    }
                     _ => unreachable!("Too many records"),
                 }
                 i += 1;
@@ -249,12 +253,12 @@ mod test {
                             assert_eq!(&seq.id[..], b"test");
                             assert_eq!(&seq.seq[..], b"AGCTGATCGA");
                             assert_eq!(seq.qual, None);
-                        },
+                        }
                         1 => {
                             assert_eq!(&seq.id[..], b"test2");
                             assert_eq!(&seq.seq[..], b"TAGC");
                             assert_eq!(seq.qual, None);
-                        },
+                        }
                         _ => unreachable!("Too many records"),
                     }
                     i += 1;
@@ -277,12 +281,12 @@ mod test {
                         assert_eq!(&seq.id[..], b"test");
                         assert_eq!(&seq.seq[..], b"AGCTTCG");
                         assert_eq!(seq.qual, None);
-                    },
+                    }
                     1 => {
                         assert_eq!(&seq.id[..], b"test2");
                         assert_eq!(&seq.seq[..], b"G");
                         assert_eq!(seq.qual, None);
-                    },
+                    }
                     _ => unreachable!("Too many records"),
                 }
                 i += 1;
@@ -301,12 +305,12 @@ mod test {
                         assert_eq!(&seq.id[..], b"test");
                         assert_eq!(&seq.seq[..], b"AGCTTCG");
                         assert_eq!(seq.qual, None);
-                    },
+                    }
                     1 => {
                         assert_eq!(&seq.id[..], b"test2");
                         assert_eq!(&seq.seq[..], b"G");
                         assert_eq!(seq.qual, None);
-                    },
+                    }
                     _ => unreachable!("Too many records"),
                 }
                 i += 1;
@@ -328,7 +332,7 @@ mod test {
                         assert_eq!(&seq.id[..], b"test");
                         assert_eq!(&seq.seq[..], b"AGCT");
                         assert_eq!(seq.qual, None);
-                    },
+                    }
                     _ => unreachable!("Too many records"),
                 }
                 i += 1;
@@ -349,7 +353,7 @@ mod test {
                     0 => {
                         assert_eq!(&seq.id[..], b"test");
                         assert_eq!(&seq.seq[..], b"ACGT");
-                    },
+                    }
                     _ => unreachable!("Too many records"),
                 }
                 i += 1;
@@ -373,12 +377,12 @@ mod test {
                         assert_eq!(&seq.id[..], b"");
                         assert_eq!(&seq.seq[..], b"");
                         assert_eq!(seq.qual, None);
-                    },
+                    }
                     1 => {
                         assert_eq!(&seq.id[..], b"shine");
                         assert_eq!(&seq.seq[..], b"AGGAGGU");
                         assert_eq!(seq.qual, None);
-                    },
+                    }
                     _ => unreachable!("Too many records"),
                 }
                 i += 1;
@@ -397,12 +401,12 @@ mod test {
                         assert_eq!(&seq.id[..], b"");
                         assert_eq!(&seq.seq[..], b"");
                         assert_eq!(seq.qual, None);
-                    },
+                    }
                     1 => {
                         assert_eq!(&seq.id[..], b"shine");
                         assert_eq!(&seq.seq[..], b"AGGAGGU");
                         assert_eq!(seq.qual, None);
-                    },
+                    }
                     _ => unreachable!("Too many records"),
                 }
                 i += 1;
@@ -414,12 +418,12 @@ mod test {
 
     #[test]
     fn test_reader() {
-        let mut reader = FastaParser::new(b">test\nACGT");
+        let mut reader = FastaParser::new(b">test\nACGT", true).unwrap();
         let rec = reader.next().unwrap().unwrap();
         assert_eq!(rec.id, b"test", "Record has the right ID");
         assert_eq!(rec.seq, b"ACGT", "Record has the right sequence");
 
-        let mut reader = FastaParser::new(b">test");
+        let mut reader = FastaParser::new(b">test", true).unwrap();
         assert!(reader.next().is_none(), "Incomplete record returns None");
     }
 }
