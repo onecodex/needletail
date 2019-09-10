@@ -145,7 +145,7 @@ mod test {
     use std::path::Path;
 
     use super::FastaParser;
-    use crate::formats::parse_sequences;
+    use crate::formats::parse_sequence_reader;
     use crate::util::ParseErrorType;
 
     fn seq(s: &[u8]) -> Cursor<&[u8]> {
@@ -155,7 +155,7 @@ mod test {
     #[test]
     fn test_callback() {
         let mut i = 0;
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             seq(b">test\nAGCT\n>test2\nGATC"),
             |_| {},
             |seq| {
@@ -180,7 +180,7 @@ mod test {
 
         i = 0;
         let file = File::open(&Path::new("./tests/data/test.fa")).unwrap();
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             file,
             |filetype| {
                 assert_eq!(filetype, "FASTA");
@@ -206,7 +206,7 @@ mod test {
         assert_eq!(i, 2);
 
         let file = File::open(&Path::new("./tests/data/bad_test.fa")).unwrap();
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             file,
             |_| {
                 unreachable!("This is not a valid file type");
@@ -233,7 +233,7 @@ mod test {
         for test_file in test_files.iter() {
             let mut i = 0;
             let file = File::open(&Path::new(test_file)).unwrap();
-            let res = parse_sequences(
+            let res = parse_sequence_reader(
                 file,
                 |filetype| {
                     assert_eq!(filetype, "FASTA");
@@ -263,7 +263,7 @@ mod test {
     #[test]
     fn test_wrapped_fasta() {
         let mut i = 0;
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             seq(b">test\nAGCT\nTCG\n>test2\nG"),
             |_| {},
             |seq| {
@@ -287,7 +287,7 @@ mod test {
         assert_eq!(i, 2);
 
         let mut i = 0;
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             seq(b">test\r\nAGCT\r\nTCG\r\n>test2\r\nG"),
             |_| {},
             |seq| {
@@ -314,7 +314,7 @@ mod test {
     #[test]
     fn test_premature_endings() {
         let mut i = 0;
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             seq(b">test\nAGCT\n>test2"),
             |_| {},
             |seq| {
@@ -336,7 +336,7 @@ mod test {
 
         // test that an abrupt stop in a FASTA triggers an error
         let mut i = 0;
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             seq(b">test\nACGT\n>test2\n"),
             |_| {},
             |seq| {
@@ -359,7 +359,7 @@ mod test {
     #[test]
     fn test_empty_records() {
         let mut i = 0;
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             seq(b">\n\n>shine\nAGGAGGU"),
             |_| {},
             |seq| {
@@ -383,7 +383,7 @@ mod test {
         assert_eq!(res, Ok(()));
 
         let mut i = 0;
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             seq(b">\r\n\r\n>shine\r\nAGGAGGU"),
             |_| {},
             |seq| {

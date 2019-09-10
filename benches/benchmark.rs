@@ -3,7 +3,7 @@ extern crate criterion;
 extern crate needletail;
 
 use criterion::Criterion;
-use needletail::parse_sequences;
+use needletail::parse_sequence_reader;
 use needletail::sequence::Sequence;
 use std::fs::File;
 use std::io::{Cursor, Read};
@@ -26,7 +26,7 @@ fn bench_kmer_speed(c: &mut Criterion) {
             let mut n_total = 0;
             let mut n_canonical = 0;
             let fasta_data = Cursor::new(data.clone());
-            parse_sequences(
+            parse_sequence_reader(
                 fasta_data,
                 |_| {},
                 |rec| {
@@ -51,7 +51,7 @@ fn bench_kmer_speed(c: &mut Criterion) {
             let mut n_total = 0;
             let mut n_canonical = 0;
             let fasta_data = Cursor::new(data.clone());
-            parse_sequences(
+            parse_sequence_reader(
                 fasta_data,
                 |_| {},
                 |seq| {
@@ -114,7 +114,7 @@ fn bench_fastq_file(c: &mut Criterion) {
         bench.iter(|| {
             let fastq_data = Cursor::new(data.clone());
             let mut n_bases = 0;
-            parse_sequences(
+            parse_sequence_reader(
                 fastq_data,
                 |_| {},
                 |seq| {
@@ -181,7 +181,7 @@ fn bench_fasta_file(c: &mut Criterion) {
         bench.iter(|| {
             let fasta_data = Cursor::new(data.clone());
             let mut n_bases = 0;
-            parse_sequences(
+            parse_sequence_reader(
                 fasta_data,
                 |_| {},
                 |seq| {

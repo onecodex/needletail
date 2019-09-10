@@ -6,5 +6,5 @@ use std::io::Cursor;
 
 fuzz_target!(|data: &[u8]| {
     let cursor = Cursor::new([b">", data].concat());
-    let _ = needletail::parse_sequences(cursor, |_ftype| {}, |_seq| {});
+    let _ = needletail::parse_sequence_reader(cursor, |_ftype| {}, |_seq| {});
 });

@@ -106,7 +106,7 @@ where
 }
 
 #[cfg(not(feature = "compression"))]
-pub fn parse_sequences<F, R, T>(
+pub fn parse_sequence_reader<F, R, T>(
     mut reader: R,
     mut type_callback: T,
     callback: F,
@@ -124,7 +124,7 @@ where
 }
 
 #[cfg(feature = "compression")]
-pub fn parse_sequences<F, R, T>(
+pub fn parse_sequence_reader<F, R, T>(
     mut reader: R,
     mut type_callback: T,
     callback: F,
