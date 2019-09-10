@@ -23,7 +23,7 @@ impl<'a> Fastq<'a> {
         writer.write_all(&self.id)?;
         writer.write_all(b"\n")?;
         writer.write_all(&self.seq)?;
-        writer.write_all(b"+\n")?;
+        writer.write_all(b"\n+\n")?;
         if self.seq.len() != self.qual.len() {
             writer.write_all(&vec![b'I'; self.seq.len()])?;
         } else {
