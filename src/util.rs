@@ -122,15 +122,6 @@ pub fn memchr_both(b1: u8, b2: u8, seq: &[u8]) -> Option<usize> {
     None
 }
 
-#[test]
-fn test_memchr_both() {
-    let pos = memchr_both(b'\n', b'-', &b"test\n-this"[..]);
-    assert_eq!(pos, Some(4));
-
-    let pos = memchr_both(b'\n', b'-', &b"te\nst\n-this"[..]);
-    assert_eq!(pos, Some(5));
-}
-
 #[inline]
 pub fn memchr_both_last(b1: u8, b2: u8, seq: &[u8]) -> Option<usize> {
     for idx in memchr_iter(b2, &seq) {
@@ -141,14 +132,29 @@ pub fn memchr_both_last(b1: u8, b2: u8, seq: &[u8]) -> Option<usize> {
     None
 }
 
-#[test]
-fn test_memchr_both_last() {
-    let pos = memchr_both_last(b'\n', b'-', &b"test\n-this"[..]);
-    assert_eq!(pos, Some(4));
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let pos = memchr_both_last(b'\n', b'-', &b"te\nst\n-this"[..]);
-    assert_eq!(pos, Some(5));
+    #[test]
+    fn test_memchr_both() {
+        let pos = memchr_both(b'\n', b'-', &b"test\n-this"[..]);
+        assert_eq!(pos, Some(4));
 
-    let pos = memchr_both_last(b'\n', b'-', &b"-te\nst\n-this"[..]);
-    assert_eq!(pos, Some(6));
+        let pos = memchr_both(b'\n', b'-', &b"te\nst\n-this"[..]);
+        assert_eq!(pos, Some(5));
+    }
+
+    #[test]
+    fn test_memchr_both_last() {
+        let pos = memchr_both_last(b'\n', b'-', &b"test\n-this"[..]);
+        assert_eq!(pos, Some(4));
+
+        let pos = memchr_both_last(b'\n', b'-', &b"te\nst\n-this"[..]);
+        assert_eq!(pos, Some(5));
+
+        let pos = memchr_both_last(b'\n', b'-', &b"-te\nst\n-this"[..]);
+        assert_eq!(pos, Some(6));
+    }
+
 }
