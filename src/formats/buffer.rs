@@ -20,24 +20,10 @@ impl<'a> RecBuffer<'a> {
     ///
     /// Under some very rare circumstances (setting a `buf_size` larger than 2 Gb
     /// on Mac OS X) a panic can occur. Please use a smaller buffer in this case.
-    pub fn new(
-        file: &'a mut dyn io::Read,
-        buf_size: usize,
-        header: &[u8],
-    ) -> Result<RecBuffer<'a>, ParseError> {
-        let mut buf = Vec::with_capacity(buf_size);
-        unsafe {
-            buf.set_len(buf_size + header.len());
-        }
-        buf[..header.len()].copy_from_slice(header);
-        let amt_read = file.read(&mut buf[header.len()..])?;
-        unsafe {
-            buf.set_len(amt_read + header.len());
-        }
-
+    pub fn new(file: &'a mut dyn io::Read, buf: Vec<u8>) -> Result<RecBuffer<'a>, ParseError> {
         Ok(RecBuffer {
             file,
-            last: amt_read == 0,
+            last: false,
             buf,
         })
     }
