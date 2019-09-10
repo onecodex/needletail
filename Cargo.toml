@@ -28,9 +28,8 @@ criterion = "0.3"
 bio = "0.28"
 seq_io = "0.3"
 
-# for testing with the FormatSpecimens.jl repo
-reqwest = "0.9"
-toml = "0.4"
+# for testing with the FormatSpecimens.jl repo samples
+toml = "0.5"
 serde = "1.0"
 serde_derive = "1.0"
 

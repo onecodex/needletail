@@ -1,8 +1,8 @@
+use std::fs;
 use std::io::Read;
 
 use needletail::formats::{FastaParser, FastqParser, RecParser};
 use needletail::{ParseError, ParseErrorType};
-use reqwest::get;
 use serde_derive::Deserialize;
 use toml;
 
@@ -33,33 +33,6 @@ fn test_fasta_file(reader: &mut dyn Read, filename: &str) -> Result<(), ParseErr
     Ok(())
 }
 
-#[test]
-#[ignore]
-fn test_specimen_fasta() {
-    let base_path = "https://raw.githubusercontent.com/BioJulia/FormatSpecimens.jl/master/FASTA";
-    let idx_path = format!("{}/index.toml", base_path);
-    let raw_index = get(&idx_path)
-        .expect("Could not retrieve index")
-        .text()
-        .expect("Could not decode index");
-
-    let index: TestIndex = toml::from_str(&raw_index).expect("Could not deserialize index");
-    for test in index.valid {
-        // what kind of sicko puts comments in FASTAs?
-        if test
-            .tags
-            .unwrap_or_else(Vec::new)
-            .contains(&String::from("comments"))
-        {
-            continue;
-        }
-
-        let test_path = format!("{}/{}", base_path, test.filename);
-        let mut test_reader = get(&test_path).expect("Could not retrieve test data");
-        assert_eq!(test_fasta_file(&mut test_reader, &test.filename), Ok(()));
-    }
-}
-
 fn test_fastq_file(reader: &mut dyn Read, filename: &str) -> Result<(), ParseError> {
     let mut data: Vec<u8> = Vec::new();
     let _ = reader.read_to_end(&mut data)?;
@@ -85,15 +58,28 @@ fn test_fastq_file(reader: &mut dyn Read, filename: &str) -> Result<(), ParseErr
 }
 
 #[test]
-#[ignore]
-fn test_specimen_fastq() {
-    let base_path = "https://raw.githubusercontent.com/BioJulia/FormatSpecimens.jl/master/FASTQ/";
-    let idx_path = format!("{}/index.toml", base_path);
-    let raw_index = get(&idx_path)
-        .expect("Could not retrieve index")
-        .text()
-        .expect("Could not decode index");
+fn test_specimen_fasta() {
+    let raw_index = fs::read_to_string("tests/specimen/FASTA/index.toml").unwrap();
+    let index: TestIndex = toml::from_str(&raw_index).expect("Could not deserialize index");
+    for test in index.valid {
+        // what kind of sicko puts comments in FASTAs?
+        if test
+            .tags
+            .unwrap_or_else(Vec::new)
+            .contains(&String::from("comments"))
+        {
+            continue;
+        }
 
+        let mut test_content =
+            fs::File::open(&format!("tests/specimen/FASTA/{}", test.filename)).unwrap();
+        assert_eq!(test_fasta_file(&mut test_content, &test.filename), Ok(()));
+    }
+}
+
+#[test]
+fn test_specimen_fastq() {
+    let raw_index = fs::read_to_string("tests/specimen/FASTQ/index.toml").unwrap();
     let index: TestIndex = toml::from_str(&raw_index).expect("Could not deserialize index");
 
     for test in index.valid {
@@ -102,10 +88,10 @@ fn test_specimen_fastq() {
             // (sequences are one-line, but quality scores are line-wrapped)
             continue;
         }
-        let test_path = format!("{}/{}", base_path, test.filename);
-        let mut test_reader = get(&test_path).expect("Could not retrieve test data");
+        let mut test_content =
+            fs::File::open(&format!("tests/specimen/FASTQ/{}", test.filename)).unwrap();
         assert_eq!(
-            test_fastq_file(&mut test_reader, &test.filename),
+            test_fastq_file(&mut test_content, &test.filename),
             Ok(()),
             "File {} is bad?",
             test.filename
@@ -117,10 +103,10 @@ fn test_specimen_fastq() {
             // we don't care if the sequence ID doesn't match the quality id?
             continue;
         }
-        let test_path = format!("{}/{}", base_path, test.filename);
-        let mut test_reader = get(&test_path).expect("Could not retrieve test data");
+        let mut test_content =
+            fs::File::open(&format!("tests/specimen/FASTQ/{}", test.filename)).unwrap();
         assert!(
-            test_fastq_file(&mut test_reader, &test.filename).is_err(),
+            test_fastq_file(&mut test_content, &test.filename).is_err(),
             format!("File {} is good?", test.filename)
         );
     }
