@@ -10,14 +10,14 @@ use crate::seq::Sequence;
 use crate::util::{memchr_both, ParseError, ParseErrorType};
 
 #[derive(Debug)]
-pub struct Fastq<'a> {
+pub struct FastqRecord<'a> {
     pub id: &'a [u8],
     pub seq: &'a [u8],
     pub id2: &'a [u8],
     pub qual: &'a [u8],
 }
 
-impl<'a> Fastq<'a> {
+impl<'a> FastqRecord<'a> {
     pub fn write(&self, writer: &mut dyn Write) -> Result<(), ParseError> {
         writer.write_all(b"@")?;
         writer.write_all(&self.id)?;
@@ -34,8 +34,8 @@ impl<'a> Fastq<'a> {
     }
 }
 
-impl<'a> From<Fastq<'a>> for Sequence<'a> {
-    fn from(fastq: Fastq<'a>) -> Sequence<'a> {
+impl<'a> From<FastqRecord<'a>> for Sequence<'a> {
+    fn from(fastq: FastqRecord<'a>) -> Sequence<'a> {
         let qual = if fastq.seq.len() != fastq.qual.len() {
             None
         } else {
@@ -45,13 +45,13 @@ impl<'a> From<Fastq<'a>> for Sequence<'a> {
     }
 }
 
-impl<'a> From<&'a Sequence<'a>> for Fastq<'a> {
-    fn from(seq: &'a Sequence<'a>) -> Fastq<'a> {
+impl<'a> From<&'a Sequence<'a>> for FastqRecord<'a> {
+    fn from(seq: &'a Sequence<'a>) -> FastqRecord<'a> {
         let qual = match &seq.qual {
             None => &b""[..],
             Some(q) => &q,
         };
-        Fastq {
+        FastqRecord {
             id: &seq.id,
             seq: &seq.seq,
             id2: b"",
@@ -86,7 +86,7 @@ impl<'a> FastqParser<'a> {
 }
 
 impl<'a> Iterator for FastqParser<'a> {
-    type Item = Result<Fastq<'a>, ParseError>;
+    type Item = Result<FastqRecord<'a>, ParseError>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -176,7 +176,7 @@ impl<'a> Iterator for FastqParser<'a> {
         }
 
         self.pos += buffer_used;
-        Some(Ok(Fastq { id, seq, id2, qual }))
+        Some(Ok(FastqRecord { id, seq, id2, qual }))
     }
 }
 

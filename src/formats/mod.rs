@@ -27,8 +27,8 @@ use flate2::read::MultiGzDecoder;
 use xz2::read::XzDecoder;
 
 pub use crate::formats::buffer::{RecBuffer, RecParser};
-pub use crate::formats::fasta::{Fasta, FastaParser};
-pub use crate::formats::fastq::{Fastq, FastqParser};
+pub use crate::formats::fasta::{FastaRecord, FastaParser};
+pub use crate::formats::fastq::{FastqRecord, FastqParser};
 use crate::seq::Sequence;
 use crate::util::{ParseError, ParseErrorType};
 

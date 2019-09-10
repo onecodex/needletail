@@ -8,12 +8,12 @@ use crate::seq::Sequence;
 use crate::util::{memchr_both_last, strip_whitespace, ParseError, ParseErrorType};
 
 #[derive(Debug)]
-pub struct Fasta<'a> {
+pub struct FastaRecord<'a> {
     pub id: &'a [u8],
     pub seq: &'a [u8],
 }
 
-impl<'a> Fasta<'a> {
+impl<'a> FastaRecord<'a> {
     pub fn write(&self, writer: &mut dyn Write) -> Result<(), ParseError> {
         writer.write_all(b">")?;
         writer.write_all(&self.id)?;
@@ -24,15 +24,15 @@ impl<'a> Fasta<'a> {
     }
 }
 
-impl<'a> From<Fasta<'a>> for Sequence<'a> {
-    fn from(fasta: Fasta<'a>) -> Sequence<'a> {
+impl<'a> From<FastaRecord<'a>> for Sequence<'a> {
+    fn from(fasta: FastaRecord<'a>) -> Sequence<'a> {
         Sequence::new(fasta.id, strip_whitespace(fasta.seq), None)
     }
 }
 
-impl<'a> From<&'a Sequence<'a>> for Fasta<'a> {
-    fn from(seq: &'a Sequence<'a>) -> Fasta<'a> {
-        Fasta {
+impl<'a> From<&'a Sequence<'a>> for FastaRecord<'a> {
+    fn from(seq: &'a Sequence<'a>) -> FastaRecord<'a> {
+        FastaRecord {
             id: &seq.id,
             seq: &seq.seq,
         }
@@ -61,7 +61,7 @@ impl<'a> FastaParser<'a> {
 }
 
 impl<'a> Iterator for FastaParser<'a> {
-    type Item = Result<Fasta<'a>, ParseError>;
+    type Item = Result<FastaRecord<'a>, ParseError>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -100,7 +100,7 @@ impl<'a> Iterator for FastaParser<'a> {
         }
 
         self.pos += seq_end;
-        Some(Ok(Fasta { id, seq }))
+        Some(Ok(FastaRecord { id, seq }))
     }
 }
 
