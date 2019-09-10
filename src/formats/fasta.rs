@@ -4,8 +4,8 @@ use std::io::Write;
 use memchr::memchr;
 
 use crate::formats::buffer::RecParser;
-use crate::seq::Sequence;
-use crate::util::{memchr_both_last, strip_whitespace, ParseError, ParseErrorType};
+use crate::seq::{Sequence, SequenceRecord};
+use crate::util::{memchr_both_last, ParseError, ParseErrorType};
 
 #[derive(Debug)]
 pub struct FastaRecord<'a> {
@@ -14,28 +14,25 @@ pub struct FastaRecord<'a> {
 }
 
 impl<'a> FastaRecord<'a> {
-    pub fn write(&self, writer: &mut dyn Write) -> Result<(), ParseError> {
+    pub fn write(&self, writer: &mut dyn Write, ending: &[u8]) -> Result<(), ParseError> {
         writer.write_all(b">")?;
         writer.write_all(&self.id)?;
-        writer.write_all(b"\n")?;
+        writer.write_all(ending)?;
         writer.write_all(&self.seq)?;
-        writer.write_all(b"\n")?;
+        writer.write_all(ending)?;
         Ok(())
     }
 }
 
-impl<'a> From<FastaRecord<'a>> for Sequence<'a> {
-    fn from(fasta: FastaRecord<'a>) -> Sequence<'a> {
-        Sequence::new(fasta.id, strip_whitespace(fasta.seq), None)
+impl<'a> Sequence<'a> for FastaRecord<'a> {
+    fn sequence(&self) -> &'a [u8] {
+        self.seq
     }
 }
 
-impl<'a> From<&'a Sequence<'a>> for FastaRecord<'a> {
-    fn from(seq: &'a Sequence<'a>) -> FastaRecord<'a> {
-        FastaRecord {
-            id: &seq.id,
-            seq: &seq.seq,
-        }
+impl<'a> From<FastaRecord<'a>> for SequenceRecord<'a> {
+    fn from(fasta: FastaRecord<'a>) -> SequenceRecord<'a> {
+        SequenceRecord::new(fasta.id.into(), fasta.seq.into(), None)
     }
 }
 
@@ -95,8 +92,11 @@ impl<'a> Iterator for FastaParser<'a> {
             .context(context)));
         }
         let mut seq = &buf[id_end..seq_end];
-        if seq[seq.len() - 1] == b'\r' {
-            seq = &seq[..seq.len()];
+        if seq.len() > 0 && seq[seq.len() - 1] == b'\n' {
+            seq = &seq[..seq.len() - 1];
+        }
+        if seq.len() > 0 && seq[seq.len() - 1] == b'\r' {
+            seq = &seq[..seq.len() - 1];
         }
 
         self.pos += seq_end;

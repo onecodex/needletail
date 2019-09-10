@@ -12,33 +12,39 @@ Needletail's goal is to be as fast as the [readfq](https://github.com/lh3/readfq
 
 ```rust
 extern crate needletail;
+use needletail::{parse_sequences, Sequence};
 use std::env;
 use std::fs::File;
-use needletail::parse_sequences;
 
 fn main() {
-  let filename: String = env::args().nth(1).unwrap();
+    let filename: String = env::args().nth(1).unwrap();
 
-  let mut n_bases = 0;
-  let mut n_valid_kmers = 0;
-  parse_sequences(File::open(filename).expect("missing file"), |_| {}, |seq| {
-    // seq.id is the name of the record
-    // seq.seq is the base sequence
-    // seq.qual is an optional quality score
+    let mut n_bases = 0;
+    let mut n_valid_kmers = 0;
+    parse_sequences(
+        File::open(filename).expect("missing file"),
+        |_| {},
+        |seq| {
+            // seq.id is the name of the record
+            // seq.seq is the base sequence
+            // seq.qual is an optional quality score
 
-    // keep track of the total number of bases
-    n_bases += seq.seq.len();
-    
-    // keep track of the number of AAAA (or TTTT via canonicalization) in the 
-    // file (normalize makes sure ever base is capitalized for comparison)
-    for (_, kmer, _) in seq.normalize(false).kmers(4, true) {
-      if kmer == b"AAAA" {
-        n_valid_kmers += 1;
-      }
-    }
-  }).expect("parsing failed");
-  println!("There are {} bases in your file.", n_bases);
-  println!("There are {} AAAAs in your file.", n_valid_kmers);
+            // keep track of the total number of bases
+            n_bases += seq.seq.len();
+
+            // keep track of the number of AAAA (or TTTT via canonicalization) in the
+            // file (normalize makes sure ever base is capitalized for comparison)
+            let rc = seq.reverse_complement();
+            for (_, kmer, _) in seq.normalize(false).canonical_kmers(4, &rc) {
+                if kmer == b"AAAA" {
+                    n_valid_kmers += 1;
+                }
+            }
+        },
+    )
+    .expect("parsing failed");
+    println!("There are {} bases in your file.", n_bases);
+    println!("There are {} AAAAs in your file.", n_valid_kmers);
 }
 ```
 

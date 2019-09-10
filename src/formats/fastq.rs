@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::cmp::min;
 use std::io::Write;
 
@@ -6,7 +5,7 @@ use memchr::memchr;
 
 use crate::formats::buffer::RecParser;
 use crate::formats::fasta::check_end;
-use crate::seq::Sequence;
+use crate::seq::{Sequence, SequenceRecord};
 use crate::util::{memchr_both, ParseError, ParseErrorType};
 
 #[derive(Debug)]
@@ -18,45 +17,36 @@ pub struct FastqRecord<'a> {
 }
 
 impl<'a> FastqRecord<'a> {
-    pub fn write(&self, writer: &mut dyn Write) -> Result<(), ParseError> {
+    pub fn write(&self, writer: &mut dyn Write, ending: &[u8]) -> Result<(), ParseError> {
         writer.write_all(b"@")?;
         writer.write_all(&self.id)?;
-        writer.write_all(b"\n")?;
+        writer.write_all(ending)?;
         writer.write_all(&self.seq)?;
-        writer.write_all(b"\n+\n")?;
+        writer.write_all(ending)?;
+        writer.write_all(b"+")?;
+        writer.write_all(ending)?;
+        // this is kind of a hack, but we want to allow writing out sequences
+        // that don't have qualitys so this will mask to "good" if the quality
+        // slice is empty
         if self.seq.len() != self.qual.len() {
             writer.write_all(&vec![b'I'; self.seq.len()])?;
         } else {
             writer.write_all(&self.qual)?;
         }
-        writer.write_all(b"\n")?;
+        writer.write_all(ending)?;
         Ok(())
     }
 }
 
-impl<'a> From<FastqRecord<'a>> for Sequence<'a> {
-    fn from(fastq: FastqRecord<'a>) -> Sequence<'a> {
-        let qual = if fastq.seq.len() != fastq.qual.len() {
-            None
-        } else {
-            Some(fastq.qual)
-        };
-        Sequence::new(fastq.id, Cow::from(fastq.seq), qual)
+impl<'a> Sequence<'a> for FastqRecord<'a> {
+    fn sequence(&self) -> &'a [u8] {
+        self.seq
     }
 }
 
-impl<'a> From<&'a Sequence<'a>> for FastqRecord<'a> {
-    fn from(seq: &'a Sequence<'a>) -> FastqRecord<'a> {
-        let qual = match &seq.qual {
-            None => &b""[..],
-            Some(q) => &q,
-        };
-        FastqRecord {
-            id: &seq.id,
-            seq: &seq.seq,
-            id2: b"",
-            qual,
-        }
+impl<'a> From<FastqRecord<'a>> for SequenceRecord<'a> {
+    fn from(fastq: FastqRecord<'a>) -> SequenceRecord<'a> {
+        SequenceRecord::new(fastq.id.into(), fastq.seq.into(), Some(fastq.qual.into()))
     }
 }
 

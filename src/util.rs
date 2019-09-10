@@ -1,10 +1,9 @@
-use std::borrow::Cow;
 use std::error;
 use std::fmt;
 use std::io;
 use std::str;
 
-use memchr::{memchr2, memchr_iter};
+use memchr::memchr_iter;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseErrorType {
@@ -85,27 +84,6 @@ impl From<str::Utf8Error> for ParseError {
     fn from(err: str::Utf8Error) -> ParseError {
         ParseError::new(err.to_string(), ParseErrorType::Invalid)
     }
-}
-
-/// remove newlines from within FASTX records; currently the rate limiting step
-/// in FASTX parsing (in general; readfq also exhibits this behavior)
-#[inline]
-pub fn strip_whitespace(seq: &[u8]) -> Cow<[u8]> {
-    let mut new_buf = Vec::with_capacity(seq.len());
-    let mut i = 0;
-    while i < seq.len() {
-        match memchr2(b'\r', b'\n', &seq[i..]) {
-            None => {
-                new_buf.extend_from_slice(&seq[i..]);
-                break;
-            }
-            Some(match_pos) => {
-                new_buf.extend_from_slice(&seq[i..i + match_pos]);
-                i += match_pos + 1;
-            }
-        }
-    }
-    Cow::Owned(new_buf)
 }
 
 /// Like memchr, but handles a two-byte sequence (unlike memchr::memchr2, this
