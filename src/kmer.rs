@@ -47,14 +47,6 @@ pub fn complement(n: u8) -> u8 {
     }
 }
 
-#[test]
-fn test_complement() {
-    assert_eq!(complement(b'a'), b't');
-    assert_eq!(complement(b'c'), b'g');
-    assert_eq!(complement(b'g'), b'c');
-    assert_eq!(complement(b'n'), b'n');
-}
-
 pub fn canonical(seq: &[u8]) -> Cow<[u8]> {
     //! Taking in a sequence string, return the canonical form of the sequence
     //! (e.g. the lexigraphically lowest of either the original sequence or its
@@ -84,15 +76,6 @@ pub fn canonical(seq: &[u8]) -> Cow<[u8]> {
     }
 }
 
-#[test]
-fn can_canonicalize() {
-    assert!(canonical(b"A") == Cow::Borrowed(b"A"));
-    assert!(canonical(b"T") == Cow::Owned::<[u8]>(b"A".to_vec()));
-    assert!(canonical(b"AAGT") == Cow::Borrowed(b"AAGT"));
-    assert!(canonical(b"ACTT") == Cow::Owned::<[u8]>(b"AAGT".to_vec()));
-    assert!(canonical(b"GC") == Cow::Borrowed(b"GC"));
-}
-
 /// Find the lexigraphically smallest substring of `seq` of length `length`
 ///
 /// There's probably a faster algorithm for this somewhere...
@@ -109,12 +92,6 @@ pub fn minimizer(seq: &[u8], length: usize) -> Cow<[u8]> {
         }
     }
     minmer
-}
-
-#[test]
-fn can_minimize() {
-    let minmer = minimizer(&b"ATTTCG"[..], 3);
-    assert_eq!(&minmer[..], b"AAA");
 }
 
 pub fn is_good_base(chr: u8) -> bool {
@@ -195,4 +172,33 @@ impl<'a> Iterator for NuclKmer<'a> {
             }
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_complement() {
+        assert_eq!(complement(b'a'), b't');
+        assert_eq!(complement(b'c'), b'g');
+        assert_eq!(complement(b'g'), b'c');
+        assert_eq!(complement(b'n'), b'n');
+    }
+
+    #[test]
+    fn can_canonicalize() {
+        assert!(canonical(b"A") == Cow::Borrowed(b"A"));
+        assert!(canonical(b"T") == Cow::Owned::<[u8]>(b"A".to_vec()));
+        assert!(canonical(b"AAGT") == Cow::Borrowed(b"AAGT"));
+        assert!(canonical(b"ACTT") == Cow::Owned::<[u8]>(b"AAGT".to_vec()));
+        assert!(canonical(b"GC") == Cow::Borrowed(b"GC"));
+    }
+
+    #[test]
+    fn can_minimize() {
+        let minmer = minimizer(&b"ATTTCG"[..], 3);
+        assert_eq!(&minmer[..], b"AAA");
+    }
+
 }

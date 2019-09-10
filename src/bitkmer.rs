@@ -91,67 +91,6 @@ impl<'a> Iterator for BitNuclKmer<'a> {
     }
 }
 
-#[test]
-fn can_kmerize() {
-    // test general function
-    let mut i = 0;
-    for (_, k, _) in BitNuclKmer::new(b"AGCT", 1, false) {
-        match i {
-            0 => assert_eq!(k.0, 0b00 as BitKmerSeq),
-            1 => assert_eq!(k.0, 0b10 as BitKmerSeq),
-            2 => assert_eq!(k.0, 0b01 as BitKmerSeq),
-            3 => assert_eq!(k.0, 0b11 as BitKmerSeq),
-            _ => unreachable!("Too many kmers"),
-        }
-        i += 1;
-    }
-
-    // test that we skip over N's
-    i = 0;
-    for (_, k, _) in BitNuclKmer::new(b"ACNGT", 2, false) {
-        match i {
-            0 => assert_eq!(k.0, 0b0001 as BitKmerSeq),
-            1 => assert_eq!(k.0, 0b1011 as BitKmerSeq),
-            _ => unreachable!("Too many kmers"),
-        }
-        i += 1;
-    }
-
-    // test that we skip over N's and handle short kmers
-    i = 0;
-    for (_, k, _) in BitNuclKmer::new(b"ACNG", 2, false) {
-        match i {
-            0 => assert_eq!(k.0, 0x0001 as BitKmerSeq),
-            _ => unreachable!("Too many kmers"),
-        }
-        i += 1;
-    }
-
-    // test that the minimum length works
-    i = 0;
-    for (_, k, _) in BitNuclKmer::new(b"AC", 2, false) {
-        match i {
-            0 => assert_eq!(k.0, 0x0001 as BitKmerSeq),
-            _ => unreachable!("Too many kmers"),
-        }
-        i += 1;
-    }
-}
-
-#[test]
-fn test_iterator() {
-    let seq = b"ACGTA";
-    let mut kmer_iter = BitNuclKmer::new(seq, 3, false);
-    assert_eq!(kmer_iter.next(), Some((0, (6, 3), false)));
-    assert_eq!(kmer_iter.next(), Some((1, (27, 3), false)));
-    assert_eq!(kmer_iter.next(), Some((2, (44, 3), false)));
-    assert_eq!(kmer_iter.next(), None);
-
-    let seq = b"TA";
-    let mut kmer_iter = BitNuclKmer::new(seq, 3, false);
-    assert_eq!(kmer_iter.next(), None);
-}
-
 /// Reverse complement a BitKmer (reverses the sequence and swaps A<>T and G<>C)
 pub fn reverse_complement(kmer: BitKmer) -> BitKmer {
     // FIXME: this is not going to work with BitKmers of u128 or u32
@@ -168,14 +107,6 @@ pub fn reverse_complement(kmer: BitKmer) -> BitKmer {
     // shift it to the right size
     new_kmer >>= 2 * (32 - kmer.1);
     (new_kmer, kmer.1)
-}
-
-#[test]
-fn test_reverse_complement() {
-    assert_eq!(reverse_complement((0b00_0000, 3)).0, 0b11_1111);
-    assert_eq!(reverse_complement((0b11_1111, 3)).0, 0b00_0000);
-    assert_eq!(reverse_complement((0b0000_0000, 4)).0, 0b1111_1111);
-    assert_eq!(reverse_complement((0b0001_1011, 4)).0, 0b0001_1011);
 }
 
 /// Return the lexigraphically lowest of the BitKmer and its reverse complement and
@@ -208,14 +139,6 @@ pub fn minimizer(kmer: BitKmer, minmer_size: u8) -> BitKmer {
     (lowest, kmer.1)
 }
 
-#[test]
-fn test_minimizer() {
-    assert_eq!(minimizer((0b00_1011, 3), 2).0, 0b0010);
-    assert_eq!(minimizer((0b00_1011, 3), 1).0, 0b00);
-    assert_eq!(minimizer((0b1100_0011, 4), 2).0, 0b0000);
-    assert_eq!(minimizer((0b11_0001, 3), 2).0, 0b0001);
-}
-
 pub fn bitmer_to_bytes(kmer: BitKmer) -> Vec<u8> {
     let mut new_kmer = kmer.0;
     let mut new_kmer_str = Vec::new();
@@ -240,31 +163,114 @@ pub fn bitmer_to_bytes(kmer: BitKmer) -> Vec<u8> {
     new_kmer_str
 }
 
-#[test]
-fn test_bitmer_to_bytes() {
-    assert_eq!(bitmer_to_bytes((1 as BitKmerSeq, 1)), b"C".to_vec());
-    assert_eq!(bitmer_to_bytes((60 as BitKmerSeq, 3)), b"TTA".to_vec());
-    assert_eq!(bitmer_to_bytes((0 as BitKmerSeq, 3)), b"AAA".to_vec());
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-pub fn bytes_to_bitmer(kmer: &[u8]) -> BitKmer {
-    let k = kmer.len() as u8;
+    #[test]
+    fn can_kmerize() {
+        // test general function
+        let mut i = 0;
+        for (_, k, _) in BitNuclKmer::new(b"AGCT", 1, false) {
+            match i {
+                0 => assert_eq!(k.0, 0b00 as BitKmerSeq),
+                1 => assert_eq!(k.0, 0b10 as BitKmerSeq),
+                2 => assert_eq!(k.0, 0b01 as BitKmerSeq),
+                3 => assert_eq!(k.0, 0b11 as BitKmerSeq),
+                _ => unreachable!("Too many kmers"),
+            }
+            i += 1;
+        }
 
-    let mut bit_kmer = (0u64, k);
-    for i in 0..k {
-        extend_kmer(&mut bit_kmer, kmer[i as usize]);
+        // test that we skip over N's
+        i = 0;
+        for (_, k, _) in BitNuclKmer::new(b"ACNGT", 2, false) {
+            match i {
+                0 => assert_eq!(k.0, 0b0001 as BitKmerSeq),
+                1 => assert_eq!(k.0, 0b1011 as BitKmerSeq),
+                _ => unreachable!("Too many kmers"),
+            }
+            i += 1;
+        }
+
+        // test that we skip over N's and handle short kmers
+        i = 0;
+        for (_, k, _) in BitNuclKmer::new(b"ACNG", 2, false) {
+            match i {
+                0 => assert_eq!(k.0, 0x0001 as BitKmerSeq),
+                _ => unreachable!("Too many kmers"),
+            }
+            i += 1;
+        }
+
+        // test that the minimum length works
+        i = 0;
+        for (_, k, _) in BitNuclKmer::new(b"AC", 2, false) {
+            match i {
+                0 => assert_eq!(k.0, 0x0001 as BitKmerSeq),
+                _ => unreachable!("Too many kmers"),
+            }
+            i += 1;
+        }
     }
-    bit_kmer
-}
 
-#[test]
-fn test_bytes_to_bitkmer() {
-    let mut ikmer: BitKmer = bytes_to_bitmer(b"C");
-    assert_eq!(ikmer.0, 1 as BitKmerSeq);
+    #[test]
+    fn test_iterator() {
+        let seq = b"ACGTA";
+        let mut kmer_iter = BitNuclKmer::new(seq, 3, false);
+        assert_eq!(kmer_iter.next(), Some((0, (6, 3), false)));
+        assert_eq!(kmer_iter.next(), Some((1, (27, 3), false)));
+        assert_eq!(kmer_iter.next(), Some((2, (44, 3), false)));
+        assert_eq!(kmer_iter.next(), None);
 
-    ikmer = bytes_to_bitmer(b"TTA");
-    assert_eq!(ikmer.0, 60 as BitKmerSeq);
+        let seq = b"TA";
+        let mut kmer_iter = BitNuclKmer::new(seq, 3, false);
+        assert_eq!(kmer_iter.next(), None);
+    }
 
-    ikmer = bytes_to_bitmer(b"AAA");
-    assert_eq!(ikmer.0, 0 as BitKmerSeq);
+    #[test]
+    fn test_reverse_complement() {
+        assert_eq!(reverse_complement((0b00_0000, 3)).0, 0b11_1111);
+        assert_eq!(reverse_complement((0b11_1111, 3)).0, 0b00_0000);
+        assert_eq!(reverse_complement((0b0000_0000, 4)).0, 0b1111_1111);
+        assert_eq!(reverse_complement((0b0001_1011, 4)).0, 0b0001_1011);
+    }
+
+    #[test]
+    fn test_minimizer() {
+        assert_eq!(minimizer((0b00_1011, 3), 2).0, 0b0010);
+        assert_eq!(minimizer((0b00_1011, 3), 1).0, 0b00);
+        assert_eq!(minimizer((0b1100_0011, 4), 2).0, 0b0000);
+        assert_eq!(minimizer((0b11_0001, 3), 2).0, 0b0001);
+    }
+
+    #[test]
+    fn test_bytes_to_bitkmer() {
+        let mut ikmer: BitKmer = bytes_to_bitmer(b"C");
+        assert_eq!(ikmer.0, 1 as BitKmerSeq);
+
+        ikmer = bytes_to_bitmer(b"TTA");
+        assert_eq!(ikmer.0, 60 as BitKmerSeq);
+
+        ikmer = bytes_to_bitmer(b"AAA");
+        assert_eq!(ikmer.0, 0 as BitKmerSeq);
+    }
+
+    #[test]
+    fn test_bitmer_to_bytes() {
+        assert_eq!(bitmer_to_bytes((1 as BitKmerSeq, 1)), b"C".to_vec());
+        assert_eq!(bitmer_to_bytes((60 as BitKmerSeq, 3)), b"TTA".to_vec());
+        assert_eq!(bitmer_to_bytes((0 as BitKmerSeq, 3)), b"AAA".to_vec());
+    }
+
+    pub fn bytes_to_bitmer(kmer: &[u8]) -> BitKmer {
+        let k = kmer.len() as u8;
+
+        let mut bit_kmer = (0u64, k);
+        for i in 0..k {
+            extend_kmer(&mut bit_kmer, kmer[i as usize]);
+        }
+        bit_kmer
+    }
+
 }
