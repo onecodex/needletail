@@ -1,0 +1,242 @@
+[[valid]]
+filename = "aster.fasta"
+origin = "BioPython"
+tags = ["protein"]
+
+[[valid]]
+filename = "centaurea.fasta"
+origin = "BioPython"
+tags = ["dna"]
+
+[[valid]]
+filename = "EFTU_BACSU.fasta"
+origin = "Bioruby"
+tags = ["protein"]
+
+[[valid]]
+filename = "example1.txt"
+origin = "Bioruby"
+tags = ["dna"]
+comments =["some sequences contain gaps (labelled as 'cutpoints')"]
+
+[[valid]]
+filename = "example2.txt"
+origin = "Bioruby"
+tags = ["dna"]
+comments = ["masked sequence delineated by upper/lowercase"]
+
+[[valid]]
+filename = "elderberry.fasta"
+origin = "BioPython"
+tags = ["dna"]
+
+[[valid]]
+filename = "f001.fasta"
+origin = "BioPython"
+tags = ["protein"]
+
+[[valid]]
+filename = "f002.fasta"
+origin = "BioPython"
+tags = ["dna", "multi"]
+
+[[valid]]
+filename = "f003.fasta"
+origin = "BioPython"
+tags = ["dna", "multi", "comments"]
+ 
+[[valid]]
+filename = "fa01.fasta"
+origin = "BioPython"
+tags = ["protein", "gaps"]
+
+[[valid]]
+filename = "lavender.fasta"
+origin = "BioPython"
+tags = ["dna"]
+
+[[valid]]
+filename = "loveliesbleeding.fasta"
+origin = "BioPython"
+tags = ["protein"]
+
+[[valid]]
+filename = "lupine.fasta"
+origin = "BioPython"
+tags = ["dna"]
+
+[[valid]]
+filename = "phlox.fasta"
+origin = "BioPython"
+tags = ["dna"]
+
+[[valid]]
+filename = "rose.fasta"
+origin = "BioPython"
+tags = ["protein"]
+
+[[valid]]
+filename = "rosemary.fasta"
+origin = "BioPython"
+tags = ["protein"]
+
+[[valid]]
+filename = "sweetpea.fasta"
+origin = "BioPython"
+tags = ["dna"]
+
+[[valid]]
+filename = "wisteria.fasta"
+origin = "BioPython"
+tags = ["dna"]
+
+[[valid]]
+filename = "alnfile.fasta"
+origin = "BioPerl"
+tags = ["protein"]
+
+[[valid]]
+filename = "genomic-seq.fasta"
+origin = "BioPerl"
+tags = ["dna"]
+
+[[valid]]
+filename = "hs_owlmonkey.fasta"
+origin = "BioPerl"
+tags = ["dna", "gaps"]
+
+[[valid]]
+filename = "test.fasta"
+origin = "BioPerl"
+tags = ["protein", "multi"]
+
+[[valid]]
+filename = "testaln.fasta"
+origin = "BioPerl"
+tags = ["protein", "multi", "gaps"]
+
+[[valid]]
+filename = "testaln2.fasta"
+origin = "BioPerl"
+tags = ["protein", "multi", "gaps"]
+
+[[valid]]
+filename = "AAC12660.fasta"
+origin = "BioPerl"
+tags = ["protein"]
+
+[[valid]]
+filename = "HUMBETGLOA.fasta"
+origin = "BioPerl"
+tags = ["dna"]
+
+[[valid]]
+filename = "amino.fasta"
+origin = "BioPerl"
+tags = ["protein", "multi"]
+
+[[valid]]
+filename = "amino.fasta"
+origin = "BioPerl"
+tags = ["protein", "multi"]
+
+[[valid]]
+filename = "badfasta.fasta"
+origin = "BioPerl"
+tags = ["dna", "multi"]
+comments = ["BioPerl suggests that this is invalid due to blank lines."]
+
+[[valid]]
+filename = "bug2901.fasta"
+origin = "BioPerl"
+tags = ["dna", "gaps"]
+
+[[valid]]
+filename = "cysprot.fasta"
+origin = "BioPerl"
+tags = ["protein", "multi"]
+
+[[valid]]
+filename = "cysprot1.fasta"
+origin = "BioPerl"
+tags = ["protein"]
+
+[[valid]]
+filename = "cysprot1a.fasta"
+origin = "BioPerl"
+tags = ["protein", "multi"]
+
+[[valid]]
+filename = "cysprot1b.fasta"
+origin = "BioPerl"
+tags = ["protein", "multi"]
+
+[[valid]]
+filename = "dna1.fasta"
+origin = "BioPerl"
+tags = ["dna"]
+
+[[valid]]
+filename = "dna2.fasta"
+origin = "BioPerl"
+tags = ["dna", "multi"]
+
+[[valid]]
+filename = "dnaE-bsub-prot.fasta"
+origin = "BioPerl"
+tags = ["protein"]
+
+[[valid]]
+filename = "dnaE-bsub.fasta"
+origin = "BioPerl"
+tags = ["dna"]
+
+[[valid]]
+filename = "ecolitst.fasta"
+origin = "BioPerl"
+tags = ["protein"]
+
+[[valid]]
+filename = "forward_primer.fasta"
+origin = "BioPerl"
+tags = ["dna"]
+
+[[valid]]
+filename = "forward_reverse_primers.fasta"
+origin = "BioPerl"
+tags = ["dna", "ambiguity"]
+
+[[valid]]
+filename = "multi_1.fasta"
+origin = "BioPerl"
+tags = ["protein", "multi"]
+
+[[valid]]
+filename = "multi_2.fasta"
+origin = "BioPerl"
+tags = ["protein", "multi"]
+
+[[valid]]
+filename = "pictogram.fasta"
+origin = "BioPerl"
+tags = ["dna", "multi"]
+
+[[valid]]
+filename = "primedseq.fasta"
+origin = "BioPerl"
+tags = ["dna"]
+
+[[valid]]
+filename = "spaced_fasta.fasta"
+origin = "BioPerl"
+tags = ["dna"]
+
+[[valid]]
+filename = "spaced_fasta.fasta"
+origin = "BioPerl"
+tags = ["dna"]
+
+[[valid]]
+filename = "P02456.fasta"
+origin = "UniProt"
+tags = ["protein", "ambiguity"]

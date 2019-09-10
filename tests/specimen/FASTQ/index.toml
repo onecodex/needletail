@@ -1,0 +1,248 @@
+[[invalid]]
+filename = "error_diff_ids.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_double_qual.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_double_seq.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_long_qual.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_no_qual.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_qual_del.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_qual_escape.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_qual_null.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_qual_space.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_qual_tab.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_qual_unit_sep.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_qual_vtab.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_short_qual.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_spaces.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_tabs.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_trunc_at_plus.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_trunc_at_qual.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_trunc_at_seq.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_trunc_in_plus.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_trunc_in_qual.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_trunc_in_seq.fastq"
+origin = "Biopython"
+
+[[invalid]]
+filename = "error_trunc_in_title.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "example.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "example_dos.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "illumina_faked.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "illumina_full_range_as_illumina.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "illumina_full_range_as_sanger.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "illumina_full_range_as_solexa.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "illumina_full_range_original_illumina.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "longreads_as_illumina.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "longreads_as_sanger.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "longreads_as_solexa.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "longreads_original_sanger.fastq"
+origin = "Biopython"
+tags = ["linewrap"]
+
+[[valid]]
+filename = "misc_dna_as_illumina.fastq"
+origin = "Biopython"
+tags = ["dna", "ambiguity"]
+
+[[valid]]
+filename = "misc_dna_as_sanger.fastq"
+origin = "Biopython"
+tags = ["dna", "ambiguity"]
+
+[[valid]]
+filename = "misc_dna_as_solexa.fastq"
+origin = "Biopython"
+tags = ["dna", "ambiguity"]
+
+[[valid]]
+filename = "misc_dna_original_sanger.fastq"
+origin = "Biopython"
+tags = ["dna", "ambiguity"]
+
+[[valid]]
+filename = "misc_rna_as_illumina.fastq"
+origin = "Biopython"
+tags = ["rna", "ambiguity"]
+
+[[valid]]
+filename = "misc_rna_as_sanger.fastq"
+origin = "Biopython"
+tags = ["rna", "ambiguity"]
+
+[[valid]]
+filename = "misc_rna_as_solexa.fastq"
+origin = "Biopython"
+tags = ["rna", "ambiguity"]
+
+[[valid]]
+filename = "misc_rna_original_sanger.fastq"
+origin = "Biopython"
+tags = ["rna", "ambiguity"]
+
+[[valid]]
+filename = "sanger_93.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "sanger_faked.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "sanger_full_range_as_illumina.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "sanger_full_range_as_sanger.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "sanger_full_range_as_solexa.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "sanger_full_range_original_sanger.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "solexa_example.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "solexa_faked.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "solexa_full_range_as_illumina.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "solexa_full_range_as_sanger.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "solexa_full_range_as_solexa.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "solexa_full_range_original_solexa.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "tricky.fastq"
+origin = "Biopython"
+tags = ["linewrap"]
+
+[[valid]]
+filename = "wrapping_as_illumina.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "wrapping_as_sanger.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "wrapping_as_solexa.fastq"
+origin = "Biopython"
+
+[[valid]]
+filename = "wrapping_original_sanger.fastq"
+origin = "Biopython"
+tags = ["linewrap"]
+
+[[valid]]
+filename = "zero_length.fastq"
+origin = "Biopython"
+
+
