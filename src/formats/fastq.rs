@@ -174,7 +174,7 @@ mod test {
 
     use super::FastqParser;
     use crate::formats::buffer::{RecBuffer, RecParser};
-    use crate::formats::parse_sequences;
+    use crate::formats::parse_sequence_reader;
     use crate::util::ParseErrorType;
 
     fn seq(s: &[u8]) -> Cursor<&[u8]> {
@@ -184,7 +184,7 @@ mod test {
     #[test]
     fn test_fastq() {
         let mut i = 0;
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             seq(b"@test\nAGCT\n+test\n~~a!\n@test2\nTGCA\n+test\nWUI9"),
             |_| (),
             |seq| {
@@ -208,7 +208,7 @@ mod test {
         assert_eq!(res, Ok(()));
 
         let mut i = 0;
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             seq(b"@test\r\nAGCT\r\n+test\r\n~~a!\r\n@test2\r\nTGCA\r\n+test\r\nWUI9"),
             |_| {},
             |seq| {
@@ -237,7 +237,7 @@ mod test {
         //! Check for the absence of a panic. The parser previously assumed
         //! if the ID ended with an `\r\n` then the sequence did also.
         //! (Discovered via fuzzing)
-        let res = parse_sequences(seq(b"@\r\n\n+A\n@"), |_| (), |_seq| {});
+        let res = parse_sequence_reader(seq(b"@\r\n\n+A\n@"), |_| (), |_seq| {});
         assert_eq!(res, Ok(()));
     }
 
@@ -251,7 +251,7 @@ mod test {
         assert!(e.error_type == ParseErrorType::PrematureEOF);
 
         let mut i = 0;
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             seq(b"@test\nAGCT\n+test\n~~a!\n@test2\nTGCA"),
             |_| {},
             |seq| {
@@ -273,7 +273,7 @@ mod test {
 
         // we allow a few extra newlines at the ends of FASTQs
         let mut i = 0;
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             seq(b"@test\nAGCT\n+test\n~~a!\n\n"),
             |_| {},
             |seq| {
@@ -296,7 +296,7 @@ mod test {
         // quality lengths differed" error because the end of the file may
         // normally have multiple newlines
         let mut i = 0;
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             seq(b"@test\nAGCT\n+test\n~~a!\n\n@TEST\nA\n+TEST\n~"),
             |_| {},
             |seq| {
@@ -320,7 +320,7 @@ mod test {
     #[test]
     fn test_empty_records() {
         let mut i = 0;
-        let res = parse_sequences(
+        let res = parse_sequence_reader(
             seq(b"@\n\n+\n\n@test2\nTGCA\n+test2\n~~~~\n"),
             |stype| {
                 assert_eq!(stype, "FASTQ");
