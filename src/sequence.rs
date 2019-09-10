@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use memchr::{memchr, memchr2};
+use memchr::memchr2;
 
 use crate::bitkmer::BitNuclKmer;
 use crate::kmer::{complement, CanonicalKmers, Kmers};
@@ -91,52 +91,6 @@ fn test_normalize() {
     );
 }
 
-/// Mask tabs in header lines to `|`s
-pub fn mask_header_tabs(id: &[u8]) -> Option<Vec<u8>> {
-    memchr(b'\t', id).map(|_| {
-        id.iter()
-            .map(|x| if *x == b'\t' { b'|' } else { *x })
-            .collect()
-    })
-}
-
-/// Convert bad UTF8 characters into �s
-pub fn mask_header_utf8(id: &[u8]) -> Option<Vec<u8>> {
-    // this may potentially change the length of the id; we should probably
-    // be doing something trickier like converting
-    match String::from_utf8_lossy(id) {
-        Cow::Owned(s) => Some(s.into_bytes()),
-        Cow::Borrowed(_) => None,
-    }
-}
-
-pub struct SequenceRecord<'a> {
-    pub id: Cow<'a, [u8]>,
-    pub seq: Cow<'a, [u8]>,
-    pub qual: Option<Cow<'a, [u8]>>,
-}
-
-impl<'a> SequenceRecord<'a> {
-    pub fn new(id: Cow<'a, [u8]>, seq: Cow<'a, [u8]>, qual: Option<Cow<'a, [u8]>>) -> Self {
-        // there has to be a better way to do this?
-        let cleaned_seq = match seq.strip_returns() {
-            Cow::Owned(s) => Cow::Owned(s),
-            Cow::Borrowed(_) => seq,
-        };
-        SequenceRecord {
-            id,
-            seq: cleaned_seq,
-            qual,
-        }
-    }
-}
-
-impl<'a> From<&'a [u8]> for SequenceRecord<'a> {
-    fn from(slice: &'a [u8]) -> Self {
-        SequenceRecord::new(Cow::from(&b""[..]), slice.into(), None)
-    }
-}
-
 /// A generic FASTX record that also abstracts over several logical operations
 /// that can be performed on nucleic acid sequences.
 pub trait Sequence<'a> {
@@ -220,12 +174,6 @@ impl<'a> Sequence<'a> for Cow<'a, [u8]> {
     }
 }
 
-impl<'a> Sequence<'a> for SequenceRecord<'a> {
-    fn sequence(&'a self) -> &'a [u8] {
-        self.seq.as_ref()
-    }
-}
-
 pub trait QualitySequence<'a>: Sequence<'a> {
     fn quality(&'a self) -> &'a [u8];
 
@@ -258,34 +206,6 @@ impl<'a> QualitySequence<'a> for (&'a [u8], &'a [u8]) {
         &self.1
     }
 }
-
-static EMPTY_VEC: &[u8] = b"";
-
-impl<'a> QualitySequence<'a> for SequenceRecord<'a> {
-    fn quality(&'a self) -> &'a [u8] {
-        if let Some(q) = self.qual.as_ref() {
-            q.as_ref()
-        } else {
-            &EMPTY_VEC
-        }
-        // fake high quality scores? vec![b'I'; self.sequence().len()]
-    }
-}
-
-//
-//    /// Fixes up potential problems with sequence headers including tabs being
-//    /// present (may break downstream analyses with headers in TSVs) and with
-//    /// non-UTF8 characters being present, e.g. non-breaking spaces on Windows
-//    /// encodings (0x0A) breaks some tools.
-//    pub fn mask_header(mut self) -> Self {
-//        if let Some(id) = mask_header_tabs(&self.id) {
-//            self.id = id.into();
-//        }
-//        if let Some(id) = mask_header_utf8(&self.id) {
-//            self.id = id.into();
-//        }
-//        self
-//    }
 
 #[test]
 fn test_quality_mask() {

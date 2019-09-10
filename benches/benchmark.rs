@@ -4,7 +4,7 @@ extern crate needletail;
 
 use criterion::Criterion;
 use needletail::parse_sequences;
-use needletail::seq::Sequence;
+use needletail::sequence::Sequence;
 use std::fs::File;
 use std::io::{Cursor, Read};
 

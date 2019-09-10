@@ -16,6 +16,7 @@ mod buffer;
 mod fasta;
 mod fastq;
 
+use std::cmp::min;
 use std::io::{Cursor, Read};
 use std::str;
 
@@ -29,33 +30,34 @@ use xz2::read::XzDecoder;
 pub use crate::formats::buffer::{RecBuffer, RecParser};
 pub use crate::formats::fasta::{FastaParser, FastaRecord};
 pub use crate::formats::fastq::{FastqParser, FastqRecord};
-use crate::seq::SequenceRecord;
+use crate::sequence_record::SequenceRecord;
 use crate::util::{ParseError, ParseErrorType};
+
+static BUF_SIZE: usize = 256 * 1024;
 
 #[macro_export]
 macro_rules! parse_stream {
     ($reader:expr, $first:expr, $reader_type: ty, $rec: ident, $handler: block) => {{
         use $crate::formats::{RecBuffer, RecParser};
-        let mut buffer = RecBuffer::new($reader, 500_000, &$first)?;
-        let mut rec_reader = <$reader_type>::from_buffer(&buffer.buf, buffer.last);
-        // TODO: do something with the header?
+        let mut buffer = RecBuffer::new($reader, $first)?;
         let mut record_count: usize = 0;
-        rec_reader.header().map_err(|e| e.record(record_count))?;
-        let used = rec_reader.used();
-        if !buffer.refill(used).map_err(|e| e.record(record_count))? {
-            loop {
-                let used = {
-                    let mut rec_reader = <$reader_type>::from_buffer(&buffer.buf, buffer.last);
-                    for s in rec_reader.by_ref() {
-                        record_count += 1;
-                        let $rec = s.map_err(|e| e.record(record_count))?;
-                        $handler
-                    }
-                    rec_reader.used()
-                };
-                if buffer.refill(used).map_err(|e| e.record(record_count))? {
-                    break;
+        // TODO: we should probably have files with headers before we turn this on?
+        // let mut rec_reader = <$reader_type>::from_buffer(&buffer.buf, buffer.last);
+        // rec_reader.header().map_err(|e| e.record(record_count))?;
+        // let used = rec_reader.used();
+        // if !buffer.refill(used).map_err(|e| e.record(record_count))? {
+        loop {
+            let used = {
+                let mut rec_reader = <$reader_type>::from_buffer(&buffer.buf, buffer.last);
+                for s in rec_reader.by_ref() {
+                    record_count += 1;
+                    let $rec = s.map_err(|e| e.record(record_count))?;
+                    $handler
                 }
+                rec_reader.used()
+            };
+            if buffer.refill(used).map_err(|e| e.record(record_count))? {
+                break;
             }
         }
         let rec_reader = <$reader_type>::from_buffer(&buffer.buf, buffer.last);
@@ -69,6 +71,7 @@ fn seq_reader<F, R, T>(
     reader: &mut R,
     mut callback: F,
     type_callback: &mut T,
+    start_data: Vec<u8>,
 ) -> Result<(), ParseError>
 where
     F: for<'a> FnMut(SequenceRecord<'a>) -> (),
@@ -76,24 +79,25 @@ where
     T: ?Sized + FnMut(&'static str) -> (),
 {
     // infer the type of the sequencing data
-    let mut first = vec![0];
-    reader.read_exact(&mut first)?;
-    let file_type = match first[0] {
+    let file_type = match start_data[0] {
         b'>' => Ok("FASTA"),
         b'@' => Ok("FASTQ"),
-        _ => Err(
-            ParseError::new("Could not detect file type", ParseErrorType::InvalidHeader)
-                .record(0)
-                .context(String::from_utf8_lossy(&first)),
-        ),
+        _ => {
+            let context = String::from_utf8_lossy(&start_data[..min(32, start_data.len())]);
+            Err(
+                ParseError::new("Could not detect file type", ParseErrorType::InvalidHeader)
+                    .record(0)
+                    .context(context),
+            )
+        }
     }?;
     type_callback(file_type);
 
     match file_type {
-        "FASTA" => parse_stream!(reader, first, FastaParser, rec, {
+        "FASTA" => parse_stream!(reader, start_data, FastaParser, rec, {
             callback(SequenceRecord::from(rec))
         }),
-        "FASTQ" => parse_stream!(reader, first, FastqParser, rec, {
+        "FASTQ" => parse_stream!(reader, start_data, FastqParser, rec, {
             callback(SequenceRecord::from(rec))
         }),
         _ => panic!("A file type was inferred that could not be parsed"),
@@ -114,7 +118,9 @@ where
 {
     //! Opens a `Read` stream and parses the FASTX records out. Also takes a "type_callback"
     //! that gets called as soon as we determine if the records are FASTA or FASTQ.
-    fastx_reader(&mut reader, callback, &mut type_callback)
+    let mut first = vec![0, 0];
+    reader.read_exact(&mut first)?;
+    seq_reader(&mut reader, callback, &mut type_callback, &first)
 }
 
 #[cfg(feature = "compression")]
@@ -131,50 +137,50 @@ where
     //! Opens a `Read` stream and parses the FASTX records out. Also takes a "type_callback"
     //! that gets called as soon as we determine if the records are FASTA or FASTQ.
     //! If a file starts with a gzip or other header, transparently decompress it.
-    let mut first = vec![0];
-    reader.read_exact(&mut first)?;
-    if first[0] == 0x1F {
+    let mut first = vec![0; BUF_SIZE];
+    let amt_read = reader.read(&mut first)?;
+    if amt_read < 2 {
+        return Err(ParseError::new(
+            "File was too short",
+            ParseErrorType::PrematureEOF,
+        ));
+    }
+    unsafe {
+        first.set_len(amt_read);
+    }
+
+    if first[0] == 0x1F && first[1] == 0x8B {
         // gz files
-        reader.read_exact(&mut first)?;
-        if first[0] != 0x8B {
-            return Err(ParseError::new(
-                "Bad gz header",
-                ParseErrorType::BadCompression,
-            ));
-        }
-        let cursor = Cursor::new(vec![0x1F, 0x8B]);
-        let mut gz_reader = MultiGzDecoder::new(cursor.chain(reader));
-
-        seq_reader(&mut gz_reader, callback, &mut type_callback)
-    } else if first[0] == 0x42 {
-        // bz files
-        reader.read_exact(&mut first)?;
-        if first[0] != 0x5A {
-            return Err(ParseError::new(
-                "Bad bz header",
-                ParseErrorType::BadCompression,
-            ));
-        }
-        let cursor = Cursor::new(vec![0x42, 0x5A]);
-        let mut bz_reader = BzDecoder::new(cursor.chain(reader));
-
-        seq_reader(&mut bz_reader, callback, &mut type_callback)
-    } else if first[0] == 0xFD {
-        // xz files
-        reader.read_exact(&mut first)?;
-        if first[0] != 0x37 {
-            return Err(ParseError::new(
-                "Bad xz header",
-                ParseErrorType::BadCompression,
-            ));
-        }
-        let cursor = Cursor::new(vec![0xFD, 0x37]);
-        let mut xz_reader = XzDecoder::new(cursor.chain(reader));
-
-        seq_reader(&mut xz_reader, callback, &mut type_callback)
-    } else {
         let cursor = Cursor::new(first);
-        let mut reader = cursor.chain(reader);
-        seq_reader(&mut reader, callback, &mut type_callback)
+        let mut gz_reader = MultiGzDecoder::new(cursor.chain(reader));
+        let mut data = vec![0; BUF_SIZE];
+        let amt_read = gz_reader.read(&mut data)?;
+        unsafe {
+            data.set_len(amt_read);
+        }
+        seq_reader(&mut gz_reader, callback, &mut type_callback, data)
+    } else if first[0] == 0x42 && first[1] == 0x5A {
+        // bz files
+        let cursor = Cursor::new(first);
+        let mut bz_reader = BzDecoder::new(cursor.chain(reader));
+        let mut data = vec![0; BUF_SIZE];
+        let amt_read = bz_reader.read(&mut data)?;
+        unsafe {
+            data.set_len(amt_read);
+        }
+        bz_reader.read(&mut data)?;
+        seq_reader(&mut bz_reader, callback, &mut type_callback, data)
+    } else if first[0] == 0xFD && first[1] == 0x37 {
+        // xz files
+        let cursor = Cursor::new(first);
+        let mut xz_reader = XzDecoder::new(cursor.chain(reader));
+        let mut data = vec![0; BUF_SIZE];
+        let amt_read = xz_reader.read(&mut data)?;
+        unsafe {
+            data.set_len(amt_read);
+        }
+        seq_reader(&mut xz_reader, callback, &mut type_callback, data)
+    } else {
+        seq_reader(&mut reader, callback, &mut type_callback, first)
     }
 }

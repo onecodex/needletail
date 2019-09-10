@@ -1,10 +1,10 @@
 use std::cmp::min;
-use std::io::Write;
 
 use memchr::memchr;
 
 use crate::formats::buffer::RecParser;
-use crate::seq::{Sequence, SequenceRecord};
+use crate::sequence::Sequence;
+use crate::sequence_record::SequenceRecord;
 use crate::util::{memchr_both_last, ParseError, ParseErrorType};
 
 #[derive(Debug)]
@@ -13,16 +13,7 @@ pub struct FastaRecord<'a> {
     pub seq: &'a [u8],
 }
 
-impl<'a> FastaRecord<'a> {
-    pub fn write(&self, writer: &mut dyn Write, ending: &[u8]) -> Result<(), ParseError> {
-        writer.write_all(b">")?;
-        writer.write_all(&self.id)?;
-        writer.write_all(ending)?;
-        writer.write_all(&self.seq)?;
-        writer.write_all(ending)?;
-        Ok(())
-    }
-}
+impl<'a> FastaRecord<'a> {}
 
 impl<'a> Sequence<'a> for FastaRecord<'a> {
     fn sequence(&self) -> &'a [u8] {
@@ -32,7 +23,7 @@ impl<'a> Sequence<'a> for FastaRecord<'a> {
 
 impl<'a> From<FastaRecord<'a>> for SequenceRecord<'a> {
     fn from(fasta: FastaRecord<'a>) -> SequenceRecord<'a> {
-        SequenceRecord::new(fasta.id.into(), fasta.seq.into(), None)
+        SequenceRecord::new(fasta.id.into(), fasta.seq.strip_returns(), None)
     }
 }
 
@@ -92,10 +83,10 @@ impl<'a> Iterator for FastaParser<'a> {
             .context(context)));
         }
         let mut seq = &buf[id_end..seq_end];
-        if seq.len() > 0 && seq[seq.len() - 1] == b'\n' {
+        if !seq.is_empty() && seq[seq.len() - 1] == b'\n' {
             seq = &seq[..seq.len() - 1];
         }
-        if seq.len() > 0 && seq[seq.len() - 1] == b'\r' {
+        if !seq.is_empty() && seq[seq.len() - 1] == b'\r' {
             seq = &seq[..seq.len() - 1];
         }
 

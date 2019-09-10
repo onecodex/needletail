@@ -1,11 +1,11 @@
 use std::cmp::min;
-use std::io::Write;
 
 use memchr::memchr;
 
 use crate::formats::buffer::RecParser;
 use crate::formats::fasta::check_end;
-use crate::seq::{Sequence, SequenceRecord};
+use crate::sequence::Sequence;
+use crate::sequence_record::SequenceRecord;
 use crate::util::{memchr_both, ParseError, ParseErrorType};
 
 #[derive(Debug)]
@@ -14,28 +14,6 @@ pub struct FastqRecord<'a> {
     pub seq: &'a [u8],
     pub id2: &'a [u8],
     pub qual: &'a [u8],
-}
-
-impl<'a> FastqRecord<'a> {
-    pub fn write(&self, writer: &mut dyn Write, ending: &[u8]) -> Result<(), ParseError> {
-        writer.write_all(b"@")?;
-        writer.write_all(&self.id)?;
-        writer.write_all(ending)?;
-        writer.write_all(&self.seq)?;
-        writer.write_all(ending)?;
-        writer.write_all(b"+")?;
-        writer.write_all(ending)?;
-        // this is kind of a hack, but we want to allow writing out sequences
-        // that don't have qualitys so this will mask to "good" if the quality
-        // slice is empty
-        if self.seq.len() != self.qual.len() {
-            writer.write_all(&vec![b'I'; self.seq.len()])?;
-        } else {
-            writer.write_all(&self.qual)?;
-        }
-        writer.write_all(ending)?;
-        Ok(())
-    }
 }
 
 impl<'a> Sequence<'a> for FastqRecord<'a> {
@@ -388,9 +366,9 @@ mod test {
     #[test]
     fn test_fastq_across_buffer() {
         let test_seq = b"@A\nA\n+A\nA\n@B\nA\n+B\n!";
-        let mut cursor = Cursor::new(test_seq);
+        let mut cursor = Cursor::new(&test_seq[9..]);
         // the buffer is aligned to the first record
-        let mut rec_reader = RecBuffer::new(&mut cursor, 9, b"").unwrap();
+        let mut rec_reader = RecBuffer::new(&mut cursor, test_seq[..9].to_vec()).unwrap();
 
         let used = {
             let mut rec_buffer = FastqParser::from_buffer(&rec_reader.buf, rec_reader.last);
