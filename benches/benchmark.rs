@@ -4,6 +4,7 @@ extern crate needletail;
 
 use criterion::Criterion;
 use needletail::parse_sequences;
+use needletail::seq::Sequence;
 use std::fs::File;
 use std::io::{Cursor, Read};
 
@@ -28,8 +29,10 @@ fn bench_kmer_speed(c: &mut Criterion) {
             parse_sequences(
                 fasta_data,
                 |_| {},
-                |seq| {
-                    for (_, _kmer, was_rc) in seq.normalize(true).kmers(ksize, true) {
+                |rec| {
+                    let seq = rec.seq.normalize(true);
+                    let rc = seq.reverse_complement();
+                    for (_, _kmer, was_rc) in seq.canonical_kmers(ksize, &rc) {
                         if !was_rc {
                             n_canonical += 1;
                         }
@@ -192,13 +195,11 @@ fn bench_fasta_file(c: &mut Criterion) {
 
     group.bench_function("Needletail (No Buffer)", |bench| {
         use needletail::formats::{FastaParser, RecParser};
-        use needletail::seq::Sequence;
         bench.iter(|| {
             let mut reader = FastaParser::from_buffer(&data, true);
             let mut n_bases = 0;
             for rec in reader.by_ref() {
-                let seq = Sequence::from(rec.unwrap());
-                n_bases += seq.seq.len();
+                n_bases += rec.unwrap().seq.strip_returns().len();
             }
             assert_eq!(738_580, n_bases);
         });

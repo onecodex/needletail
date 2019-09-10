@@ -29,7 +29,7 @@ use xz2::read::XzDecoder;
 pub use crate::formats::buffer::{RecBuffer, RecParser};
 pub use crate::formats::fasta::{FastaParser, FastaRecord};
 pub use crate::formats::fastq::{FastqParser, FastqRecord};
-use crate::seq::Sequence;
+use crate::seq::SequenceRecord;
 use crate::util::{ParseError, ParseErrorType};
 
 #[macro_export]
@@ -71,7 +71,7 @@ fn seq_reader<F, R, T>(
     type_callback: &mut T,
 ) -> Result<(), ParseError>
 where
-    F: for<'a> FnMut(Sequence<'a>) -> (),
+    F: for<'a> FnMut(SequenceRecord<'a>) -> (),
     R: Read,
     T: ?Sized + FnMut(&'static str) -> (),
 {
@@ -91,10 +91,10 @@ where
 
     match file_type {
         "FASTA" => parse_stream!(reader, first, FastaParser, rec, {
-            callback(Sequence::from(rec))
+            callback(SequenceRecord::from(rec))
         }),
         "FASTQ" => parse_stream!(reader, first, FastqParser, rec, {
-            callback(Sequence::from(rec))
+            callback(SequenceRecord::from(rec))
         }),
         _ => panic!("A file type was inferred that could not be parsed"),
     };
@@ -108,7 +108,7 @@ pub fn parse_sequences<F, R, T>(
     callback: F,
 ) -> Result<(), ParseError>
 where
-    F: for<'a> FnMut(Sequence<'a>) -> (),
+    F: for<'a> FnMut(SequenceRecord<'a>) -> (),
     R: Read,
     T: FnMut(&'static str) -> (),
 {
@@ -124,7 +124,7 @@ pub fn parse_sequences<F, R, T>(
     callback: F,
 ) -> Result<(), ParseError>
 where
-    F: for<'a> FnMut(Sequence<'a>) -> (),
+    F: for<'a> FnMut(SequenceRecord<'a>) -> (),
     R: Read,
     T: FnMut(&'static str) -> (),
 {

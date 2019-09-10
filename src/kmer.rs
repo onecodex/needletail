@@ -101,75 +101,103 @@ pub fn is_good_base(chr: u8) -> bool {
     }
 }
 
-pub struct NuclKmer<'a> {
+pub struct Kmers<'a> {
     k: u8,
     start_pos: usize,
     buffer: &'a [u8],
-    rc_buffer: Option<&'a [u8]>,
 }
 
-fn update_position(start_pos: &mut usize, k: u8, buffer: &[u8], initial: bool) -> bool {
-    // check if we have enough "physical" space for one more kmer
-    if *start_pos + k as usize > buffer.len() {
-        return false;
-    }
-
-    let (mut kmer_len, stop_len) = if initial {
-        (0, (k - 1) as usize)
-    } else {
-        ((k - 1) as usize, k as usize)
-    };
-
-    while kmer_len < stop_len {
-        if is_good_base(buffer[*start_pos + kmer_len]) {
-            kmer_len += 1;
-        } else {
-            kmer_len = 0;
-            *start_pos += kmer_len + 1;
-            if *start_pos + k as usize > buffer.len() {
-                return false;
-            }
+impl<'a> Kmers<'a> {
+    //! A kmer-izer for a nucleotide/amino acid sequence; returning slices to the original data
+    pub fn new(buffer: &'a [u8], k: u8) -> Self {
+        Kmers {
+            k,
+            start_pos: 0,
+            buffer,
         }
     }
-    true
 }
 
-impl<'a> NuclKmer<'a> {
-    //! A kmer-izer for a nucleotide/amino acid sequence; returning slices to the original data
-    pub fn new(buffer: &'a [u8], rc_buffer: Option<&'a [u8]>, k: u8) -> NuclKmer<'a> {
-        let mut start_pos = 0;
-        update_position(&mut start_pos, k, buffer, true);
-        NuclKmer {
+impl<'a> Iterator for Kmers<'a> {
+    type Item = &'a [u8];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.start_pos + self.k as usize > self.buffer.len() {
+            return None;
+        }
+        let pos = self.start_pos;
+        self.start_pos += 1;
+        Some(&self.buffer[pos..pos + self.k as usize])
+    }
+}
+
+pub struct CanonicalKmers<'a> {
+    k: u8,
+    start_pos: usize,
+    buffer: &'a [u8],
+    rc_buffer: &'a [u8],
+}
+
+/// A kmer-izer for a nucleotide acid sequences to return canonical kmers.
+/// Returns the position of the kmer, a slice to the original data, and
+/// an boolean indicating if the kmer returned is the original or the reverse
+/// complement.
+impl<'a> CanonicalKmers<'a> {
+    pub fn new(buffer: &'a [u8], rc_buffer: &'a [u8], k: u8) -> Self {
+        let mut nucl_kmers = CanonicalKmers {
             k,
-            start_pos,
+            start_pos: 0,
             buffer,
             rc_buffer,
+        };
+        nucl_kmers.update_position(true);
+        nucl_kmers
+    }
+
+    fn update_position(&mut self, initial: bool) -> bool {
+        // check if we have enough "physical" space for one more kmer
+        if self.start_pos + self.k as usize > self.buffer.len() {
+            return false;
         }
+
+        let (mut kmer_len, stop_len) = if initial {
+            (0, (self.k - 1) as usize)
+        } else {
+            ((self.k - 1) as usize, self.k as usize)
+        };
+
+        while kmer_len < stop_len {
+            if is_good_base(self.buffer[self.start_pos + kmer_len]) {
+                kmer_len += 1;
+            } else {
+                kmer_len = 0;
+                self.start_pos += kmer_len + 1;
+                if self.start_pos + self.k as usize > self.buffer.len() {
+                    return false;
+                }
+            }
+        }
+        true
     }
 }
 
-impl<'a> Iterator for NuclKmer<'a> {
+impl<'a> Iterator for CanonicalKmers<'a> {
     type Item = (usize, &'a [u8], bool);
 
     fn next(&mut self) -> Option<(usize, &'a [u8], bool)> {
-        if !update_position(&mut self.start_pos, self.k, self.buffer, false) {
+        if !self.update_position(false) {
             return None;
         }
         let pos = self.start_pos;
         self.start_pos += 1;
 
         let result = &self.buffer[pos..pos + self.k as usize];
-        match self.rc_buffer {
-            None => Some((pos, result, false)),
-            Some(rc_buffer) => {
-                let rc_result =
-                    &rc_buffer[rc_buffer.len() - pos - self.k as usize..rc_buffer.len() - pos];
-                if result < rc_result {
-                    Some((pos, result, false))
-                } else {
-                    Some((pos, rc_result, true))
-                }
-            }
+        let rc_buffer = self.rc_buffer;
+        let rc_result = &rc_buffer[rc_buffer.len() - pos - self.k as usize..rc_buffer.len() - pos];
+        if result < rc_result {
+            Some((pos, result, false))
+        } else {
+            Some((pos, rc_result, true))
         }
     }
 }

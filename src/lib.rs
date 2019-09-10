@@ -6,4 +6,5 @@ pub mod seq;
 mod util;
 
 pub use formats::parse_sequences;
+pub use seq::{Sequence, SequenceRecord};
 pub use util::{ParseError, ParseErrorType};

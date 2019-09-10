@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 
-use memchr::memchr;
+use memchr::{memchr, memchr2};
 
 use crate::bitkmer::BitNuclKmer;
-use crate::kmer::{complement, NuclKmer};
+use crate::kmer::{complement, CanonicalKmers, Kmers};
 
 pub fn normalize(seq: &[u8], allow_iupac: bool) -> Option<Vec<u8>> {
     //! Transform a FASTX sequence into it's "normalized" form.
@@ -110,131 +110,194 @@ pub fn mask_header_utf8(id: &[u8]) -> Option<Vec<u8>> {
     }
 }
 
-/// A generic FASTX record that also abstracts over several logical operations
-/// that can be performed on nucleic acid sequences.
-#[derive(Clone, Debug)]
-pub struct Sequence<'a> {
+pub struct SequenceRecord<'a> {
     pub id: Cow<'a, [u8]>,
     pub seq: Cow<'a, [u8]>,
     pub qual: Option<Cow<'a, [u8]>>,
-    rev_seq: Option<Vec<u8>>,
 }
 
-impl<'a> Sequence<'a> {
-    pub fn new(id: &'a [u8], seq: Cow<'a, [u8]>, qual: Option<&'a [u8]>) -> Self {
-        Sequence {
-            id: id.into(),
-            seq,
-            qual: qual.map(Cow::Borrowed),
-            rev_seq: None,
+impl<'a> SequenceRecord<'a> {
+    pub fn new(id: Cow<'a, [u8]>, seq: Cow<'a, [u8]>, qual: Option<Cow<'a, [u8]>>) -> Self {
+        // there has to be a better way to do this?
+        let cleaned_seq = match seq.strip_returns() {
+            Cow::Owned(s) => Cow::Owned(s),
+            Cow::Borrowed(_) => seq,
+        };
+        SequenceRecord {
+            id,
+            seq: cleaned_seq,
+            qual,
+        }
+    }
+}
+
+impl<'a> From<&'a [u8]> for SequenceRecord<'a> {
+    fn from(slice: &'a [u8]) -> Self {
+        SequenceRecord::new(Cow::from(&b""[..]), slice.into(), None)
+    }
+}
+
+/// A generic FASTX record that also abstracts over several logical operations
+/// that can be performed on nucleic acid sequences.
+pub trait Sequence<'a> {
+    fn sequence(&'a self) -> &'a [u8];
+
+    /// remove newlines from within FASTX records; currently the rate limiting step
+    /// in FASTX parsing (in general; readfq also exhibits this behavior)
+    fn strip_returns(&'a self) -> Cow<'a, [u8]> {
+        let seq = self.sequence();
+
+        // first part is a fast check to see if we need to do any allocations
+        let mut i;
+        match memchr2(b'\r', b'\n', &seq) {
+            Some(break_loc) => i = break_loc,
+            None => return seq.into(),
+        }
+        // we found a newline; create a new buffer and stripping out newlines
+        // and writing into it
+        let mut new_buf = Vec::with_capacity(seq.len() - 1);
+        new_buf.extend_from_slice(&seq[..i]);
+        while i < seq.len() {
+            match memchr2(b'\r', b'\n', &seq[i..]) {
+                None => {
+                    new_buf.extend_from_slice(&seq[i..]);
+                    break;
+                }
+                Some(match_pos) => {
+                    new_buf.extend_from_slice(&seq[i..i + match_pos]);
+                    i += match_pos + 1;
+                }
+            }
+        }
+        new_buf.into()
+    }
+
+    fn reverse_complement(&'a self) -> Vec<u8> {
+        self.sequence()
+            .iter()
+            .rev()
+            .map(|n| complement(*n))
+            .collect()
+    }
+
+    fn normalize(&'a self, iupac: bool) -> Cow<'a, [u8]> {
+        if let Some(s) = normalize(&self.sequence(), iupac) {
+            s.into()
+        } else {
+            self.sequence().into()
         }
     }
 
-    pub fn from_bytes(seq: &'a [u8]) -> Self {
-        Sequence {
-            id: b""[..].into(),
-            seq: seq.into(),
-            qual: None,
-            rev_seq: None,
-        }
+    fn canonical_kmers(&'a self, k: u8, reverse_complement: &'a [u8]) -> CanonicalKmers<'a> {
+        CanonicalKmers::new(self.sequence().as_ref(), reverse_complement, k)
     }
+
+    fn kmers(&'a self, k: u8) -> Kmers<'a> {
+        Kmers::new(self.sequence().as_ref(), k)
+    }
+
+    /// Return an iterator the returns valid kmers in 4-bit form
+    fn bit_kmers(&'a self, k: u8, canonical: bool) -> BitNuclKmer<'a> {
+        BitNuclKmer::new(self.sequence(), k, canonical)
+    }
+}
+
+impl<'a> Sequence<'a> for &'a [u8] {
+    fn sequence(&'a self) -> &'a [u8] {
+        &self
+    }
+}
+
+impl<'a> Sequence<'a> for [u8] {
+    fn sequence(&'a self) -> &'a [u8] {
+        &self
+    }
+}
+
+impl<'a> Sequence<'a> for Cow<'a, [u8]> {
+    fn sequence(&'a self) -> &'a [u8] {
+        &self
+    }
+}
+
+impl<'a> Sequence<'a> for SequenceRecord<'a> {
+    fn sequence(&'a self) -> &'a [u8] {
+        self.seq.as_ref()
+    }
+}
+
+pub trait QualitySequence<'a>: Sequence<'a> {
+    fn quality(&'a self) -> &'a [u8];
 
     /// Given a SeqRecord and a quality cutoff, mask out low-quality bases with
     /// `N` characters.
     ///
     /// Experimental.
-    pub fn quality_mask(self, score: u8) -> Self {
-        if self.qual == None {
-            return self;
-        }
-        let qual = self.qual.unwrap().into_owned();
+    fn quality_mask(&'a self, score: u8) -> Cow<'a, [u8]> {
+        let qual = self.quality();
         // could maybe speed this up by doing a copy of base and then
         // iterating though qual and masking?
-        let seq = self
-            .seq
+        let seq: Vec<u8> = self
+            .sequence()
             .iter()
             .zip(qual.iter())
             .map(|(base, qual)| if *qual < score { b'N' } else { *base })
             .collect();
-        Sequence {
-            id: self.id,
-            seq,
-            qual: Some(Cow::Owned(qual)),
-            rev_seq: None,
-        }
-    }
-
-    /// Capitalize everything and mask unknown bases to N
-    pub fn normalize(mut self, iupac: bool) -> Self {
-        if let Some(seq) = normalize(&self.seq, iupac) {
-            self.seq = seq.into();
-        }
-        self
-    }
-
-    /// Fixes up potential problems with sequence headers including tabs being
-    /// present (may break downstream analyses with headers in TSVs) and with
-    /// non-UTF8 characters being present, e.g. non-breaking spaces on Windows
-    /// encodings (0x0A) breaks some tools.
-    pub fn mask_header(mut self) -> Self {
-        if let Some(id) = mask_header_tabs(&self.id) {
-            self.id = id.into();
-        }
-        if let Some(id) = mask_header_utf8(&self.id) {
-            self.id = id.into();
-        }
-        self
-    }
-
-    /// Return an iterator the returns valid kmers
-    pub fn kmers<'b, 'c>(&'b mut self, k: u8, canonical: bool) -> NuclKmer<'c>
-    where
-        'b: 'c,
-    {
-        if canonical {
-            self.rev_seq = Some(self.seq.iter().rev().map(|n| complement(*n)).collect());
-        }
-        match self.rev_seq {
-            Some(ref rev_seq) => NuclKmer::new(&self.seq, Some(&rev_seq), k),
-            None => NuclKmer::new(&self.seq, None, k),
-        }
-    }
-
-    /// Return an iterator the returns valid kmers in 4-bit form
-    pub fn bit_kmers(&self, k: u8, canonical: bool) -> BitNuclKmer {
-        BitNuclKmer::new(&self.seq, k, canonical)
-    }
-
-    /// Construct an owned version of `self` to, e.g. pass across threads
-    /// (it's not clear why this can't be the `impl for Clone`, but the
-    /// 'static lifetime doesn't work there for some reason)
-    pub fn into_owned(self) -> Sequence<'static> {
-        Sequence {
-            id: Cow::Owned(self.id.clone().into_owned()),
-            seq: Cow::Owned(self.seq.clone().into_owned()),
-            qual: self.qual.clone().map(Cow::into_owned).map(Cow::Owned),
-            rev_seq: self.rev_seq.clone(),
-        }
+        seq.into()
     }
 }
 
+impl<'a> Sequence<'a> for (&'a [u8], &'a [u8]) {
+    fn sequence(&'a self) -> &'a [u8] {
+        &self.0
+    }
+}
+
+impl<'a> QualitySequence<'a> for (&'a [u8], &'a [u8]) {
+    fn quality(&'a self) -> &'a [u8] {
+        &self.1
+    }
+}
+
+static EMPTY_VEC: &[u8] = b"";
+
+impl<'a> QualitySequence<'a> for SequenceRecord<'a> {
+    fn quality(&'a self) -> &'a [u8] {
+        if let Some(q) = self.qual.as_ref() {
+            q.as_ref()
+        } else {
+            &EMPTY_VEC
+        }
+        // fake high quality scores? vec![b'I'; self.sequence().len()]
+    }
+}
+
+//
+//    /// Fixes up potential problems with sequence headers including tabs being
+//    /// present (may break downstream analyses with headers in TSVs) and with
+//    /// non-UTF8 characters being present, e.g. non-breaking spaces on Windows
+//    /// encodings (0x0A) breaks some tools.
+//    pub fn mask_header(mut self) -> Self {
+//        if let Some(id) = mask_header_tabs(&self.id) {
+//            self.id = id.into();
+//        }
+//        if let Some(id) = mask_header_utf8(&self.id) {
+//            self.id = id.into();
+//        }
+//        self
+//    }
+
 #[test]
 fn test_quality_mask() {
-    let seq_rec = Sequence {
-        id: b""[..].into(),
-        // seq: Cow::Borrowed(&b"AGCT"[..]),
-        seq: b"AGCT"[..].into(),
-        qual: Some(b"AAA0"[..].into()),
-        rev_seq: None,
-    };
+    let seq_rec = (&b"AGCT"[..], &b"AAA0"[..]);
     let filtered_rec = seq_rec.quality_mask(b'5');
-    assert_eq!(&filtered_rec.seq[..], &b"AGCN"[..]);
+    assert_eq!(&filtered_rec[..], &b"AGCN"[..]);
 }
 
 #[test]
 fn can_kmerize() {
     // test general function
-    for (i, (_, k, _)) in Sequence::from_bytes(b"AGCT").kmers(1, false).enumerate() {
+    for (i, k) in b"AGCT".kmers(1).enumerate() {
         match i {
             0 => assert_eq!(k, &b"A"[..]),
             1 => assert_eq!(k, &b"G"[..]),
@@ -244,28 +307,19 @@ fn can_kmerize() {
         }
     }
 
-    // test that we skip over N's
-    for (i, (_, k, _)) in Sequence::from_bytes(b"ACNGT").kmers(2, false).enumerate() {
+    // test that we handle length 2 (and don't drop Ns)
+    for (i, k) in b"ACNGT".kmers(2).enumerate() {
         match i {
             0 => assert_eq!(k, &b"AC"[..]),
-            1 => assert_eq!(k, &b"GT"[..]),
-            _ => unreachable!("Too many kmers"),
-        }
-    }
-
-    // test that we skip over N's and handle short kmers
-    for (i, (ix, k, _)) in Sequence::from_bytes(b"ACNG").kmers(2, false).enumerate() {
-        match i {
-            0 => {
-                assert_eq!(ix, 0);
-                assert_eq!(k, &b"AC"[..]);
-            }
+            1 => assert_eq!(k, &b"CN"[..]),
+            2 => assert_eq!(k, &b"NG"[..]),
+            3 => assert_eq!(k, &b"GT"[..]),
             _ => unreachable!("Too many kmers"),
         }
     }
 
     // test that the minimum length works
-    for (_, k, _) in Sequence::from_bytes(b"AC").kmers(2, false) {
+    for k in b"AC".kmers(2) {
         assert_eq!(k, &b"AC"[..]);
     }
 }
@@ -273,7 +327,11 @@ fn can_kmerize() {
 #[test]
 fn can_canonicalize() {
     // test general function
-    for (i, (_, k, is_c)) in Sequence::from_bytes(b"AGCT").kmers(1, true).enumerate() {
+    let seq = b"AGCT";
+    for (i, (_, k, is_c)) in seq
+        .canonical_kmers(1, &seq.reverse_complement())
+        .enumerate()
+    {
         match i {
             0 => {
                 assert_eq!(k, &b"A"[..]);
@@ -295,7 +353,11 @@ fn can_canonicalize() {
         }
     }
 
-    for (i, (_, k, _)) in Sequence::from_bytes(b"AGCTA").kmers(2, true).enumerate() {
+    let seq = b"AGCTA";
+    for (i, (_, k, _)) in seq
+        .canonical_kmers(2, &seq.reverse_complement())
+        .enumerate()
+    {
         match i {
             0 => assert_eq!(k, &b"AG"[..]),
             1 => assert_eq!(k, &b"GC"[..]),
@@ -305,7 +367,11 @@ fn can_canonicalize() {
         }
     }
 
-    for (i, (ix, k, _)) in Sequence::from_bytes(b"AGNTA").kmers(2, true).enumerate() {
+    let seq = b"AGNTA";
+    for (i, (ix, k, _)) in seq
+        .canonical_kmers(2, &seq.reverse_complement())
+        .enumerate()
+    {
         match i {
             0 => {
                 assert_eq!(ix, 0);
