@@ -8,7 +8,6 @@ use memchr::memchr_iter;
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseErrorType {
     BadCompression,
-    PrematureEOF,
     InvalidHeader,
     InvalidRecord,
     IOError,
@@ -54,7 +53,6 @@ impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let msg = match self.error_type {
             ParseErrorType::BadCompression => "Error in decompression",
-            ParseErrorType::PrematureEOF => "File ended prematurely",
             ParseErrorType::InvalidHeader => "Invalid record header",
             ParseErrorType::InvalidRecord => "Invalid record content",
             ParseErrorType::IOError => "I/O Error",

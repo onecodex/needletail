@@ -36,7 +36,7 @@ pub struct FastaParser<'a> {
 impl<'a> FastaParser<'a> {
     pub fn new(buf: &'a [u8], last: bool) -> Result<Self, ParseError> {
         if buf[0] != b'>' {
-            let context = String::from_utf8_lossy(&buf[..min(32, buf.len())]);
+            let context = String::from_utf8_lossy(&buf[..min(64, buf.len())]);
             return Err(ParseError::new(
                 "FASTA record must start with '>'",
                 ParseErrorType::InvalidHeader,
@@ -78,7 +78,7 @@ impl<'a> Iterator for FastaParser<'a> {
             let context = String::from_utf8_lossy(id);
             return Some(Err(ParseError::new(
                 "Sequence completely empty",
-                ParseErrorType::PrematureEOF,
+                ParseErrorType::InvalidRecord,
             )
             .context(context)));
         }
@@ -119,19 +119,18 @@ pub fn check_end(buf: &[u8], last: bool) -> Result<(), ParseError> {
     // check if there's anything left stuff in the buffer (besides returns)
     if !last {
         return Err(
-            ParseError::new("File ended abruptly", ParseErrorType::PrematureEOF),
+            ParseError::new("File ended abruptly", ParseErrorType::Invalid),
             // .record(count + 1),
         );
     }
     for c in &buf[..] {
         if c != &b'\r' && c != &b'\n' {
-            let end = min(32, buf.len());
+            let end = min(64, buf.len());
             let context = String::from_utf8_lossy(&buf[..end]);
             return Err(ParseError::new(
-                "File had extra data past end of records",
-                ParseErrorType::PrematureEOF,
+                "Unexpected data encountered in middle of file",
+                ParseErrorType::Invalid,
             )
-            // .record(count + 1)
             .context(context));
         }
     }
@@ -331,7 +330,7 @@ mod test {
         );
         assert_eq!(i, 1);
         let e = res.unwrap_err();
-        assert_eq!(e.error_type, ParseErrorType::PrematureEOF);
+        assert_eq!(e.error_type, ParseErrorType::Invalid);
         assert_eq!(e.record, 2);
 
         // test that an abrupt stop in a FASTA triggers an error
@@ -352,7 +351,9 @@ mod test {
         );
         assert_eq!(i, 1);
         let e = res.unwrap_err();
-        assert_eq!(e.error_type, ParseErrorType::PrematureEOF);
+        // technically the sequence is empty here so we're failing
+        // with an InvalidRecord error rather than Invalid
+        assert_eq!(e.error_type, ParseErrorType::InvalidRecord);
         assert_eq!(e.record, 2);
     }
 

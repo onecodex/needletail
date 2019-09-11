@@ -39,7 +39,7 @@ impl<'a> FastqParser<'a> {
         if buf[0] != b'@' {
             // sometimes there are extra returns at the end of a file so we shouldn't blow up
             if !(last && (buf[0] == b'\r' && buf[0] == b'\n')) {
-                let context = String::from_utf8_lossy(&buf[..min(32, buf.len())]);
+                let context = String::from_utf8_lossy(&buf[..min(64, buf.len())]);
                 let e = ParseError::new(
                     "FASTQ record must start with '@'",
                     ParseErrorType::InvalidHeader,
@@ -138,7 +138,7 @@ impl<'a> Iterator for FastqParser<'a> {
             let context = String::from_utf8_lossy(id);
             return Some(Err(ParseError::new(
                 "Quality length was shorter than expected",
-                ParseErrorType::PrematureEOF,
+                ParseErrorType::InvalidRecord,
             )
             .context(context)));
         }
@@ -248,7 +248,9 @@ mod test {
         let result = fp.next().unwrap();
         assert!(result.is_err());
         let e = result.unwrap_err();
-        assert!(e.error_type == ParseErrorType::PrematureEOF);
+        // technically the terminal newline could be part of the record
+        // so this is an InvalidRecord and not Invalid
+        assert!(e.error_type == ParseErrorType::InvalidRecord);
 
         let mut i = 0;
         let res = parse_sequence_reader(
@@ -268,7 +270,7 @@ mod test {
         );
         assert_eq!(i, 1);
         let e = res.unwrap_err();
-        assert_eq!(e.error_type, ParseErrorType::PrematureEOF);
+        assert_eq!(e.error_type, ParseErrorType::Invalid);
         assert_eq!(e.record, 2);
 
         // we allow a few extra newlines at the ends of FASTQs
@@ -313,7 +315,7 @@ mod test {
         );
         assert_eq!(i, 1);
         let e = res.unwrap_err();
-        assert_eq!(e.error_type, ParseErrorType::PrematureEOF);
+        assert_eq!(e.error_type, ParseErrorType::Invalid);
         assert_eq!(e.record, 2);
     }
 
@@ -344,6 +346,26 @@ mod test {
         );
         assert_eq!(res, Ok(()));
         assert_eq!(i, 2);
+
+        let test = b"@NCBI actually has files like this\nACGTACGATCGTACGTAGCTGCTAGCTAGCATGCATGACACACACGTACGATCGTACGTAGCTGCTAGCTAGCATGCATGACACAC\n+\n00000000000000000000000000000000000000000000000000000000000000000000000000000000000000\n@NCBI actually has files like this\n\n+\n\n@NCBI actually has files like this\nACGTACGATCGTACGTAGCTGCTAGCTAGCATGCATGACACACACGTACGATCGTACGTAGCTGCTAGCTAGCATGCATGACACAC\n+\n00000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        let mut fp = FastqParser::new(test, true).unwrap();
+        let result = fp.next().unwrap();
+        assert!(result.is_ok());
+        let result = fp.next().unwrap();
+        assert!(result.is_ok());
+        let result = fp.next().unwrap();
+        assert!(result.is_ok());
+
+        let mut i = 0;
+        let res = parse_sequence_reader(
+            seq(test),
+            |stype| assert_eq!(stype, "FASTQ"),
+            |_| {
+                i += 1;
+            },
+        );
+        assert_eq!(i, 3);
+        assert_eq!(res, Ok(()));
     }
 
     #[test]

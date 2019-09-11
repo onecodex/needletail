@@ -142,7 +142,7 @@ where
     if amt_read < 2 {
         return Err(ParseError::new(
             "File was too short",
-            ParseErrorType::PrematureEOF,
+            ParseErrorType::Invalid,
         ));
     }
     unsafe {
@@ -168,7 +168,6 @@ where
         unsafe {
             data.set_len(amt_read);
         }
-        bz_reader.read(&mut data)?;
         seq_reader(&mut bz_reader, callback, &mut type_callback, data)
     } else if first[0] == 0xFD && first[1] == 0x37 {
         // xz files
