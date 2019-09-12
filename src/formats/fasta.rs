@@ -7,6 +7,7 @@ use crate::sequence::Sequence;
 use crate::sequence_record::SequenceRecord;
 use crate::util::{memchr_both_last, ParseError, ParseErrorType};
 
+/// A zero-copy reference to a FASTA record in a buffer.
 #[derive(Debug)]
 pub struct FastaRecord<'a> {
     pub id: &'a [u8],
@@ -27,6 +28,7 @@ impl<'a> From<FastaRecord<'a>> for SequenceRecord<'a> {
     }
 }
 
+/// An iterator that parses a buffer into a sequence of FASTARecords
 pub struct FastaParser<'a> {
     buf: &'a [u8],
     last: bool,

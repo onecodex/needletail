@@ -1,3 +1,4 @@
+//! Compact binary representations of nucleic acid kmers
 pub type BitKmerSeq = u64;
 pub type BitKmer = (BitKmerSeq, u8);
 

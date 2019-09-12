@@ -4,15 +4,15 @@ use safemem::copy_over;
 
 use crate::util::ParseError;
 
+/// A buffer that wraps an object with the `Read` trait and allows extracting
+/// a set of slices to data. Acts as a lower-level primitive for our FASTX
+/// readers.
 pub struct RecBuffer<'a> {
     file: &'a mut dyn io::Read,
     pub buf: Vec<u8>,
     pub last: bool,
 }
 
-/// A buffer that wraps an object with the `Read` trait and allows extracting
-/// a set of slices to data. Acts as a lower-level primitive for our FASTX
-/// readers.
 impl<'a> RecBuffer<'a> {
     /// Instantiate a new buffer.
     ///
@@ -56,12 +56,11 @@ impl<'a> RecBuffer<'a> {
     }
 }
 
-/// RecParser is an adaptor trait that allows new file format parsers to be
-/// defined. It takes a chunk from a RecBuffer (`from_reader`), optionally
-/// parses an initial header out (`header`) and then provides an iterator
-/// interface to parse a record stream. When finished, it provides a `eof`
-/// function to determine if the stream is completely exhausted.
-///
+/// [⚠️Unstable] RecParser is an adaptor trait that allows new file format
+/// parsers to be defined. It takes a chunk from a RecBuffer (`from_reader`),
+/// optionally parses an initial header out (`header`) and then provides an
+/// iterator interface to parse a record stream. When finished, it provides an
+/// `eof` function to determine if the stream is completely exhausted.
 pub trait RecParser<'s>: Sized + Iterator {
     type Header;
 
