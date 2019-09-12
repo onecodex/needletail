@@ -1,3 +1,8 @@
+//! For working with sequences that have identifiers and optionally quality
+//! information.
+//!
+//! Primarily used as a common intermediate for processing both FASTA and
+//! FASTQ data.
 use std::borrow::Cow;
 use std::io::Write;
 
@@ -34,6 +39,7 @@ pub struct SequenceRecord<'a> {
 }
 
 impl<'a> SequenceRecord<'a> {
+    /// Creates a new SequenceRecord
     pub fn new(id: Cow<'a, [u8]>, seq: Cow<'a, [u8]>, qual: Option<Cow<'a, [u8]>>) -> Self {
         SequenceRecord { id, seq, qual }
     }

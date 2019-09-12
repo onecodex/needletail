@@ -1,14 +1,13 @@
-//! This module contains functions for reading FASTA data from either within
-//! memory or from files.
+//! Functions for reading sequence data from FASTA and FASTQ formats.
 //!
 //! # Design Note
 //!
 //! These functions are designed to take callbacks to process the FASTX records
-//! they read. It would be nice to present a FASTX Iterator that downstream users
-//! can use at some point, but this is only possible for in-memory data (e.g. using
-//! MemProducer from nom) because otherwise the lifetime of each record is linked
-//! to what part of the file we're reading and Rust doesn't support "streaming
-//! iterators" otherwise. Maybe some day.
+//! they read. It would be nice to present a FASTX Iterator that downstream
+//! users can use at some point, but this is complicated because the lifetimes
+//! of the records are linked to the slice of buffer that's being parsed (the
+//! records are "zero-copy" so they mustn't outlive the buffer). Perhaps we'll
+//! figure out a "streaming iterator" strategy here someday.
 //!
 //! See: https://github.com/emk/rust-streaming
 
@@ -37,7 +36,6 @@ use crate::util::{ParseError, ParseErrorType};
 
 static BUF_SIZE: usize = 256 * 1024;
 
-#[macro_export]
 macro_rules! parse_stream {
     ($reader:expr, $first:expr, $reader_type: ty, $rec: ident, $handler: block) => {{
         use $crate::formats::{RecBuffer, RecParser};

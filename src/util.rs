@@ -5,20 +5,29 @@ use std::str;
 
 use memchr::memchr_iter;
 
+/// The type of error that occured during file parsing
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseErrorType {
-    BadCompression,
+    /// An error was encountered parsing a record's header
     InvalidHeader,
+    /// An error was encountered parsing a record
     InvalidRecord,
+    /// An error happened during file/stream input/output
     IOError,
+    /// A generic error occured
     Invalid,
 }
 
+/// The only error type that needletail returns
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParseError {
+    /// The number of the record where the error occured (if relevant)
     pub record: usize,
+    /// Grep-able context for where the error occured (if relevant)
     pub context: String,
+    /// A description of what went wrong
     pub msg: String,
+    /// The type of error that occured
     pub error_type: ParseErrorType,
 }
 
@@ -52,7 +61,6 @@ impl ParseError {
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let msg = match self.error_type {
-            ParseErrorType::BadCompression => "Error in decompression",
             ParseErrorType::InvalidHeader => "Invalid record header",
             ParseErrorType::InvalidRecord => "Invalid record content",
             ParseErrorType::IOError => "I/O Error",
@@ -86,8 +94,6 @@ impl From<str::Utf8Error> for ParseError {
 
 /// Like memchr, but handles a two-byte sequence (unlike memchr::memchr2, this
 /// looks for the bytes in sequence not either/or).
-///
-/// Also returns if any other `b1`s were found in the sequence
 #[inline]
 pub fn memchr_both(b1: u8, b2: u8, seq: &[u8]) -> Option<usize> {
     for idx in memchr_iter(b1, &seq) {
@@ -98,6 +104,9 @@ pub fn memchr_both(b1: u8, b2: u8, seq: &[u8]) -> Option<usize> {
     None
 }
 
+/// Like `memchr_both`, but searches for `b2` first and then checks if b1 is also
+/// there. Should give the same results as `memchr_both` but will be faster if
+/// `b2` is a rarer character than `b1` (such as `>` vs `\n` in multiline FASTAs).
 #[inline]
 pub fn memchr_both_last(b1: u8, b2: u8, seq: &[u8]) -> Option<usize> {
     for idx in memchr_iter(b2, &seq) {

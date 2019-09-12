@@ -8,6 +8,7 @@ use crate::sequence::Sequence;
 use crate::sequence_record::SequenceRecord;
 use crate::util::{memchr_both, ParseError, ParseErrorType};
 
+/// A zero-copy reference to a FASTQ record in a buffer.
 #[derive(Debug)]
 pub struct FastqRecord<'a> {
     pub id: &'a [u8],
@@ -28,6 +29,7 @@ impl<'a> From<FastqRecord<'a>> for SequenceRecord<'a> {
     }
 }
 
+/// An iterator that parses a buffer into a sequence of FASTQRecords
 pub struct FastqParser<'a> {
     buf: &'a [u8],
     last: bool,
