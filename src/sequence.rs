@@ -5,17 +5,17 @@ use memchr::memchr2;
 use crate::bitkmer::BitNuclKmer;
 use crate::kmer::{complement, CanonicalKmers, Kmers};
 
+/// Transform a nucleic acid sequence into its "normalized" form.
+///
+/// The normalized form is:
+///  - only AGCTN and possibly - (for gaps)
+///  - strip out any whitespace or line endings
+///  - lowercase versions of these are uppercased
+///  - U is converted to T (make everything a DNA sequence)
+///  - some other punctuation is converted to gaps
+///  - IUPAC bases may be converted to N's depending on the parameter passed in
+///  - everything else is considered a N
 pub fn normalize(seq: &[u8], allow_iupac: bool) -> Option<Vec<u8>> {
-    //! Transform a FASTX sequence into it's "normalized" form.
-    //!
-    //! The normalized form is:
-    //!  - only AGCTN and possibly - (for gaps)
-    //!  - strip out any whitespace or line endings
-    //!  - lowercase versions of these are uppercased
-    //!  - U is converted to T (make everything a DNA sequence)
-    //!  - some other punctuation is converted to gaps
-    //!  - IUPAC bases may be converted to N's depending on the parameter passed in
-    //!  - everything else is considered a N
     let mut buf: Vec<u8> = Vec::with_capacity(seq.len());
     let mut changed: bool = false;
 
@@ -96,8 +96,11 @@ fn test_normalize() {
 pub trait Sequence<'a> {
     fn sequence(&'a self) -> &'a [u8];
 
-    /// remove newlines from within FASTX records; currently the rate limiting step
-    /// in FASTX parsing (in general; readfq also exhibits this behavior)
+    /// Remove newlines from the sequence; this handles `\r`, `\n`, and `\r\n`
+    /// and removes internal newlines in addition to ones at the end.
+    /// Primarily used for FASTA multiline records, but can also help process
+    /// (the much rarer) multiline FASTQs. Always use before iteration methods
+    /// below to ensure no newlines are being returned with e.g. `.kmers`.
     fn strip_returns(&'a self) -> Cow<'a, [u8]> {
         let seq = self.sequence();
 
@@ -126,6 +129,9 @@ pub trait Sequence<'a> {
         new_buf.into()
     }
 
+    /// Returns the reverse complement of a sequence. Biologically this is
+    /// equivalent to the sequence of the strand opposite the one you pass
+    /// in.
     fn reverse_complement(&'a self) -> Vec<u8> {
         self.sequence()
             .iter()
@@ -134,6 +140,8 @@ pub trait Sequence<'a> {
             .collect()
     }
 
+    /// [Nucleic Acids] Normalizes the sequence. See documentation for
+    /// `needletail::sequence::normalize`.
     fn normalize(&'a self, iupac: bool) -> Cow<'a, [u8]> {
         if let Some(s) = normalize(&self.sequence(), iupac) {
             s.into()
@@ -142,15 +150,22 @@ pub trait Sequence<'a> {
         }
     }
 
+    /// [Nucleic Acids] Returns an iterator over the sequence that skips
+    /// non-ACGT bases and returns a tuple containing (position, the
+    /// canonicalized kmer, if the sequence is the complement of the original).
     fn canonical_kmers(&'a self, k: u8, reverse_complement: &'a [u8]) -> CanonicalKmers<'a> {
         CanonicalKmers::new(self.sequence().as_ref(), reverse_complement, k)
     }
 
+    /// Returns an iterator that returns a sliding window of k-sized
+    /// sequences (k-mers). Does not skip whitespace or correct bases in the
+    /// original sequence so `.normalize` or `.strip_returns` may be
+    /// appropriate to use first.
     fn kmers(&'a self, k: u8) -> Kmers<'a> {
         Kmers::new(self.sequence().as_ref(), k)
     }
 
-    /// Return an iterator the returns valid kmers in 4-bit form
+    /// Return an iterator that returns valid kmers in 4-bit form
     fn bit_kmers(&'a self, k: u8, canonical: bool) -> BitNuclKmer<'a> {
         BitNuclKmer::new(self.sequence(), k, canonical)
     }

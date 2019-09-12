@@ -5,7 +5,7 @@
 //!
 //! These functions are designed to take callbacks to process the FASTX records
 //! they read. It would be nice to present a FASTX Iterator that downstream users
-//! can use at some point, but this is only possible for in-memory data (using
+//! can use at some point, but this is only possible for in-memory data (e.g. using
 //! MemProducer from nom) because otherwise the lifetime of each record is linked
 //! to what part of the file we're reading and Rust doesn't support "streaming
 //! iterators" otherwise. Maybe some day.
@@ -17,7 +17,9 @@ mod fasta;
 mod fastq;
 
 use std::cmp::min;
-use std::io::{Cursor, Read};
+use std::fs::File;
+use std::io::{stdin, Cursor, Read};
+use std::path::Path;
 use std::str;
 
 #[cfg(feature = "compression")]
@@ -181,5 +183,29 @@ where
         seq_reader(&mut xz_reader, callback, &mut type_callback, data)
     } else {
         seq_reader(&mut reader, callback, &mut type_callback, first)
+    }
+}
+
+/// This is a convenience method for easy drop into CLI programs. It will
+/// take a "path" which is either parsed as a filename or, if "-", as stdin.
+/// It then opens this, does automatic decompression and then determines the
+/// type of the file (which is calls `type_callback` with) before parsing the
+/// rest of the file into SequenceRecords that it calls `callback` on.
+pub fn parse_sequence_path<F, P, T>(
+    path: P,
+    type_callback: T,
+    callback: F,
+) -> Result<(), ParseError>
+where
+    F: for<'a> FnMut(SequenceRecord<'a>) -> (),
+    P: AsRef<Path>,
+    T: FnMut(&'static str) -> (),
+{
+    let path = path.as_ref();
+    if path == Path::new("-") {
+        let sin = stdin();
+        parse_sequence_reader(sin.lock(), type_callback, callback)
+    } else {
+        parse_sequence_reader(File::open(&path)?, type_callback, callback)
     }
 }
