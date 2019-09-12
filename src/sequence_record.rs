@@ -25,6 +25,8 @@ pub fn mask_header_utf8(id: &[u8]) -> Option<Vec<u8>> {
     }
 }
 
+/// An intermediate structure for handling sequence data and harmonizing both
+/// FASTA and FASTQ records into a common format.
 pub struct SequenceRecord<'a> {
     pub id: Cow<'a, [u8]>,
     pub seq: Cow<'a, [u8]>,

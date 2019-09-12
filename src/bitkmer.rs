@@ -19,6 +19,7 @@ fn extend_kmer(kmer: &mut BitKmer, new_char: u8) -> bool {
     true
 }
 
+/// Used for the BitNuclKmer iterator to handle skipping invalid bases.
 fn update_position(
     start_pos: &mut usize,
     kmer: &mut BitKmer,
