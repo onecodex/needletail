@@ -62,7 +62,7 @@ Please use either your local package manager (`homebrew`, `apt-get`, `pacman`, e
 Once you have Rust set up, you can include needletail in your `Cargo.toml` file like:
 ```shell
 [dependencies]
-needletail = "^0.3.0"
+needletail = "^0.3.1"
 ```
 
 To install needletail itself for development:

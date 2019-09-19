@@ -37,8 +37,7 @@ impl<'a> RecBuffer<'a> {
         }
         let remaining = self.buf.len() - used;
         if used == 0 {
-            // double the buffer size (i tried using buf.reserve, but that doesn't work _at all_)
-            let mut new_buf = Vec::with_capacity(2 * self.buf.capacity());
+            let mut new_buf = Vec::with_capacity(2 * self.buf.len());
             unsafe {
                 new_buf.set_len(new_buf.capacity());
             }
