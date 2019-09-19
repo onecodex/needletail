@@ -24,4 +24,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - Single-file zip handling (zip requires `Seek`) 😞
 
-
+## [0.3.1] - 2019-09-18
+### Fixed
+- Needletail no longer runs out of memory when parsing large, compressed files.
