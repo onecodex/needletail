@@ -64,6 +64,16 @@ jobs:
       - run:
           name: Run slow tests
           command: cargo test -- --ignored
+  test-without-default-features:
+    executor: needletail
+    steps:
+      - checkout_and_setup
+      - run:
+          name: Run all tests
+          command: cargo test --all --no-default-features
+      - run:
+          name: Run slow tests
+          command: cargo test --no-default-features -- --ignored
   lint:
     executor: needletail
     steps:
@@ -132,6 +142,9 @@ workflows:
           requires:
             - build
       - test:
+          requires:
+            - build
+      - test-without-default-features:
           requires:
             - build
       - lint:
