@@ -69,11 +69,20 @@ jobs:
     steps:
       - checkout_and_setup
       - run:
-          name: Run all tests
+          name: Run all tests (without default features)
           command: cargo test --all --no-default-features
       - run:
-          name: Run slow tests
+          name: Run slow tests (without default features)
           command: cargo test --no-default-features -- --ignored
+  build-on-wasm-target:
+    executor: needletail
+    steps:
+      - checkout_and_setup
+      - run:
+          name: Build on wasm32-unknown-unknown
+          command: |
+            rustup target add wasm32-unknown-unknown
+            cargo build --all --no-default-features --target wasm32-unknown-unknown
   lint:
     executor: needletail
     steps:
@@ -138,6 +147,9 @@ workflows:
   ci-checks:
     jobs:
       - build
+      - build-on-wasm-target:
+          requires:
+            - build
       - coverage:
           requires:
             - build
