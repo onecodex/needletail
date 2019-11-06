@@ -120,7 +120,7 @@ where
     //! that gets called as soon as we determine if the records are FASTA or FASTQ.
     let mut first = vec![0, 0];
     reader.read_exact(&mut first)?;
-    seq_reader(&mut reader, callback, &mut type_callback, &first)
+    seq_reader(&mut reader, callback, &mut type_callback, first)
 }
 
 #[cfg(feature = "compression")]
