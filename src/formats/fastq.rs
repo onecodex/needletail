@@ -91,7 +91,7 @@ impl<'a> Iterator for FastqParser<'a> {
         let id2 = &buf[seq_end..id2_end - 1];
 
         // we know the qual scores must be the same length as the sequence
-        // so we can just do some arithmatic instead of memchr'ing
+        // so we can just do some arithmetic instead of memchr'ing
         let mut qual_end = id2_end + seq.len() + 1;
         let mut buffer_used = qual_end;
         if qual_end > buf.len() {
@@ -109,12 +109,7 @@ impl<'a> Iterator for FastqParser<'a> {
         }
         let mut qual = &buf[id2_end..qual_end - 1];
 
-        if (qual_end + 1 < buf.len()
-            && buf[qual_end] != b'@'
-            && buf[qual_end] != b'\r'
-            && buf[qual_end] != b'\n')
-            || (qual_end < buf.len() && buf[qual_end - 1] != b'\n')
-        {
+        if qual_end < buf.len() && buf[qual_end - 1] != b'\n' {
             let context = String::from_utf8_lossy(id);
             return Some(Err(ParseError::new(
                 "Sequence and quality lengths differed",
@@ -173,6 +168,7 @@ impl<'a> RecParser<'a> for FastqParser<'a> {
 #[cfg(test)]
 mod test {
     use std::io::Cursor;
+    use std::fs::File;
 
     use super::FastqParser;
     use crate::formats::buffer::{RecBuffer, RecParser};
@@ -252,7 +248,7 @@ mod test {
         let e = result.unwrap_err();
         // technically the terminal newline could be part of the record
         // so this is an InvalidRecord and not Invalid
-        assert!(e.error_type == ParseErrorType::InvalidRecord);
+        assert_eq!(e.error_type, ParseErrorType::InvalidRecord);
 
         let mut i = 0;
         let res = parse_sequence_reader(
@@ -376,14 +372,14 @@ mod test {
         let result = fp.next().unwrap();
         assert!(result.is_err());
         let e = result.unwrap_err();
-        assert!(e.error_type == ParseErrorType::InvalidRecord);
+        assert_eq!(e.error_type, ParseErrorType::InvalidRecord);
         assert!(e.msg == "Sequence and quality lengths differed");
 
         let mut fp = FastqParser::new(b"@test\nAGCT\n+\nIIIII\n@TEST\nA\n+\nI", true).unwrap();
         let result = fp.next().unwrap();
         assert!(result.is_err());
         let e = result.unwrap_err();
-        assert!(e.error_type == ParseErrorType::InvalidRecord);
+        assert_eq!(e.error_type, ParseErrorType::InvalidRecord);
         assert!(e.msg == "Sequence and quality lengths differed");
     }
 
@@ -420,5 +416,24 @@ mod test {
         assert!(iterated_seq.is_none());
 
         // TODO: refill and check for the last record
+    }
+
+    #[test]
+    fn test_errors_on_invalid_header() {
+        let mut file = File::open(&"./tests/data/bad_header.fastq").unwrap();
+        let mut i = 0;
+        let res = parse_sequence_reader(
+            &mut file,
+            |stype| assert_eq!(stype, "FASTQ"),
+            |_| {
+                i += 1;
+            },
+        );
+        assert!(res.is_err());
+        // The first row should parse ok
+        assert_eq!(i, 1);
+        let err = res.unwrap_err();
+        assert_eq!(err.error_type, ParseErrorType::Invalid);
+        assert_eq!(err.record, 2);
     }
 }

@@ -8,7 +8,7 @@ Needletail is a MIT-licensed, minimal-copying FASTA/FASTQ parser and _k_-mer pro
 The goal is to write a fast *and* well-tested set of functions that more specialized bioinformatics programs can use.
 Needletail's goal is to be as fast as the [readfq](https://github.com/lh3/readfq) C library at parsing FASTX files and much (i.e. 25 times) faster than equivalent Python implementations at _k_-mer counting.
 
-# Example
+## Example
 
 ```rust
 extern crate needletail;
@@ -54,7 +54,7 @@ fn main() {
 }
 ```
 
-# Installation
+## Installation
 
 Needletail requires `rust` and `cargo` to be installed.
 Please use either your local package manager (`homebrew`, `apt-get`, `pacman`, etc) or install these via [rustup](https://www.rustup.rs/).
@@ -71,10 +71,10 @@ git clone https://github.com/onecodex/needletail
 cargo test  # to run tests
 ```
 
-# Getting Help
+## Getting Help
 
 Questions are best directed as GitHub issues. We plan to add more documentation soon, but in the meantime "doc" comments are included in the source.
 
-# Contributing
+## Contributing
 
 Please do! We're happy to discuss possible additions and/or accept pull requests.
