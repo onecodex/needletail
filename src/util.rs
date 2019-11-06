@@ -141,5 +141,4 @@ mod tests {
         let pos = memchr_both_last(b'\n', b'-', &b"-te\nst\n-this"[..]);
         assert_eq!(pos, Some(6));
     }
-
 }
