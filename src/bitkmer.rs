@@ -274,5 +274,4 @@ mod tests {
         }
         bit_kmer
     }
-
 }

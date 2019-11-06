@@ -167,8 +167,8 @@ impl<'a> RecParser<'a> for FastqParser<'a> {
 
 #[cfg(test)]
 mod test {
-    use std::io::Cursor;
     use std::fs::File;
+    use std::io::Cursor;
 
     use super::FastqParser;
     use crate::formats::buffer::{RecBuffer, RecParser};
