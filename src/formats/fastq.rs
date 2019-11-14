@@ -421,4 +421,25 @@ mod test {
 
         // TODO: refill and check for the last record
     }
+
+    #[test]
+    fn test_fastq_with_random_tsv_inside() {
+        let content = std::fs::read_to_string("./tests/data/random_tsv.fq").unwrap();
+        let mut i = 0;
+        let mut parser = FastqParser::new(content.as_bytes(), false).unwrap();
+        loop {
+            match parser.by_ref().next() {
+                Some(Ok(_)) => i +=1,
+                Some(Err(_)) => panic!("woops"),
+                None => break,
+            };
+        };
+        assert_eq!(i, 1);
+
+        let mut j = 0;
+        let res = parse_sequence_reader(content.as_bytes(), |_| {},|_| {
+            j += 1;
+        });
+        assert!(res.is_err());
+    }
 }
