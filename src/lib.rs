@@ -16,7 +16,7 @@
 //!     let mut n_bases = 0;
 //!     let mut n_valid_kmers = 0;
 //!     parse_sequence_path(
-//! 	filename,
+//!         filename,
 //!         |_| {},
 //!         |seq| {
 //!             // seq.id is the name of the record
