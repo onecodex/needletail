@@ -1,4 +1,4 @@
-[![Circle CI](https://circleci.com/gh/onecodex/needletail.svg?style=shield&circle-token=65c2b7d87452dba5e8e3e967133311af478632a4)](https://circleci.com/gh/onecodex/needletail)
+![CI](https://github.com/onecodex/needletail/workflows/CI/badge.svg)
 [![crates.io](https://img.shields.io/crates/v/needletail.svg)](https://crates.io/crates/needletail)
 
 # Needletail
