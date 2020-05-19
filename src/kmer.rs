@@ -132,9 +132,10 @@ impl<'a> Iterator for CanonicalKmers<'a> {
     }
 }
 
-#[cfg(tests)]
+#[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sequence::Sequence;
 
     #[test]
     fn can_kmerize() {
@@ -142,10 +143,10 @@ mod tests {
         // test general function
         for (i, k) in k_iter.enumerate() {
             match i {
-                0 => assert_eq!(k, &b"A"[..]),
-                1 => assert_eq!(k, &b"G"[..]),
-                2 => assert_eq!(k, &b"C"[..]),
-                3 => assert_eq!(k, &b"T"[..]),
+                0 => assert_eq!(k, b"A"),
+                1 => assert_eq!(k, b"G"),
+                2 => assert_eq!(k, b"C"),
+                3 => assert_eq!(k, b"T"),
                 _ => unreachable!("Too many kmers"),
             }
         }
@@ -154,10 +155,10 @@ mod tests {
         let k_iter = Kmers::new(b"AGNCT", 2);
         for (i, k) in k_iter.enumerate() {
             match i {
-                0 => assert_eq!(k, &b"AC"[..]),
-                1 => assert_eq!(k, &b"CN"[..]),
-                2 => assert_eq!(k, &b"NG"[..]),
-                3 => assert_eq!(k, &b"GT"[..]),
+                0 => assert_eq!(k, b"AG"),
+                1 => assert_eq!(k, b"GN"),
+                2 => assert_eq!(k, b"NC"),
+                3 => assert_eq!(k, b"CT"),
                 _ => unreachable!("Too many kmers"),
             }
         }
@@ -173,23 +174,24 @@ mod tests {
     fn can_canonicalize() {
         // test general function
         let seq = b"AGCT";
-        let c_iter = CanonicalKmers(seq, &seq.reverse_complement(), 1);
+        let rc_seq = seq.reverse_complement();
+        let c_iter = CanonicalKmers::new(seq, &rc_seq, 1);
         for (i, (_, k, is_c)) in c_iter.enumerate() {
             match i {
                 0 => {
-                    assert_eq!(k, &b"A"[..]);
+                    assert_eq!(k, b"A");
                     assert_eq!(is_c, false);
                 }
                 1 => {
-                    assert_eq!(k, &b"C"[..]);
+                    assert_eq!(k, b"C");
                     assert_eq!(is_c, true);
                 }
                 2 => {
-                    assert_eq!(k, &b"C"[..]);
+                    assert_eq!(k, b"C");
                     assert_eq!(is_c, false);
                 }
                 3 => {
-                    assert_eq!(k, &b"A"[..]);
+                    assert_eq!(k, b"A");
                     assert_eq!(is_c, true);
                 }
                 _ => unreachable!("Too many kmers"),
@@ -197,28 +199,30 @@ mod tests {
         }
 
         let seq = b"AGCTA";
-        let c_iter = CanonicalKmers(seq, &seq.reverse_complement(), 2);
+        let rc_seq = seq.reverse_complement();
+        let c_iter = CanonicalKmers::new(seq, &rc_seq, 2);
         for (i, (_, k, _)) in c_iter.enumerate() {
             match i {
-                0 => assert_eq!(k, &b"AG"[..]),
-                1 => assert_eq!(k, &b"GC"[..]),
-                2 => assert_eq!(k, &b"AG"[..]),
-                3 => assert_eq!(k, &b"TA"[..]),
+                0 => assert_eq!(k, b"AG"),
+                1 => assert_eq!(k, b"GC"),
+                2 => assert_eq!(k, b"AG"),
+                3 => assert_eq!(k, b"TA"),
                 _ => unreachable!("Too many kmers"),
             }
         }
 
         let seq = b"AGNTA";
-        let c_iter = CanonicalKmers(seq, &seq.reverse_complement(), 2);
+        let rc_seq = seq.reverse_complement();
+        let c_iter = CanonicalKmers::new(seq, &rc_seq, 2);
         for (i, (ix, k, _)) in c_iter.enumerate() {
             match i {
                 0 => {
                     assert_eq!(ix, 0);
-                    assert_eq!(k, &b"AG"[..]);
+                    assert_eq!(k, b"AG");
                 }
                 1 => {
                     assert_eq!(ix, 3);
-                    assert_eq!(k, &b"TA"[..]);
+                    assert_eq!(k, b"TA");
                 }
                 _ => unreachable!("Too many kmers"),
             }
