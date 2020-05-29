@@ -73,25 +73,6 @@ pub fn normalize(seq: &[u8], allow_iupac: bool) -> Option<Vec<u8>> {
     }
 }
 
-#[test]
-fn test_normalize() {
-    assert_eq!(normalize(b"ACGTU", false), Some(b"ACGTT".to_vec()));
-    assert_eq!(normalize(b"acgtu", false), Some(b"ACGTT".to_vec()));
-
-    assert_eq!(normalize(b"N.N-N~N N", false), Some(b"N-N-N-NN".to_vec()));
-
-    assert_eq!(normalize(b"BDHVRYSWKM", true), None);
-    assert_eq!(normalize(b"bdhvryswkm", true), Some(b"BDHVRYSWKM".to_vec()));
-    assert_eq!(
-        normalize(b"BDHVRYSWKM", false),
-        Some(b"NNNNNNNNNN".to_vec())
-    );
-    assert_eq!(
-        normalize(b"bdhvryswkm", false),
-        Some(b"NNNNNNNNNN".to_vec())
-    );
-}
-
 /// Returns the complementary base for a given IUPAC base code.
 ///
 /// Does not work for RNA sequences (maybe we should raise an error or something?)
@@ -341,6 +322,25 @@ impl<'a> QualitySequence<'a> for (&'a [u8], &'a [u8]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_normalize() {
+        assert_eq!(normalize(b"ACGTU", false), Some(b"ACGTT".to_vec()));
+        assert_eq!(normalize(b"acgtu", false), Some(b"ACGTT".to_vec()));
+
+        assert_eq!(normalize(b"N.N-N~N N", false), Some(b"N-N-N-NN".to_vec()));
+
+        assert_eq!(normalize(b"BDHVRYSWKM", true), None);
+        assert_eq!(normalize(b"bdhvryswkm", true), Some(b"BDHVRYSWKM".to_vec()));
+        assert_eq!(
+            normalize(b"BDHVRYSWKM", false),
+            Some(b"NNNNNNNNNN".to_vec())
+        );
+        assert_eq!(
+            normalize(b"bdhvryswkm", false),
+            Some(b"NNNNNNNNNN".to_vec())
+        );
+    }
 
     #[test]
     fn test_complement() {
