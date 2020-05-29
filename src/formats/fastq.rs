@@ -252,7 +252,7 @@ mod test {
         let e = result.unwrap_err();
         // technically the terminal newline could be part of the record
         // so this is an InvalidRecord and not Invalid
-        assert!(e.error_type == ParseErrorType::InvalidRecord);
+        assert_eq!(e.error_type, ParseErrorType::InvalidRecord);
 
         let mut i = 0;
         let res = parse_sequence_reader(
