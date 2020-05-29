@@ -26,7 +26,7 @@ safemem = "0.3.2"
 criterion = "0.3"
 
 # for benchmark comparisons
-bio = "0.28"
+bio = "0.30"
 seq_io = "0.3"
 
 # for testing with the FormatSpecimens.jl repo samples
