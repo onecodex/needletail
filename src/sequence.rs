@@ -352,11 +352,11 @@ mod tests {
 
     #[test]
     fn can_canonicalize() {
-        assert!(canonical(b"A") == Cow::Borrowed(b"A"));
-        assert!(canonical(b"T") == Cow::Owned::<[u8]>(b"A".to_vec()));
-        assert!(canonical(b"AAGT") == Cow::Borrowed(b"AAGT"));
-        assert!(canonical(b"ACTT") == Cow::Owned::<[u8]>(b"AAGT".to_vec()));
-        assert!(canonical(b"GC") == Cow::Borrowed(b"GC"));
+        assert_eq!(canonical(b"A"), Cow::Borrowed(b"A"));
+        assert_eq!(canonical(b"T"), Cow::Owned::<[u8]>(b"A".to_vec()));
+        assert_eq!(canonical(b"AAGT"), Cow::Borrowed(b"AAGT"));
+        assert_eq!(canonical(b"ACTT"), Cow::Owned::<[u8]>(b"AAGT".to_vec()));
+        assert_eq!(canonical(b"GC"), Cow::Borrowed(b"GC"));
     }
 
     #[test]
