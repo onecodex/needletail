@@ -69,29 +69,26 @@ impl<'a> Iterator for FastqParser<'a> {
             return None;
         }
 
-        let id_end;
-        match memchr(b'\n', &buf) {
-            Some(i) => id_end = i + 1,
+        let id_end = match memchr(b'\n', &buf) {
+            Some(i) => i + 1,
             None => return None,
         };
         let mut id = &buf[1..id_end - 1];
 
-        let seq_end;
-        match memchr_both(b'\n', b'+', &buf[id_end..]) {
-            Some(i) => seq_end = id_end + i + 1,
+        let seq_end = match memchr_both(b'\n', b'+', &buf[id_end..]) {
+            Some(i) => id_end + i + 1,
             None => return None,
         };
         let mut seq = &buf[id_end..seq_end - 1];
 
-        let id2_end;
-        match memchr(b'\n', &buf[seq_end..]) {
-            Some(i) => id2_end = seq_end + i + 1,
+        let id2_end = match memchr(b'\n', &buf[seq_end..]) {
+            Some(i) => seq_end + i + 1,
             None => return None,
         };
         let id2 = &buf[seq_end..id2_end - 1];
 
         // we know the qual scores must be the same length as the sequence
-        // so we can just do some arithmatic instead of memchr'ing
+        // so we can just do some arithmetic instead of memchr'ing
         let mut qual_end = id2_end + seq.len() + 1;
         let mut buffer_used = qual_end;
         if qual_end > buf.len() {
