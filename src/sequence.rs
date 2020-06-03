@@ -173,6 +173,7 @@ pub trait Sequence<'a> {
     /// Primarily used for FASTA multiline records, but can also help process
     /// (the much rarer) multiline FASTQs. Always use before iteration methods
     /// below to ensure no newlines are being returned with e.g. `.kmers`.
+    /// If you are using `normalize`, you do not need to call this function directly.
     fn strip_returns(&'a self) -> Cow<'a, [u8]> {
         let seq = self.sequence();
 

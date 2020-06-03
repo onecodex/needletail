@@ -1,12 +1,11 @@
 use std::fs;
-use std::io::Read;
 
-use needletail::formats::{FastaParser, FastqParser, RecParser};
-use needletail::{ParseError, ParseErrorType};
+use needletail::errors::ParseError;
+use needletail::parser::parse_fastx_file;
 use serde_derive::Deserialize;
 use toml;
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct TestCase {
     filename: String,
     // origin: String,
@@ -14,46 +13,17 @@ struct TestCase {
     // comments: Option<Vec<String>>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct TestIndex {
     valid: Vec<TestCase>,
     invalid: Option<Vec<TestCase>>,
 }
 
-fn test_fasta_file(reader: &mut dyn Read, filename: &str) -> Result<(), ParseError> {
-    let mut data: Vec<u8> = Vec::new();
-    let _ = reader.read_to_end(&mut data)?;
-
-    let parser = FastaParser::new(&data, true)
-        .unwrap_or_else(|_| panic!("Can not open test data: {}", filename));
-    let record_number = 0;
-    for record in parser {
-        let _ = record.map_err(|e| e.record(record_number))?;
+fn test_fastx_file(path: &str) -> Result<(), ParseError> {
+    let mut reader = parse_fastx_file(path)?;
+    while let Some(rec) = reader.next() {
+        let _ = rec?;
     }
-    Ok(())
-}
-
-fn test_fastq_file(reader: &mut dyn Read, filename: &str) -> Result<(), ParseError> {
-    let mut data: Vec<u8> = Vec::new();
-    let _ = reader.read_to_end(&mut data)?;
-
-    let mut parser = FastqParser::new(&data, true)
-        .unwrap_or_else(|_| panic!("Can not open test data: {}", filename));
-    let record_number = 0;
-    for record in parser.by_ref() {
-        let rec = record.map_err(|e| e.record(record_number))?;
-        if !rec
-            .qual
-            .iter()
-            .all(|c| (*c >= b'!' && *c <= b'~') || *c == b'\n')
-        {
-            return Err(ParseError::new(
-                "FASTQ has bad quality scores",
-                ParseErrorType::Invalid,
-            ));
-        }
-    }
-    parser.eof()?;
     Ok(())
 }
 
@@ -71,9 +41,8 @@ fn test_specimen_fasta() {
             continue;
         }
 
-        let mut test_content =
-            fs::File::open(&format!("tests/specimen/FASTA/{}", test.filename)).unwrap();
-        assert_eq!(test_fasta_file(&mut test_content, &test.filename), Ok(()));
+        let path = format!("tests/specimen/FASTA/{}", test.filename);
+        assert_eq!(test_fastx_file(&path), Ok(()));
     }
 }
 
@@ -83,18 +52,19 @@ fn test_specimen_fastq() {
     let index: TestIndex = toml::from_str(&raw_index).expect("Could not deserialize index");
 
     for test in index.valid {
-        if test.filename == "wrapping_original_sanger.fastq" {
+        if test.filename == "wrapping_original_sanger.fastq"
+            || test.filename == "longreads_original_sanger.fastq"
+            || test.filename == "tricky.fastq"
+        {
             // may god have mercy upon us if someone ever tries a file like this
             // (sequences are one-line, but quality scores are line-wrapped)
             continue;
         }
-        let mut test_content =
-            fs::File::open(&format!("tests/specimen/FASTQ/{}", test.filename)).unwrap();
-        assert_eq!(
-            test_fastq_file(&mut test_content, &test.filename),
-            Ok(()),
-            "File {} is bad?",
-            test.filename
+
+        let path = format!("tests/specimen/FASTQ/{}", test.filename);
+        assert!(
+            test_fastx_file(&path).is_ok(),
+            format!("File {} is bad?", test.filename)
         );
     }
 
@@ -103,10 +73,20 @@ fn test_specimen_fastq() {
             // we don't care if the sequence ID doesn't match the quality id?
             continue;
         }
-        let mut test_content =
-            fs::File::open(&format!("tests/specimen/FASTQ/{}", test.filename)).unwrap();
+
+        // We don't check for ascii validity since it's a big hit perf wise
+        // This means some invalid sequences are considered ok but it's not a big issue
+        // in practice
+        if test.filename.starts_with("error_qual_")
+            || test.filename == "error_spaces.fastq"
+            || test.filename == "error_tabs.fastq"
+        {
+            continue;
+        }
+
+        let path = format!("tests/specimen/FASTQ/{}", test.filename);
         assert!(
-            test_fastq_file(&mut test_content, &test.filename).is_err(),
+            test_fastx_file(&path).is_err(),
             format!("File {} is good?", test.filename)
         );
     }
