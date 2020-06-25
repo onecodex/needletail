@@ -28,9 +28,9 @@ impl fmt::Display for ErrorPosition {
 pub enum ParseErrorKind {
     /// An error happened during file/stream input/output
     Io,
-    /// The file didn't start with `@` or `>`
+    /// The file didn't start with `@` or `>` and we didn't know what to expect yet
     UnknownFormat,
-    /// Invalid start byte encountered (expected `@` in FASTQ and `>` in FASTA)
+    /// Invalid start byte of record encountered (expected `@` in FASTQ and `>` in FASTA)
     InvalidStart,
     /// The separator line in a FASTQ file is not valid (no `+`)
     InvalidSeparator,
@@ -83,7 +83,7 @@ impl ParseError {
 
     pub fn new_unknown_format(byte_found: u8) -> Self {
         let msg = format!(
-            "Expected '@' or '>' at the start of the file but found '{}'. Maybe it's compressed?",
+            "Expected '@' or '>' at the start of the file but found '{}'.",
             (byte_found as char).escape_default()
         );
         ParseError {
