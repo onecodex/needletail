@@ -458,6 +458,7 @@ impl<R: io::Read> FastxReader for Reader<R> {
         Some(Ok(SequenceRecord::new_fastq(
             self.get_buf(),
             &self.buf_pos,
+            &self.position,
             self.line_ending,
         )))
     }
@@ -595,10 +596,16 @@ mod test {
         let mut reader = Reader::new(seq(test));
         let rec = reader.next().unwrap();
         assert!(rec.is_ok());
+        let r = rec.unwrap();
+        assert_eq!(r.start_line_number(), 1);
         let rec = reader.next().unwrap();
         assert!(rec.is_ok());
+        let r = rec.unwrap();
+        assert_eq!(r.start_line_number(), 5);
         let rec = reader.next().unwrap();
         assert!(rec.is_ok());
+        let r = rec.unwrap();
+        assert_eq!(r.start_line_number(), 9);
     }
 
     #[test]

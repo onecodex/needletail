@@ -366,6 +366,7 @@ impl<R: io::Read> FastxReader for Reader<R> {
         Some(Ok(SequenceRecord::new_fasta(
             self.get_buf(),
             &self.buf_pos,
+            &self.position,
             self.line_ending,
         )))
     }
@@ -437,6 +438,7 @@ mod tests {
         assert_eq!(r.id(), b"test");
         assert_eq!(r.raw_seq(), b"ACGT\r\nACGT");
         assert_eq!(r.num_bases(), 8);
+        assert_eq!(r.start_line_number(), 1);
         assert_eq!(reader.line_ending().unwrap(), LineEnding::Windows);
         let rec = reader.next().unwrap();
         assert!(rec.is_ok());
@@ -444,6 +446,7 @@ mod tests {
         assert_eq!(r.id(), b"test2");
         assert_eq!(r.raw_seq(), b"TGCA\r\nTG");
         assert_eq!(r.num_bases(), 6);
+        assert_eq!(r.start_line_number(), 4);
         assert!(reader.next().is_none());
     }
 

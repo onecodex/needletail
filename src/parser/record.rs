@@ -6,7 +6,7 @@ use memchr::memchr;
 use crate::errors::ParseError;
 use crate::parser::fasta::BufferPosition as FastaBufferPosition;
 use crate::parser::fastq::BufferPosition as FastqBufferPosition;
-use crate::parser::utils::{Format, LineEnding};
+use crate::parser::utils::{Format, LineEnding, Position};
 use crate::Sequence;
 
 #[derive(Debug, Clone)]
@@ -20,6 +20,7 @@ enum BufferPositionKind<'a> {
 pub struct SequenceRecord<'a> {
     buffer: &'a [u8],
     buf_pos: BufferPositionKind<'a>,
+    position: &'a Position,
     line_ending: LineEnding,
 }
 
@@ -27,10 +28,12 @@ impl<'a> SequenceRecord<'a> {
     pub(crate) fn new_fasta(
         buffer: &'a [u8],
         buf_pos: &'a FastaBufferPosition,
+        position: &'a Position,
         line_ending: Option<LineEnding>,
     ) -> Self {
         Self {
             buffer,
+            position,
             buf_pos: BufferPositionKind::Fasta(buf_pos),
             line_ending: line_ending.unwrap_or(LineEnding::Unix),
         }
@@ -39,10 +42,12 @@ impl<'a> SequenceRecord<'a> {
     pub(crate) fn new_fastq(
         buffer: &'a [u8],
         buf_pos: &'a FastqBufferPosition,
+        position: &'a Position,
         line_ending: Option<LineEnding>,
     ) -> Self {
         Self {
             buffer,
+            position,
             buf_pos: BufferPositionKind::Fastq(buf_pos),
             line_ending: line_ending.unwrap_or(LineEnding::Unix),
         }
@@ -111,6 +116,11 @@ impl<'a> SequenceRecord<'a> {
             BufferPositionKind::Fasta(bp) => bp.num_bases(&self.buffer),
             BufferPositionKind::Fastq(bp) => bp.num_bases(&self.buffer),
         }
+    }
+
+    /// Return the line number in the file of the start of the sequence
+    pub fn start_line_number(&self) -> u64 {
+        self.position.line
     }
 
     /// Which line ending is this record using?
