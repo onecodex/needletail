@@ -17,13 +17,12 @@ bench = false
 
 [features]
 default = ["compression"]
-compression = []
+compression = ["niffler/bz2", "niffler/lzma"]
 python = ["pyo3/extension-module"]
 python_test = ["pyo3"]
 
 [dependencies]
-# TODO: figure out the compression feature from needletail, and how to set it in niffler
-niffler = { version = "2.1.0", features = ["bz2", "lzma"] }
+niffler = { version = "2.1.0", default_features = false }
 pyo3 = { version = "0.10", optional = true }
 memchr = "2.2.1"
 bytecount = {version = "0.6", features = ["runtime-dispatch-simd"]}

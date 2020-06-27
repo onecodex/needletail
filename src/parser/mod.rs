@@ -1,6 +1,6 @@
 //! Handles all the FASTA/FASTQ parsing
 use std::fs::File;
-use std::io::{Cursor, Read};
+use std::io::{stdin, Cursor, Read};
 use std::path::Path;
 
 use crate::errors::ParseError;
@@ -25,21 +25,24 @@ pub use crate::parser::utils::FastxReader;
 /// 2. FASTA or FASTQ: the right parser will be automatically instantiated
 /// 1 is only available if the `compression` feature is enabled.
 pub fn parse_fastx_file<P: AsRef<Path>>(path: P) -> Result<Box<dyn FastxReader>, ParseError> {
-    let f = File::open(path)?;
-    parse_fastx_reader(Box::new(f))
+    let filename = path.as_ref();
+    let f: Box<dyn Read> = if filename == Path::new("-") {
+        Box::new(stdin())
+    } else {
+        Box::new(File::open(path)?)
+    };
+    parse_fastx_reader(f)
 }
 
-/// The main entry point of needletail.
-/// Parses the file given a path and return an iterator-like reader struct.
-/// This automatically detects whether the file is:
+/// Parses any input supporting the Read trait and return an iterator-like reader struct.
+/// This automatically detects whether the input is:
 /// 1. compressed: gzip, bz and xz are supported and will use the appropriate decoder
 /// 2. FASTA or FASTQ: the right parser will be automatically instantiated
 /// 1 is only available if the `compression` feature is enabled.
 pub fn parse_fastx_reader<'a, R: Read + 'a>(
     rdr: R,
 ) -> Result<Box<dyn FastxReader + 'a>, ParseError> {
-    // TODO: fix unwrap
-    let (mut reader, _) = niffler::get_reader(Box::new(rdr)).unwrap();
+    let (mut reader, _) = niffler::get_reader(Box::new(rdr))?;
 
     let mut first = [0; 1];
     reader.read_exact(&mut first)?;
