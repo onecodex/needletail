@@ -1,6 +1,6 @@
 //! Handles all the FASTA/FASTQ parsing
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Cursor, Read};
 use std::path::Path;
 
 #[cfg(feature = "compression")]
@@ -25,15 +25,14 @@ pub use crate::parser::utils::FastxReader;
 // TODO: for now this drops support for stdin parsing. It could be added back if needed though
 // by adding a method to the readers to set some initial buffer.
 
-fn read_file(mut f: File) -> Result<Box<dyn FastxReader>, ParseError> {
+fn read_file(mut f: Box<dyn Read>) -> Result<Box<dyn FastxReader>, ParseError> {
     let mut first = [0; 1];
     f.read_exact(&mut first)?;
-    // Back to the beginning of the file
-    f.seek(SeekFrom::Start(0))?;
 
+    let cursor = Cursor::new(first);
     match first[0] {
-        b'>' => Ok(Box::new(FastaReader::new(f))),
-        b'@' => Ok(Box::new(FastqReader::new(f))),
+        b'>' => Ok(Box::new(FastaReader::new(cursor.chain(f)))),
+        b'@' => Ok(Box::new(FastqReader::new(cursor.chain(f)))),
         _ => Err(ParseError::new_unknown_format(first[0])),
     }
 }
@@ -47,7 +46,7 @@ fn read_file(mut f: File) -> Result<Box<dyn FastxReader>, ParseError> {
 #[cfg(not(feature = "compression"))]
 pub fn parse_fastx_file<P: AsRef<Path>>(path: P) -> Result<Box<dyn FastxReader>, ParseError> {
     let f = File::open(&path)?;
-    read_file(f)
+    read_file(Box::new(f))
 }
 
 // Magic bytes for each compression format
@@ -69,9 +68,9 @@ pub fn parse_fastx_file<P: AsRef<Path>>(path: P) -> Result<Box<dyn FastxReader>,
     let mut f = File::open(&path)?;
     let mut first = [0; 2];
     f.read_exact(&mut first)?;
-    // Back to the beginning of the file
-    f.seek(SeekFrom::Start(0))?;
 
+    let cursor = Cursor::new(first);
+    let f = cursor.chain(f);
     // Not great to say the least, we load the decoder twice since they don't impl Seek.
     // That would cause an issue for compressed gzip and is probably not great for performance
     // Not much compared to decompression overall but still
@@ -118,7 +117,7 @@ pub fn parse_fastx_file<P: AsRef<Path>>(path: P) -> Result<Box<dyn FastxReader>,
                 _ => Err(ParseError::new_unknown_format(first[0])),
             }
         }
-        _ => read_file(f),
+        _ => read_file(Box::new(f)),
     }
 }
 
