@@ -22,7 +22,7 @@ python = ["pyo3/extension-module"]
 python_test = ["pyo3"]
 
 [dependencies]
-niffler = { version = "2.1.0", default_features = false }
+niffler = { version = "2.1.1", default_features = false }
 pyo3 = { version = "0.10", optional = true }
 memchr = "2.2.1"
 bytecount = {version = "0.6", features = ["runtime-dispatch-simd"]}
