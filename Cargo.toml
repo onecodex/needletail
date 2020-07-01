@@ -17,12 +17,12 @@ bench = false
 
 [features]
 default = ["compression"]
-compression = ["niffler/bz2", "niffler/lzma"]
+compression = ["niffler/bz2", "niffler/lzma", "niffler/gz"]
 python = ["pyo3/extension-module"]
 python_test = ["pyo3"]
 
 [dependencies]
-niffler = { version = "2.1.1", default_features = false }
+niffler = { version = "2.2.0", default_features = false }
 pyo3 = { version = "0.10", optional = true }
 memchr = "2.2.1"
 bytecount = {version = "0.6", features = ["runtime-dispatch-simd"]}
@@ -30,6 +30,10 @@ buf_redux = { version = "0.8", default_features = false }
 
 [dev-dependencies]
 criterion = "0.3"
+escargot = "0.5.0"
+assert_cmd = "1.0.1"
+predicates = "1.0.4"
+tempfile = "3"
 
 # for benchmark comparisons
 bio = "0.30"
