@@ -14,9 +14,6 @@ than 0.3
 - `SequenceRecord` now offers more information about the file such as line ending, which allows writing a file identical
 to the input one.
 
-## Removed
-- Gzip files piped in through `stdin` is not supported anymore since we do require `Seek`
-
 
 ## [0.3.0] - 2019-09-12
 ### Added
