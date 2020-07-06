@@ -110,3 +110,47 @@ jobs:
           cargo +nightly install cargo-fuzz
           cargo +nightly fuzz run parse_fasta -- -max_total_time=180
           cargo +nightly fuzz run parse_fastq -- -max_total_time=180
+
+  python-bindings:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+
+      - name: version info
+        run:  rustc --version; cargo --version;
+
+      - name: Run all tests
+        run: cargo test --features=python_test
+
+      - name: Install python headers
+        run: sudo apt-get update && sudo apt-get install python3-dev python3-pip python3-venv
+
+      - name: Install maturin
+        run: |
+          python3 -m venv venv
+          . venv/bin/activate
+          pip3 install maturin
+          pip3 show maturin
+
+
+      - name: add library to venv
+        run: |
+          . venv/bin/activate
+          maturin develop --cargo-extra-args="--features=python"
+
+      - name: Run the python tests
+        run: |
+          . venv/bin/activate
+          python test_python.py
+
+      - name: compile taxonomy with python bindings
+        run: |
+          . venv/bin/activate
+          maturin build --cargo-extra-args="--features=python" --release --strip --manylinux=off

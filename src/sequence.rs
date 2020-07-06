@@ -73,25 +73,6 @@ pub fn normalize(seq: &[u8], allow_iupac: bool) -> Option<Vec<u8>> {
     }
 }
 
-#[test]
-fn test_normalize() {
-    assert_eq!(normalize(b"ACGTU", false), Some(b"ACGTT".to_vec()));
-    assert_eq!(normalize(b"acgtu", false), Some(b"ACGTT".to_vec()));
-
-    assert_eq!(normalize(b"N.N-N~N N", false), Some(b"N-N-N-NN".to_vec()));
-
-    assert_eq!(normalize(b"BDHVRYSWKM", true), None);
-    assert_eq!(normalize(b"bdhvryswkm", true), Some(b"BDHVRYSWKM".to_vec()));
-    assert_eq!(
-        normalize(b"BDHVRYSWKM", false),
-        Some(b"NNNNNNNNNN".to_vec())
-    );
-    assert_eq!(
-        normalize(b"bdhvryswkm", false),
-        Some(b"NNNNNNNNNN".to_vec())
-    );
-}
-
 /// Returns the complementary base for a given IUPAC base code.
 ///
 /// Does not work for RNA sequences (maybe we should raise an error or something?)
@@ -192,6 +173,7 @@ pub trait Sequence<'a> {
     /// Primarily used for FASTA multiline records, but can also help process
     /// (the much rarer) multiline FASTQs. Always use before iteration methods
     /// below to ensure no newlines are being returned with e.g. `.kmers`.
+    /// If you are using `normalize`, you do not need to call this function directly.
     fn strip_returns(&'a self) -> Cow<'a, [u8]> {
         let seq = self.sequence();
 
@@ -343,6 +325,25 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_normalize() {
+        assert_eq!(normalize(b"ACGTU", false), Some(b"ACGTT".to_vec()));
+        assert_eq!(normalize(b"acgtu", false), Some(b"ACGTT".to_vec()));
+
+        assert_eq!(normalize(b"N.N-N~N N", false), Some(b"N-N-N-NN".to_vec()));
+
+        assert_eq!(normalize(b"BDHVRYSWKM", true), None);
+        assert_eq!(normalize(b"bdhvryswkm", true), Some(b"BDHVRYSWKM".to_vec()));
+        assert_eq!(
+            normalize(b"BDHVRYSWKM", false),
+            Some(b"NNNNNNNNNN".to_vec())
+        );
+        assert_eq!(
+            normalize(b"bdhvryswkm", false),
+            Some(b"NNNNNNNNNN".to_vec())
+        );
+    }
+
+    #[test]
     fn test_complement() {
         assert_eq!(complement(b'a'), b't');
         assert_eq!(complement(b'c'), b'g');
@@ -352,11 +353,11 @@ mod tests {
 
     #[test]
     fn can_canonicalize() {
-        assert!(canonical(b"A") == Cow::Borrowed(b"A"));
-        assert!(canonical(b"T") == Cow::Owned::<[u8]>(b"A".to_vec()));
-        assert!(canonical(b"AAGT") == Cow::Borrowed(b"AAGT"));
-        assert!(canonical(b"ACTT") == Cow::Owned::<[u8]>(b"AAGT".to_vec()));
-        assert!(canonical(b"GC") == Cow::Borrowed(b"GC"));
+        assert_eq!(canonical(b"A"), Cow::Borrowed(b"A"));
+        assert_eq!(canonical(b"T"), Cow::Owned::<[u8]>(b"A".to_vec()));
+        assert_eq!(canonical(b"AAGT"), Cow::Borrowed(b"AAGT"));
+        assert_eq!(canonical(b"ACTT"), Cow::Owned::<[u8]>(b"AAGT".to_vec()));
+        assert_eq!(canonical(b"GC"), Cow::Borrowed(b"GC"));
     }
 
     #[test]

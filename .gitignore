@@ -3,3 +3,4 @@ Cargo.lock
 venv/
 .DS_Store
 .idea/
+test.py
