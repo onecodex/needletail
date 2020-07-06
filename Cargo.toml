@@ -1,7 +1,7 @@
 [package]
 name = "needletail"
 version = "0.4.0"
-authors = ["Roderick Bovee <roderick@onecodex.com>"]
+authors = ["Roderick Bovee <rbovee@gmail.com>", "Vincent Prouillet <vincent@onecodex.com>"]
 description = "FASTX parsing and k-mer methods"
 keywords = ["FASTA", "FASTQ", "kmer", "bioinformatics"]
 categories = ["science", "parsing"]
