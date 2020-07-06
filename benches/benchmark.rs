@@ -73,6 +73,7 @@ criterion_group!(kmers, bench_kmer_speed);
 
 fn bench_fastq_file(c: &mut Criterion) {
     use bio::io::fastq as bio_fastq;
+    use bio::io::fastq::FastqRead;
     use seq_io::fastq as seq_fastq;
     use seq_io::fastq::Record;
 
@@ -84,12 +85,14 @@ fn bench_fastq_file(c: &mut Criterion) {
 
     group.bench_function("RustBio", |bench| {
         bench.iter(|| {
+            let mut record = bio_fastq::Record::new();
             let fastq_data = Cursor::new(data.clone());
-            let reader = bio_fastq::Reader::new(fastq_data);
+            let mut reader = bio_fastq::Reader::new(fastq_data);
             let mut n_bases = 0;
-            for record in reader.records() {
-                let record = record.unwrap();
-                n_bases += record.seq().len()
+            reader.read(&mut record).expect("Failed to parse record");
+            while !record.is_empty() {
+                n_bases += record.seq().len() as u64;
+                reader.read(&mut record).expect("Failed to parse record.");
             }
             assert_eq!(250_000, n_bases);
         });
@@ -125,7 +128,7 @@ fn bench_fastq_file(c: &mut Criterion) {
 }
 
 fn bench_fasta_file(c: &mut Criterion) {
-    use bio::io::fasta as bio_fasta;
+    use bio::io::{fasta as bio_fasta, fasta::FastaRead};
     use seq_io::fasta as seq_fasta;
 
     let mut data: Vec<u8> = vec![];
@@ -136,12 +139,14 @@ fn bench_fasta_file(c: &mut Criterion) {
 
     group.bench_function("RustBio", |bench| {
         bench.iter(|| {
-            let fasta_data = Cursor::new(data.clone());
-            let reader = bio_fasta::Reader::new(fasta_data);
+            let mut record = bio_fasta::Record::new();
+            let fastq_data = Cursor::new(data.clone());
+            let mut reader = bio_fasta::Reader::new(fastq_data);
             let mut n_bases = 0;
-            for record in reader.records() {
-                let record = record.unwrap();
-                n_bases += record.seq().len()
+            reader.read(&mut record).expect("Failed to parse record");
+            while !record.is_empty() {
+                n_bases += record.seq().len() as u64;
+                reader.read(&mut record).expect("Failed to parse record.");
             }
             assert_eq!(738_580, n_bases);
         });

@@ -23,7 +23,7 @@ python_test = ["pyo3"]
 
 [dependencies]
 niffler = { version = "2.2.0", default_features = false }
-pyo3 = { version = "0.10", optional = true }
+pyo3 = { version = "0.11", optional = true }
 memchr = "2.2.1"
 bytecount = {version = "0.6", features = ["runtime-dispatch-simd"]}
 buf_redux = { version = "0.8", default_features = false }
@@ -36,7 +36,7 @@ predicates = "1.0.4"
 tempfile = "3"
 
 # for benchmark comparisons
-bio = "0.30"
+bio = "0.31"
 seq_io = "0.3"
 
 # for testing with the FormatSpecimens.jl repo samples
