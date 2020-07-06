@@ -143,17 +143,6 @@ impl From<io::Error> for ParseError {
     }
 }
 
-impl From<niffler::Error> for ParseError {
-    fn from(err: niffler::Error) -> ParseError {
-        ParseError {
-            msg: err.to_string(),
-            kind: ParseErrorKind::Io,
-            position: ErrorPosition::default(),
-            format: None,
-        }
-    }
-}
-
 impl StdError for ParseError {
     fn cause(&self) -> Option<&dyn StdError> {
         // Ideally we would pass the io::Error but we don't for simplicity sake
