@@ -3,7 +3,6 @@ use pyo3::prelude::*;
 use pyo3::{create_exception, wrap_pyfunction};
 use pyo3::{PyIterProtocol, PyObjectProtocol};
 
-use crate::kmer::Kmers;
 use crate::sequence::{complement, normalize};
 use crate::{parse_fastx_file as rs_parse_fastx_file, parser::SequenceRecord, FastxReader};
 
