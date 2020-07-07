@@ -1,10 +1,16 @@
 //! Python bindings for needletail
+
+use std::io::Cursor;
+
 use pyo3::prelude::*;
 use pyo3::{create_exception, wrap_pyfunction};
 use pyo3::{PyIterProtocol, PyObjectProtocol};
 
 use crate::sequence::{complement, normalize};
-use crate::{parse_fastx_file as rs_parse_fastx_file, parser::SequenceRecord, FastxReader};
+use crate::{
+    parse_fastx_file as rs_parse_fastx_file, parse_fastx_reader, parser::SequenceRecord,
+    FastxReader,
+};
 
 create_exception!(needletail, NeedletailError, pyo3::exceptions::Exception);
 
@@ -27,9 +33,18 @@ impl PyObjectProtocol for PyFastxReader {
     }
 }
 
+// TODO: what would be really nice is to detect the type of pyobject so it would on file object etc
+// not for initial release though
+
 #[pyfunction]
 fn parse_fastx_file(path: &str) -> PyResult<PyFastxReader> {
     let reader = py_try!(rs_parse_fastx_file(path));
+    Ok(PyFastxReader { reader })
+}
+
+#[pyfunction]
+fn parse_fastx_string(content: &str) -> PyResult<PyFastxReader> {
+    let reader = py_try!(parse_fastx_reader(Cursor::new(content.to_owned())));
     Ok(PyFastxReader { reader })
 }
 
@@ -124,6 +139,7 @@ impl PyIterProtocol for FastxReaderIterator {
 fn needletail(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyFastxReader>()?;
     m.add_wrapped(wrap_pyfunction!(parse_fastx_file))?;
+    m.add_wrapped(wrap_pyfunction!(parse_fastx_string))?;
     m.add_wrapped(wrap_pyfunction!(normalize_seq))?;
     m.add_wrapped(wrap_pyfunction!(reverse_complement))?;
     m.add("NeedletailError", py.get_type::<NeedletailError>())?;
