@@ -6,11 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.4.0] - TODO
+## [0.4.0] - 2020-07-08
 
 ## Changed
 - Added `parse_fastx_file` which replaces `parse_sequence_reader` and offers an iterator like usage and is faster
-than 0.3
+than 0.3. Also adds `parse_fastx_reader` and `parse_fastx_stdin`.
 - `SequenceRecord` now offers more information about the file such as line ending, which allows writing a file identical
 to the input one.
 

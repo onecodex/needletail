@@ -74,6 +74,17 @@ rustup default nightly
 maturin develop --cargo-extra-args="--features=python"
 ```
 
+### Building binary wheels and pushing to PyPI
+
+```
+# The Mac build requires switching through a few different python versions
+maturin build --cargo-extra-args="--features=python" --release --strip
+
+# The linux build is automated through cross-compiling in a docker image
+docker run --rm -v $(pwd):/io konstin2/maturin:master build --cargo-extra-args="--features=python" --release --strip
+twine upload target/wheels/*
+```
+
 ## Getting Help
 
 Questions are best directed as GitHub issues. We plan to add more documentation soon, but in the meantime "doc" comments are included in the source.
