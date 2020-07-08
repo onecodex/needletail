@@ -399,7 +399,7 @@ pub struct FastqRecord<'a> {
     buf_pos: &'a BufferPosition,
 }
 
-impl<R: io::Read> FastxReader for Reader<R> {
+impl<R: io::Read + Send> FastxReader for Reader<R> {
     fn next(&mut self) -> Option<Result<SequenceRecord, ParseError>> {
         // No more records to read
         if self.finished {

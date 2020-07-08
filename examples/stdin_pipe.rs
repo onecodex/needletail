@@ -1,9 +1,9 @@
-use needletail::{parse_fastx_file, Sequence};
+use needletail::{parse_fastx_stdin, Sequence};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut n_bases = 0;
     let mut n_valid_kmers = 0;
-    let mut reader = parse_fastx_file("-").expect("valid path/file");
+    let mut reader = parse_fastx_stdin().expect("valid path/file");
     while let Some(record) = reader.next() {
         let seqrec = record.expect("invalid record");
         // keep track of the total number of bases

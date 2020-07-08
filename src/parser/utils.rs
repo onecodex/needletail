@@ -116,7 +116,7 @@ pub fn find_line_ending(bytes: &[u8]) -> Option<LineEnding> {
     None
 }
 /// The main trait, iterator-like, that the FASTA and FASTQ readers implement
-pub trait FastxReader {
+pub trait FastxReader: Send {
     /// Gets the next record in the stream.
     /// This imitates the Iterator API but does not support any iterator functions.
     /// This returns None once we reached the EOF.

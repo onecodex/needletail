@@ -1,11 +1,21 @@
 import unittest
 
-from needletail import parse_fastx_file, NeedletailError, reverse_complement, normalize_seq
+from needletail import parse_fastx_file, parse_fastx_string, NeedletailError, reverse_complement, normalize_seq
+
+
+FASTA_FILE = "./tests/data/test.fa"
+FASTQ_FILE = "./tests/specimen/FASTQ/example.fastq"
 
 
 class ParsingTestCase(unittest.TestCase):
-    def test_can_parse_fasta(self):
-        for i, record in enumerate(parse_fastx_file("./tests/data/test.fa")):
+    def get_fasta_reader(self):
+        return parse_fastx_file(FASTA_FILE)
+
+    def get_fastq_reader(self):
+        return parse_fastx_file(FASTQ_FILE)
+
+    def test_can_parse_fasta_file(self):
+        for i, record in enumerate(self.get_fasta_reader()):
             if i == 0:
                 self.assertEqual(record.id, "test")
                 self.assertEqual(record.seq, "AGCTGATCGA")
@@ -23,8 +33,8 @@ class ParsingTestCase(unittest.TestCase):
 
             self.assertTrue(i <= 1)
 
-    def test_can_parse_fastq(self):
-        for i, record in enumerate(parse_fastx_file("./tests/specimen/FASTQ/example.fastq")):
+    def test_can_parse_fastq_file(self):
+        for i, record in enumerate(self.get_fastq_reader()):
             if i == 0:
                 self.assertEqual(record.id, "EAS54_6_R1_2_1_413_324")
                 self.assertEqual(record.seq, "CCCTTCTTGTCTTCAGCGTTTCTCC")
@@ -41,6 +51,18 @@ class ParsingTestCase(unittest.TestCase):
                 self.assertTrue(record.is_fastq())
 
             self.assertTrue(i <= 2)
+
+
+class ParsingStrTestCase(ParsingTestCase):
+    def get_fasta_reader(self):
+        with open(FASTA_FILE) as f:
+            content = f.read()
+            return parse_fastx_string(content)
+
+    def get_fastq_reader(self):
+        with open(FASTQ_FILE) as f:
+            content = f.read()
+            return parse_fastx_string(content)
 
 
 class MiscelleanousTestCase(unittest.TestCase):
