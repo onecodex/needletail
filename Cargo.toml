@@ -57,3 +57,4 @@ classifier = ["Intended Audience :: Science/Research", "Programming Language :: 
 [[bench]]
 name = "benchmark"
 harness = false
+path = "benches/benchmark.rs"
