@@ -13,10 +13,10 @@ Needletail's goal is to be as fast as the [readfq](https://github.com/lh3/readfq
 ```rust
 extern crate needletail;
 use needletail::{parse_fastx_file, Sequence, FastxReader};
-//!
+
 fn main() {
     let filename = "tests/data/28S.fasta";
-//!
+
     let mut n_bases = 0;
     let mut n_valid_kmers = 0;
     let mut reader = parse_fastx_file(&filename).expect("valid path/file");
