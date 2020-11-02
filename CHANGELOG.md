@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Added
+- `ParseErrorKind::EmptyFile` variant to handle cases where there are less than two bytes in a file [[#51][51]]
+
 ## [0.4.0] - 2020-07-08
 
 ## Changed
@@ -36,3 +39,5 @@ to the input one.
 ## [0.3.1] - 2019-09-18
 ### Fixed
 - Needletail no longer runs out of memory when parsing large, compressed files.
+
+[51]: https://github.com/onecodex/needletail/issues/51
