@@ -1,5 +1,6 @@
 ![CI](https://github.com/onecodex/needletail/workflows/CI/badge.svg)
 [![crates.io](https://img.shields.io/crates/v/needletail.svg)](https://crates.io/crates/needletail)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fonecodex%2Fneedletail.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fonecodex%2Fneedletail?ref=badge_shield)
 
 # Needletail
 
@@ -96,3 +97,7 @@ Please do! We're happy to discuss possible additions and/or accept pull requests
 ## Acknowledgements
 Starting from 0.4, the parsers algorithms is taken from [seq_io](https://github.com/markschl/seq_io). While it has been slightly modified, it is mainly
 coming from that library. Links to the original files are available in `src/parser/fast{a,q}.rs`.
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fonecodex%2Fneedletail.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fonecodex%2Fneedletail?ref=badge_large)
