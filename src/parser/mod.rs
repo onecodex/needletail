@@ -41,16 +41,49 @@ fn get_fastx_reader<'a, R: 'a + io::Read + Send>(
     }
 }
 
-/// The main entry point of needletail if you're reading from something that impls std::io::Read
+/// The main entry point of needletail if you're reading from something that implements [`std::io::Read`].
 /// This automatically detects whether the file is:
-/// 1. compressed: gzip, bz and xz are supported and will use the appropriate decoder
+/// 1. compressed: [`gzip`][gzip], [`bz`][bz] and [`xz`][xz] are supported and will use the appropriate decoder
 /// 2. FASTA or FASTQ: the right parser will be automatically instantiated
-/// 1 is only available if the `compression` feature is enabled.
+///
+/// Option 1 is only available if the `compression` feature is enabled.
+///
+/// # Errors
+///
+/// If the object you're reading from has less than 2 bytes then a [`ParserError`](needletail::errors::ParserError) of the kind
+/// [`ParseErrorKind::EmptyFile`](needletail::errors::ParseErrorKind::EmptyFile) is returned.
+///
+/// If the first byte in the object is unknown, then a `ParserError` of the kind
+/// [`ParseErrorKind::UnknownFormat`](needletail::errors::ParseErrorKind::UnknownFormat) is returned.
+///
+/// # Examples
+///
+/// ```
+/// use needletail::parse_fastx_reader;
+///
+/// let reader = ">read1\nACGT\nread2\nGGGG".as_bytes();
+/// let mut fastx_reader = parse_fastx_reader(reader).expect("invalid reader");
+/// let mut idx = 0;
+/// let read_ids = [b"read1", b"read2"];
+///
+/// while let Some(r) = fastx_reader.next() {
+///     let record = r.expect("invalid record");
+///     assert_eq!(record.id(), read_ids[idx]);
+///     idx += 1;
+/// }
+/// ```
+///
+/// [gzip]: https://www.gnu.org/software/gzip/
+/// [bz]: https://sourceware.org/bzip2/
+/// [xz]: https://tukaani.org/xz/format.html
+///
 pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
     mut reader: R,
 ) -> Result<Box<dyn FastxReader + 'a>, ParseError> {
     let mut first_two_bytes = [0; 2];
-    reader.read_exact(&mut first_two_bytes)?;
+    reader
+        .read_exact(&mut first_two_bytes)
+        .map_err(|_| ParseError::new_empty_file())?;
     let first_two_cursor = Cursor::new(first_two_bytes);
     let new_reader = first_two_cursor.chain(reader);
 
@@ -99,3 +132,31 @@ pub fn parse_fastx_file<P: AsRef<Path>>(path: P) -> Result<Box<dyn FastxReader>,
 pub use record::{mask_header_tabs, mask_header_utf8, write_fasta, write_fastq, SequenceRecord};
 use std::io;
 pub use utils::{Format, LineEnding};
+
+#[cfg(test)]
+mod test {
+    use crate::errors::ParseErrorKind;
+    use crate::parse_fastx_reader;
+
+    #[test]
+    fn test_empty_file_raises_parser_error_of_same_kind() {
+        let reader = "".as_bytes();
+        let actual = parse_fastx_reader(reader);
+        assert!(actual.is_err());
+
+        let actual_err = actual.err().unwrap().kind;
+        let expected_err = ParseErrorKind::EmptyFile;
+        assert_eq!(actual_err, expected_err);
+    }
+
+    #[test]
+    fn test_only_one_byte_in_file_raises_empty_file_error() {
+        let reader = "@".as_bytes();
+        let actual = parse_fastx_reader(reader);
+        assert!(actual.is_err());
+
+        let actual_err = actual.err().unwrap().kind;
+        let expected_err = ParseErrorKind::EmptyFile;
+        assert_eq!(actual_err, expected_err);
+    }
+}

@@ -38,6 +38,8 @@ pub enum ParseErrorKind {
     UnequalLengths,
     /// Truncated record found
     UnexpectedEnd,
+    /// The file appears to be empty
+    EmptyFile,
 }
 
 /// The only error type that needletail returns
@@ -115,6 +117,15 @@ impl ParseError {
             format: Some(format),
         }
     }
+
+    pub fn new_empty_file() -> Self {
+        ParseError {
+            msg: String::from("Failed to read the first two bytes. Is the file empty?"),
+            kind: ParseErrorKind::EmptyFile,
+            position: ErrorPosition::default(),
+            format: None,
+        }
+    }
 }
 
 impl fmt::Display for ParseError {
@@ -124,6 +135,7 @@ impl fmt::Display for ParseError {
             ParseErrorKind::UnequalLengths
             | ParseErrorKind::InvalidStart
             | ParseErrorKind::UnknownFormat
+            | ParseErrorKind::EmptyFile
             | ParseErrorKind::InvalidSeparator => write!(f, "{} ({})", self.msg, self.position),
             ParseErrorKind::UnexpectedEnd => {
                 write!(f, "Unexpected end of input ({}).", self.position)

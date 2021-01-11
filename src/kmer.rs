@@ -4,10 +4,7 @@
 /// Returns true if the base is a unambiguous nucleic acid base (e.g. ACGT) and
 /// false otherwise.
 fn is_good_base(chr: u8) -> bool {
-    match chr as char {
-        'a' | 'c' | 'g' | 't' | 'A' | 'C' | 'G' | 'T' => true,
-        _ => false,
-    }
+    matches!(chr as char, 'a' | 'c' | 'g' | 't' | 'A' | 'C' | 'G' | 'T')
 }
 
 /// Generic moving window iterator over sequences to return k-mers
