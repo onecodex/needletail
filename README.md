@@ -66,9 +66,7 @@ cargo test  # to run tests
 ### Python
 To work on the Python library on a Mac OS X/Unix system (requires Python 3):
 ```bash
-# you need the nightly version of Rust installed
-curl https://sh.rustup.rs -sSf | sh
-rustup default nightly
+pip install maturin
 
 # finally, install the library in the local virtualenv
 maturin develop --cargo-extra-args="--features=python"
