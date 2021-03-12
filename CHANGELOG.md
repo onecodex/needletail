@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2020-03-12
+
 ## Added
 - `ParseErrorKind::EmptyFile` variant to handle cases where there are less than two bytes in a file [[#51][51]]
 
