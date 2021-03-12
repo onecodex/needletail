@@ -137,10 +137,10 @@ pub fn canonical(kmer: BitKmer) -> (BitKmer, bool) {
     }
 }
 
-/// Find the lexigraphically lowest substring of a given length in the BitKmer
+/// Find the lexicographically lowest substring of a given length in the BitKmer
 pub fn minimizer(kmer: BitKmer, minmer_size: u8) -> BitKmer {
     let mut new_kmer = kmer.0;
-    let mut lowest = !(0 as BitKmerSeq);
+    let mut lowest = !0;
     let bitmask = (BitKmerSeq::pow(2, u32::from(2 * minmer_size)) - 1) as BitKmerSeq;
     for _ in 0..=(kmer.1 - minmer_size) {
         let cur = bitmask & new_kmer;

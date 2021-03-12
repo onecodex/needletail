@@ -99,7 +99,7 @@ impl BufferPosition {
     }
 
     #[inline]
-    pub(crate) fn num_bases<'a>(&self, buffer: &'a [u8]) -> usize {
+    pub(crate) fn num_bases(&self, buffer: &[u8]) -> usize {
         let seq = self.raw_seq(buffer);
         let num_lines = bytecount::count(seq, b'\n');
         let windows_num_lines = bytecount::count(seq, b'\r');
@@ -197,9 +197,9 @@ where
     /// Finds the position of the next record
     /// and returns true if found; false if end of buffer reached.
     #[inline]
-    fn find(&mut self) -> Result<bool, ParseError> {
+    fn find(&mut self) -> bool {
         if self._find() {
-            return Ok(true);
+            return true;
         }
 
         // nothing found
@@ -209,10 +209,10 @@ where
             if !self.buf_pos.seq_pos.is_empty() {
                 self.buf_pos.seq_pos.push(self.search_pos);
             }
-            return Ok(true);
+            return true;
         }
 
-        Ok(false)
+        false
     }
 
     /// Returns true if complete position found, false if end of buffer reached.
@@ -260,7 +260,7 @@ where
             // fill up remaining buffer
             fill_buf(&mut self.buf_reader)?;
 
-            if self.find()? {
+            if self.find() {
                 return Ok(true);
             }
         }
@@ -329,12 +329,7 @@ impl<R: io::Read + Send> FastxReader for Reader<R> {
         }
 
         // Can we identify the start of the next record ?
-        let complete = match self.find() {
-            Ok(f) => f,
-            Err(e) => {
-                return Some(Err(e));
-            }
-        };
+        let complete = self.find();
 
         if !complete {
             // Did we get a record?
