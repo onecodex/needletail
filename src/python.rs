@@ -12,7 +12,7 @@ use crate::{
     FastxReader,
 };
 
-create_exception!(needletail, NeedletailError, pyo3::exceptions::Exception);
+create_exception!(needletail, NeedletailError, pyo3::exceptions::PyException);
 
 // Avoid some boilerplate with the error handling
 macro_rules! py_try {
