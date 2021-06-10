@@ -110,14 +110,14 @@ pub fn normalize_seq(seq: &str, iupac: bool) -> PyResult<String> {
 }
 
 #[pyfunction]
-pub fn reverse_complement(seq: &str) -> PyResult<String> {
+pub fn reverse_complement(seq: &str) -> String {
     let comp: Vec<u8> = seq
         .as_bytes()
         .iter()
         .rev()
         .map(|n| complement(*n))
         .collect();
-    Ok(String::from_utf8_lossy(&comp).to_string())
+    String::from_utf8_lossy(&comp).to_string()
 }
 
 #[pyproto]
