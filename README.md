@@ -64,6 +64,51 @@ cargo test  # to run tests
 ```
 
 ### Python
+
+#### Documentation
+
+For a real example, you can refer to `test_python.py`.
+
+The python library only raise one type of exception: `NeedletailError`.
+
+There are 2 ways to parse a FASTA/FASTQ: one if you have a string (`parse_fastx_string(content: str)`) or a path to a file
+(`parse_fastx_file(path: str)`). Those functions will raise if the file is not found or if the content is invalid and will return
+an iterator.
+
+
+```python
+from needletail import parse_fastx_file, NeedletailError, reverse_complement, normalize_seq
+
+try:
+    for record in parse_fastx_file("myfile.fastq"):
+        print(record.id)
+        print(record.seq)
+        print(record.qual)
+except NeedletailError:
+    print("Invalid Fastq file")
+```
+
+A record has the following shape:
+
+```python
+class Record:
+    id: str
+    seq: str
+    qual: Optional[str]
+
+    def is_fasta(self) -> bool
+    def is_fastq(self) -> bool
+    def normalize(self, iupac: bool)
+```
+
+Note that `normalize` (see <https://docs.rs/needletail/0.4.1/needletail/sequence/fn.normalize.html> for what it does) will mutate `self.seq`.
+It is also available as the `normalize_seq(seq: str, iupac: bool)` function which will return the normalized sequence in this case.
+
+Lastly, there is also a `reverse_complement(seq: str)` that will do exactly what it says. This will not raise an error if you pass some invalid
+characters.
+
+#### Building
+
 To work on the Python library on a Mac OS X/Unix system (requires Python 3):
 ```bash
 pip install maturin
@@ -72,7 +117,7 @@ pip install maturin
 maturin develop --cargo-extra-args="--features=python"
 ```
 
-### Building binary wheels and pushing to PyPI
+To build the binary wheels and push to PyPI
 
 ```
 # The Mac build requires switching through a few different python versions

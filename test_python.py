@@ -82,5 +82,15 @@ class MiscelleanousTestCase(unittest.TestCase):
         self.assertEqual(reverse_complement("atcg"), "cgat")
 
 
+class ErroringTestCase(unittest.TestCase):
+    def test_file_not_found(self):
+        with self.assertRaises(NeedletailError):
+            parse_fastx_file("hey")
+
+    def test_invalid_record(self):
+        with self.assertRaises(NeedletailError):
+            for i, record in enumerate(parse_fastx_string("Not a valid file")):
+                print(i)
+
 if __name__ == '__main__':
     unittest.main()
