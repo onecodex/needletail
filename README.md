@@ -117,7 +117,7 @@ pip install maturin
 maturin develop --cargo-extra-args="--features=python"
 ```
 
-To build the binary wheels and pushing to PyPI
+To build the binary wheels and push to PyPI
 
 ```
 # The Mac build requires switching through a few different python versions
