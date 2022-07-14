@@ -12,12 +12,14 @@ use xz2::read::XzDecoder;
 
 use crate::errors::ParseError;
 pub use crate::parser::fasta::Reader as FastaReader;
+pub use crate::parser::fastaqual::Reader as FastaqualReader;
 pub use crate::parser::fastq::Reader as FastqReader;
 
 mod record;
 mod utils;
 
 mod fasta;
+mod fastaqual;
 mod fastq;
 
 pub use crate::parser::utils::FastxReader;
@@ -129,6 +131,23 @@ pub fn parse_fastx_file<P: AsRef<Path>>(path: P) -> Result<Box<dyn FastxReader>,
     parse_fastx_reader(File::open(&path)?)
 }
 
+pub fn parse_fastaqual_reader<'a, R: 'a + io::Read + Send>(
+    fasta_reader: R,
+    qual_reader: R,
+) -> Result<Box<FastaqualReader<'a>>, ParseError> {
+    let freader = parse_fastx_reader(fasta_reader)?;
+    let qreader = parse_fastx_reader(qual_reader)?;
+
+    Ok(Box::new(FastaqualReader::new(freader, qreader)))
+}
+
+pub fn parse_fastaqual_file<'a, P: AsRef<Path>>(
+    fasta_path: P,
+    qual_path: P,
+) -> Result<Box<FastaqualReader<'a>>, ParseError> {
+    parse_fastaqual_reader(File::open(&fasta_path)?, File::open(&qual_path)?)
+}
+
 pub use record::{mask_header_tabs, mask_header_utf8, write_fasta, write_fastq, SequenceRecord};
 use std::io;
 pub use utils::{Format, LineEnding};
@@ -136,6 +155,7 @@ pub use utils::{Format, LineEnding};
 #[cfg(test)]
 mod test {
     use crate::errors::ParseErrorKind;
+    use crate::parse_fastaqual_reader;
     use crate::parse_fastx_reader;
 
     #[test]
@@ -158,5 +178,28 @@ mod test {
         let actual_err = actual.err().unwrap().kind;
         let expected_err = ParseErrorKind::EmptyFile;
         assert_eq!(actual_err, expected_err);
+    }
+
+    #[test]
+    fn test_parse_fastaqual_reader() {
+        let reader1 = ">read1\nACGT\n>read2\nGGGG".as_bytes();
+        let reader2 = ">read1\n4 42 0 1\n>read2\n0 0 12 100".as_bytes();
+        let mut fastaqual_reader =
+            parse_fastaqual_reader(reader1, reader2).expect("invalid reader");
+        let mut idx = 0;
+        let read_ids = [b"read1", b"read2"];
+        let reads = [b"ACGT", b"GGGG"];
+        let quals = [[4, 42, 0, 1], [0, 0, 12, 100]];
+
+        while let Some(r) = fastaqual_reader.next() {
+            let record = r.expect("invalid record");
+            assert_eq!(record.id(), read_ids[idx]);
+            assert_eq!(record.seq().into_owned(), reads[idx]);
+            assert_eq!(
+                record.qual().expect("invalid record").into_owned(),
+                quals[idx]
+            );
+            idx += 1;
+        }
     }
 }

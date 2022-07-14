@@ -40,6 +40,9 @@ pub enum ParseErrorKind {
     UnexpectedEnd,
     /// The file appears to be empty
     EmptyFile,
+    FormatMismatch,
+    RecordMismatch,
+    InvalidQualScore,
 }
 
 /// The only error type that needletail returns
@@ -126,6 +129,33 @@ impl ParseError {
             format: None,
         }
     }
+
+    pub fn new_format_mismatch() -> Self {
+        ParseError {
+            msg: String::new(),
+            kind: ParseErrorKind::FormatMismatch,
+            position: ErrorPosition::default(),
+            format: None,
+        }
+    }
+
+    pub fn new_record_mismatch() -> Self {
+        ParseError {
+            msg: String::new(),
+            kind: ParseErrorKind::RecordMismatch,
+            position: ErrorPosition::default(),
+            format: None,
+        }
+    }
+
+    pub fn new_invalid_qual_score() -> Self {
+        ParseError {
+            msg: String::new(),
+            kind: ParseErrorKind::InvalidQualScore,
+            position: ErrorPosition::default(),
+            format: None,
+        }
+    }
 }
 
 impl fmt::Display for ParseError {
@@ -139,6 +169,11 @@ impl fmt::Display for ParseError {
             | ParseErrorKind::InvalidSeparator => write!(f, "{} ({})", self.msg, self.position),
             ParseErrorKind::UnexpectedEnd => {
                 write!(f, "Unexpected end of input ({}).", self.position)
+            }
+            ParseErrorKind::FormatMismatch
+            | ParseErrorKind::RecordMismatch
+            | ParseErrorKind::InvalidQualScore => {
+                write!(f, "test")
             }
         }
     }

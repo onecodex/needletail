@@ -52,5 +52,8 @@ pub mod errors;
 #[cfg(any(feature = "python", feature = "python_test"))]
 pub mod python;
 
-pub use parser::{parse_fastx_file, parse_fastx_reader, parse_fastx_stdin, FastxReader};
+pub use parser::{
+    parse_fastaqual_file, parse_fastaqual_reader, parse_fastx_file, parse_fastx_reader,
+    parse_fastx_stdin, FastxReader,
+};
 pub use sequence::Sequence;

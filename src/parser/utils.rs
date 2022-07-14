@@ -76,12 +76,13 @@ impl Position {
 pub enum Format {
     Fasta,
     Fastq,
+    Fastaqual,
 }
 
 impl Format {
     pub fn start_char(&self) -> char {
         match self {
-            Format::Fasta => '>',
+            Format::Fasta | Format::Fastaqual => '>',
             Format::Fastq => '@',
         }
     }

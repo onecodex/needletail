@@ -12,8 +12,14 @@ edition = "2018"
 include = ["src/**/*", "LICENSE", "README.md", "CHANGELOG.md"]
 
 [lib]
+name = "needletail"
+path = "src/lib.rs"
 crate-type=["cdylib", "rlib"]
 bench = false
+
+[[bin]]
+name = "read_fastaqual"
+path = "src/bin/read_fastaqual.rs"
 
 [features]
 default = ["compression"]
