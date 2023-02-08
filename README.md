@@ -121,10 +121,10 @@ To build the binary wheels and push to PyPI
 
 ```
 # The Mac build requires switching through a few different python versions
-maturin build --cargo-extra-args="--features=python" --release --strip
+maturin build --features python --release --strip
 
 # The linux build is automated through cross-compiling in a docker image
-docker run --rm -v $(pwd):/io konstin2/maturin:master build --cargo-extra-args="--features=python" --release --strip
+docker run --rm -v $(pwd):/io ghcr.io/pyo3/maturin:main build --features=python --release --strip -f
 twine upload target/wheels/*
 ```
 
