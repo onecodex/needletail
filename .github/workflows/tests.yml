@@ -143,7 +143,7 @@ jobs:
       - name: add library to venv
         run: |
           . venv/bin/activate
-          maturin develop --cargo-extra-args="--features=python"
+          maturin develop --features=python
 
       - name: Run the python tests
         run: |
@@ -153,4 +153,4 @@ jobs:
       - name: compile taxonomy with python bindings
         run: |
           . venv/bin/activate
-          maturin build --cargo-extra-args="--features=python" --release --strip --manylinux=off
+          maturin build --features=python --release --strip --manylinux=off

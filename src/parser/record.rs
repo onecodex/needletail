@@ -66,8 +66,8 @@ impl<'a> SequenceRecord<'a> {
     #[inline]
     pub fn id(&self) -> &[u8] {
         match self.buf_pos {
-            BufferPositionKind::Fasta(bp) => bp.id(&self.buffer),
-            BufferPositionKind::Fastq(bp) => bp.id(&self.buffer),
+            BufferPositionKind::Fasta(bp) => bp.id(self.buffer),
+            BufferPositionKind::Fastq(bp) => bp.id(self.buffer),
         }
     }
 
@@ -76,8 +76,8 @@ impl<'a> SequenceRecord<'a> {
     #[inline]
     pub fn raw_seq(&self) -> &[u8] {
         match self.buf_pos {
-            BufferPositionKind::Fasta(bp) => bp.raw_seq(&self.buffer),
-            BufferPositionKind::Fastq(bp) => bp.seq(&self.buffer),
+            BufferPositionKind::Fasta(bp) => bp.raw_seq(self.buffer),
+            BufferPositionKind::Fastq(bp) => bp.seq(self.buffer),
         }
     }
 
@@ -85,8 +85,8 @@ impl<'a> SequenceRecord<'a> {
     /// for FASTA it is `raw_seq` minus all the `\r\n`
     pub fn seq(&self) -> Cow<[u8]> {
         match self.buf_pos {
-            BufferPositionKind::Fasta(bp) => bp.seq(&self.buffer),
-            BufferPositionKind::Fastq(bp) => bp.seq(&self.buffer).into(),
+            BufferPositionKind::Fasta(bp) => bp.seq(self.buffer),
+            BufferPositionKind::Fastq(bp) => bp.seq(self.buffer).into(),
         }
     }
 
@@ -96,7 +96,7 @@ impl<'a> SequenceRecord<'a> {
     pub fn qual(&self) -> Option<&[u8]> {
         match self.buf_pos {
             BufferPositionKind::Fasta(_) => None,
-            BufferPositionKind::Fastq(bp) => Some(bp.qual(&self.buffer)),
+            BufferPositionKind::Fastq(bp) => Some(bp.qual(self.buffer)),
         }
     }
 
@@ -104,8 +104,8 @@ impl<'a> SequenceRecord<'a> {
     #[inline]
     pub fn all(&self) -> &[u8] {
         match self.buf_pos {
-            BufferPositionKind::Fasta(bp) => bp.all(&self.buffer),
-            BufferPositionKind::Fastq(bp) => bp.all(&self.buffer),
+            BufferPositionKind::Fasta(bp) => bp.all(self.buffer),
+            BufferPositionKind::Fastq(bp) => bp.all(self.buffer),
         }
     }
 
@@ -113,8 +113,8 @@ impl<'a> SequenceRecord<'a> {
     #[inline]
     pub fn num_bases(&self) -> usize {
         match self.buf_pos {
-            BufferPositionKind::Fasta(bp) => bp.num_bases(&self.buffer),
-            BufferPositionKind::Fastq(bp) => bp.num_bases(&self.buffer),
+            BufferPositionKind::Fasta(bp) => bp.num_bases(self.buffer),
+            BufferPositionKind::Fastq(bp) => bp.num_bases(self.buffer),
         }
     }
 
@@ -213,7 +213,7 @@ pub fn write_fastq(
     // that don't have qualitys so this will mask to "good" if the quality
     // slice is empty
     if let Some(qual) = qual {
-        writer.write_all(&qual)?;
+        writer.write_all(qual)?;
     } else {
         writer.write_all(&vec![b'I'; seq.len()])?;
     }

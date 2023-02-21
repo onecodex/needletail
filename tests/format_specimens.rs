@@ -64,7 +64,8 @@ fn test_specimen_fastq() {
         let path = format!("tests/specimen/FASTQ/{}", test.filename);
         assert!(
             test_fastx_file(&path).is_ok(),
-            format!("File {} is bad?", test.filename)
+            "File {} is bad?",
+            test.filename
         );
     }
 
@@ -87,7 +88,8 @@ fn test_specimen_fastq() {
         let path = format!("tests/specimen/FASTQ/{}", test.filename);
         assert!(
             test_fastx_file(&path).is_err(),
-            format!("File {} is good?", test.filename)
+            "File {} is good?",
+            test.filename
         );
     }
 }

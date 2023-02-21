@@ -179,7 +179,7 @@ pub trait Sequence<'a> {
 
         // first part is a fast check to see if we need to do any allocations
         let mut i;
-        match memchr2(b'\r', b'\n', &seq) {
+        match memchr2(b'\r', b'\n', seq) {
             Some(break_loc) => i = break_loc,
             None => return seq.into(),
         }
@@ -236,7 +236,7 @@ pub trait Sequence<'a> {
     /// assert_eq!(b"ACGU".normalize(true).as_ref(), b"ACGT");
     /// ```
     fn normalize(&'a self, iupac: bool) -> Cow<'a, [u8]> {
-        if let Some(s) = normalize(&self.sequence(), iupac) {
+        if let Some(s) = normalize(self.sequence(), iupac) {
             s.into()
         } else {
             self.sequence().into()
@@ -247,7 +247,7 @@ pub trait Sequence<'a> {
     /// non-ACGT bases and returns a tuple containing (position, the
     /// canonicalized kmer, if the sequence is the complement of the original).
     fn canonical_kmers(&'a self, k: u8, reverse_complement: &'a [u8]) -> CanonicalKmers<'a> {
-        CanonicalKmers::new(self.sequence().as_ref(), reverse_complement, k)
+        CanonicalKmers::new(self.sequence(), reverse_complement, k)
     }
 
     /// Returns an iterator that returns a sliding window of k-sized
@@ -255,7 +255,7 @@ pub trait Sequence<'a> {
     /// original sequence so `.normalize` or `.strip_returns` may be
     /// appropriate to use first.
     fn kmers(&'a self, k: u8) -> Kmers<'a> {
-        Kmers::new(self.sequence().as_ref(), k)
+        Kmers::new(self.sequence(), k)
     }
 
     /// Return an iterator that returns valid kmers in 4-bit form
@@ -266,19 +266,19 @@ pub trait Sequence<'a> {
 
 impl<'a> Sequence<'a> for &'a [u8] {
     fn sequence(&'a self) -> &'a [u8] {
-        &self
+        self
     }
 }
 
 impl<'a> Sequence<'a> for [u8] {
     fn sequence(&'a self) -> &'a [u8] {
-        &self
+        self
     }
 }
 
 impl<'a> Sequence<'a> for Cow<'a, [u8]> {
     fn sequence(&'a self) -> &'a [u8] {
-        &self
+        self
     }
 }
 
@@ -310,13 +310,13 @@ pub trait QualitySequence<'a>: Sequence<'a> {
 
 impl<'a> Sequence<'a> for (&'a [u8], &'a [u8]) {
     fn sequence(&'a self) -> &'a [u8] {
-        &self.0
+        self.0
     }
 }
 
 impl<'a> QualitySequence<'a> for (&'a [u8], &'a [u8]) {
     fn quality(&'a self) -> &'a [u8] {
-        &self.1
+        self.1
     }
 }
 
