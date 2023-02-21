@@ -75,7 +75,7 @@ impl BufferPosition {
 
         // first part is a fast check to see if we need to do any allocations
         let mut i;
-        match memchr2(b'\r', b'\n', &seq) {
+        match memchr2(b'\r', b'\n', seq) {
             Some(break_loc) => i = break_loc,
             None => return seq.into(),
         }

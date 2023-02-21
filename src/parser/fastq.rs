@@ -267,8 +267,8 @@ where
 
         let buf = self.get_buf();
         // We assume we only have ASCII in sequence and quality
-        let seq_len = self.buf_pos.seq(&buf).len();
-        let qual_len = self.buf_pos.qual(&buf).len();
+        let seq_len = self.buf_pos.seq(buf).len();
+        let qual_len = self.buf_pos.qual(buf).len();
 
         // TODO: we don't do that every time because it's a ~90% performance penalty.
         // TODO: mention it on the README
@@ -390,13 +390,6 @@ where
             self.buf_pos.qual -= consumed;
         }
     }
-}
-
-/// A FASTQ record that borrows data from a buffer
-#[derive(Debug, Clone)]
-pub struct FastqRecord<'a> {
-    buffer: &'a [u8],
-    buf_pos: &'a BufferPosition,
 }
 
 impl<R: io::Read + Send> FastxReader for Reader<R> {

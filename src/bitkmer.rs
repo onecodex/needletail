@@ -53,9 +53,9 @@ fn update_position(
         ((kmer.1 - 1) as usize, kmer.1 as usize)
     };
 
-    let mut cur_kmer = kmer;
+    let cur_kmer = kmer;
     while kmer_len < stop_len {
-        if extend_kmer(&mut cur_kmer, buffer[*start_pos + kmer_len]) {
+        if extend_kmer(cur_kmer, buffer[*start_pos + kmer_len]) {
             kmer_len += 1;
         } else {
             kmer_len = 0;
@@ -80,7 +80,7 @@ impl<'a> BitNuclKmer<'a> {
     pub fn new(slice: &'a [u8], k: u8, canonical: bool) -> BitNuclKmer<'a> {
         let mut kmer = (0u64, k);
         let mut start_pos = 0;
-        update_position(&mut start_pos, &mut kmer, &slice, true);
+        update_position(&mut start_pos, &mut kmer, slice, true);
 
         BitNuclKmer {
             start_pos,
@@ -95,7 +95,7 @@ impl<'a> Iterator for BitNuclKmer<'a> {
     type Item = (usize, BitKmer, bool);
 
     fn next(&mut self) -> Option<(usize, BitKmer, bool)> {
-        if !update_position(&mut self.start_pos, &mut self.cur_kmer, &self.buffer, false) {
+        if !update_position(&mut self.start_pos, &mut self.cur_kmer, self.buffer, false) {
             return None;
         }
         self.start_pos += 1;

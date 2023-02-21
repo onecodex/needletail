@@ -1,6 +1,6 @@
 [package]
 name = "needletail"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["Roderick Bovee <rbovee@gmail.com>", "Vincent Prouillet <vincent@onecodex.com>"]
 description = "FASTX parsing and k-mer methods"
 keywords = ["FASTA", "FASTQ", "kmer", "bioinformatics"]
@@ -8,7 +8,7 @@ categories = ["science", "parsing"]
 repository = "https://github.com/onecodex/needletail"
 license = "MIT"
 readme = "./README.md"
-edition = "2018"
+edition = "2021"
 include = ["src/**/*", "LICENSE", "README.md", "CHANGELOG.md"]
 
 [lib]
@@ -25,26 +25,26 @@ python_test = ["pyo3"]
 flate2 = { version="1.0.6", optional=true }
 bzip2 = { version="0.4", optional=true }
 xz2 = { version="0.1.6", optional=true }
-pyo3 = { version = "0.13", optional = true }
+pyo3 = { version = "0.18", optional = true }
 memchr = "2.2.1"
 bytecount = {version = "0.6", features = ["runtime-dispatch-simd"]}
 buf_redux = { version = "0.8", default_features = false }
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.4"
 
 # for stdin test
 escargot = "0.5.0"
-assert_cmd = "1.0.1"
-predicates = "1.0.4"
+assert_cmd = "2"
+predicates = "2"
 tempfile = "3"
 
 # for benchmark comparisons
-bio = "0.33"
+bio = "1"
 seq_io = "0.3"
 
 # for testing with the FormatSpecimens.jl repo samples
-toml = "0.5"
+toml = "0.7"
 serde = "1.0"
 serde_derive = "1.0"
 

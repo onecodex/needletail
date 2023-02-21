@@ -4,7 +4,6 @@ use std::io::Cursor;
 
 use pyo3::prelude::*;
 use pyo3::{create_exception, wrap_pyfunction};
-use pyo3::{PyIterProtocol, PyObjectProtocol};
 
 use crate::sequence::{complement, normalize};
 use crate::{
@@ -26,38 +25,13 @@ pub struct PyFastxReader {
     reader: Box<dyn FastxReader>,
 }
 
-#[pyproto]
-impl PyObjectProtocol for PyFastxReader {
+#[pymethods]
+impl PyFastxReader {
     fn __repr__(&self) -> PyResult<String> {
         Ok("<FastxParser>".to_string())
     }
-}
 
-// TODO: what would be really nice is to detect the type of pyobject so it would on file object etc
-// not for initial release though
-
-#[pyfunction]
-fn parse_fastx_file(path: &str) -> PyResult<PyFastxReader> {
-    let reader = py_try!(rs_parse_fastx_file(path));
-    Ok(PyFastxReader { reader })
-}
-
-#[pyfunction]
-fn parse_fastx_string(content: &str) -> PyResult<PyFastxReader> {
-    let reader = py_try!(parse_fastx_reader(Cursor::new(content.to_owned())));
-    Ok(PyFastxReader { reader })
-}
-
-#[pyclass]
-pub struct FastxReaderIterator {
-    t: PyObject,
-}
-
-#[pyproto]
-impl PyIterProtocol for PyFastxReader {
-    fn __iter__(slf: PyRefMut<Self>) -> PyResult<FastxReaderIterator> {
-        let gil_guard = Python::acquire_gil();
-        let py = gil_guard.python();
+    fn __iter__(slf: PyRefMut<Self>, py: Python<'_>) -> PyResult<FastxReaderIterator> {
         Ok(FastxReaderIterator { t: slf.into_py(py) })
     }
 }
@@ -100,6 +74,39 @@ impl Record {
     }
 }
 
+#[pyclass]
+pub struct FastxReaderIterator {
+    t: PyObject,
+}
+
+#[pymethods]
+impl FastxReaderIterator {
+    fn __next__(slf: PyRef<Self>, py: Python<'_>) -> PyResult<Option<Record>> {
+        let mut parser: PyRefMut<PyFastxReader> = slf.t.extract(py)?;
+        if let Some(rec) = parser.reader.next() {
+            let record = py_try!(rec);
+            Ok(Some(Record::from_sequence_record(&record)))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+// TODO: what would be really nice is to detect the type of pyobject so it would on file object etc
+// not for initial release though
+
+#[pyfunction]
+fn parse_fastx_file(path: &str) -> PyResult<PyFastxReader> {
+    let reader = py_try!(rs_parse_fastx_file(path));
+    Ok(PyFastxReader { reader })
+}
+
+#[pyfunction]
+fn parse_fastx_string(content: &str) -> PyResult<PyFastxReader> {
+    let reader = py_try!(parse_fastx_reader(Cursor::new(content.to_owned())));
+    Ok(PyFastxReader { reader })
+}
+
 #[pyfunction]
 pub fn normalize_seq(seq: &str, iupac: bool) -> PyResult<String> {
     if let Some(s) = normalize(seq.as_bytes(), iupac) {
@@ -118,21 +125,6 @@ pub fn reverse_complement(seq: &str) -> String {
         .map(|n| complement(*n))
         .collect();
     String::from_utf8_lossy(&comp).to_string()
-}
-
-#[pyproto]
-impl PyIterProtocol for FastxReaderIterator {
-    fn __next__(slf: PyRef<Self>) -> PyResult<Option<Record>> {
-        let gil_guard = Python::acquire_gil();
-        let py = gil_guard.python();
-        let mut parser: PyRefMut<PyFastxReader> = slf.t.extract(py)?;
-        if let Some(rec) = parser.reader.next() {
-            let record = py_try!(rec);
-            Ok(Some(Record::from_sequence_record(&record)))
-        } else {
-            Ok(None)
-        }
-    }
 }
 
 #[pymodule]
