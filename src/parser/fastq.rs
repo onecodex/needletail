@@ -77,7 +77,7 @@ enum SearchPosition {
 /// it does not handle decompression.
 /// If you are unsure, it's better to use [parse_fastx_file](fn.parse_fastx_file.html).
 pub struct Reader<R: io::Read> {
-    buf_reader: buf_redux::BufReader<R>,
+    buf_reader: buffer_redux::BufReader<R>,
     buf_pos: BufferPosition,
     search_pos: SearchPosition,
     position: Position,
@@ -110,7 +110,7 @@ where
     pub fn with_capacity(reader: R, capacity: usize) -> Reader<R> {
         assert!(capacity >= 3);
         Reader {
-            buf_reader: buf_redux::BufReader::with_capacity(capacity, reader),
+            buf_reader: buffer_redux::BufReader::with_capacity(capacity, reader),
             buf_pos: BufferPosition::default(),
             search_pos: SearchPosition::Id,
             position: Position::new(1, 0),

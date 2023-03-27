@@ -112,7 +112,7 @@ impl BufferPosition {
 /// it does not handle decompression.
 /// If you are unsure, it's better to use [parse_fastx_file](fn.parse_fastx_file.html).
 pub struct Reader<R: io::Read> {
-    buf_reader: buf_redux::BufReader<R>,
+    buf_reader: buffer_redux::BufReader<R>,
     buf_pos: BufferPosition,
     search_pos: usize,
     position: Position,
@@ -147,7 +147,7 @@ where
     pub fn with_capacity(reader: R, capacity: usize) -> Reader<R> {
         assert!(capacity >= 3);
         Reader {
-            buf_reader: buf_redux::BufReader::with_capacity(capacity, reader),
+            buf_reader: buffer_redux::BufReader::with_capacity(capacity, reader),
             buf_pos: BufferPosition {
                 start: 0,
                 seq_pos: Vec::with_capacity(1),
