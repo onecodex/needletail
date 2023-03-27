@@ -31,7 +31,7 @@ pub(crate) fn grow_to(current_size: usize) -> usize {
 
 /// Makes sure the buffer is full after this call (unless EOF reached)
 /// code adapted from `io::Read::read_exact`
-pub(crate) fn fill_buf<R>(reader: &mut buf_redux::BufReader<R>) -> io::Result<usize>
+pub(crate) fn fill_buf<R>(reader: &mut buffer_redux::BufReader<R>) -> io::Result<usize>
 where
     R: io::Read,
 {
