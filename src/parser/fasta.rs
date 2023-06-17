@@ -105,6 +105,14 @@ impl BufferPosition {
         let windows_num_lines = bytecount::count(seq, b'\r');
         seq.len() - num_lines - windows_num_lines
     }
+
+    #[inline]
+    pub(crate) fn num_gaps(&self, buffer: &[u8]) -> usize {
+        let seq = self.raw_seq(buffer);
+        let num_gaps_n = bytecount::count(seq, b'n');
+        let num_gaps_N = bytecount::count(seq, b'N');
+        num_gaps_n + num_gaps_N
+    }
 }
 
 /// Parser for FASTA files.
@@ -479,5 +487,19 @@ mod tests {
         let rec = reader.next().unwrap().unwrap();
         assert_eq!(rec.id(), b"shine");
         assert_eq!(rec.raw_seq(), b"AGGAGGU");
+    }
+
+    #[test]
+    fn test_num_gaps() {
+        let mut reader = Reader::new(seq(b">test\nAnGT\n>test2\nTNNA\n"));
+        let rec = reader.next().unwrap();
+        assert!(rec.is_ok());
+        let r = rec.unwrap();
+        assert_eq!(r.num_gaps(), 1);
+        let rec = reader.next().unwrap();
+        assert!(rec.is_ok());
+        let r = rec.unwrap();
+        assert_eq!(r.num_gaps(), 2);
+        assert!(reader.next().is_none());
     }
 }

@@ -118,6 +118,15 @@ impl<'a> SequenceRecord<'a> {
         }
     }
 
+    /// Return the numer of gaps(n | N) in the sequence, computed efficiently.
+    #[inline]
+    pub fn num_gaps(&self) -> usize {
+        match self.buf_pos {
+            BufferPositionKind::Fasta(bp) => bp.num_gaps(self.buffer),
+            BufferPositionKind::Fastq(bp) => bp.num_gaps(self.buffer),
+        }
+    }
+
     /// Return the line number in the file of the start of the sequence
     pub fn start_line_number(&self) -> u64 {
         self.position.line
