@@ -110,8 +110,8 @@ impl BufferPosition {
     pub(crate) fn num_gaps(&self, buffer: &[u8]) -> usize {
         let seq = self.raw_seq(buffer);
         let num_gaps_n = bytecount::count(seq, b'n');
-        let num_gaps_N = bytecount::count(seq, b'N');
-        num_gaps_n + num_gaps_N
+        let num_gaps_n_upper = bytecount::count(seq, b'N');
+        num_gaps_n + num_gaps_n_upper
     }
 }
 
