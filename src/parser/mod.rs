@@ -13,6 +13,7 @@ use xz2::read::XzDecoder;
 use crate::errors::ParseError;
 pub use crate::parser::fasta::Reader as FastaReader;
 pub use crate::parser::fastq::Reader as FastqReader;
+pub use crate::parser::fasta::IndexedReader as IndexedReader;
 
 mod record;
 mod utils;

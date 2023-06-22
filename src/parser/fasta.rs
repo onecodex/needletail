@@ -9,8 +9,8 @@ use crate::parser::utils::{
 use memchr::{memchr2, Memchr};
 use std::borrow::Cow;
 use std::fs::File;
-use std::io;
-use std::io::BufRead;
+use std::{collections, io};
+use std::io::{BufRead, Seek, SeekFrom};
 use std::path::Path;
 
 #[derive(Clone, Debug)]
@@ -372,6 +372,48 @@ impl<R: io::Read + Send> FastxReader for Reader<R> {
 
     fn line_ending(&self) -> Option<LineEnding> {
         self.line_ending
+    }
+}
+
+/// A FASTA index including info at..
+#[derive(Default, Clone, Eq, PartialEq, Debug)]
+struct Index {
+    inner: Vec<IndexRecord>,
+    name_to_rid: collections::HashMap<String, usize>,
+}
+
+/// Record of a FASTA index.
+#[derive(Clone, Eq, PartialEq, Debug)]
+struct IndexRecord {
+    name: String,
+    len: u64,
+    offset: u64,
+    line_bases: u64,
+    line_bytes: u64,
+}
+
+/// A FASTER reader with a index
+pub struct IndexedReader<R: io::Read + io::Seek> {
+    pub reader: Reader<R>,
+    index: Index,
+}
+
+impl IndexedReader<File> {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> io::Result<IndexedReader<File>> {
+        let reader = File::open(path).map(Reader::new).unwrap();
+        let index = Index{ // just a dummy index
+            inner: Vec::new(),
+            name_to_rid: collections::HashMap::new(),
+        };
+        Ok(IndexedReader{reader, index})
+        }
+}
+
+impl<R: io::Read + io::Seek> IndexedReader<R> {
+    pub fn seek(&mut self, pos: u64) -> io::Result<()> {
+        self.reader.buf_reader.seek(SeekFrom::Start(pos)).expect("TODO: panic message");
+        self.reader.position.line = 0;
+        Ok(())
     }
 }
 
