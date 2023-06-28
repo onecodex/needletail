@@ -9,26 +9,22 @@ use needletail::parser::IndexedReader;
 
 #[test]
 fn test_faidx() {
-    println!("test_faidx");
+    println!("test faidx");
     let mut file_reader = IndexedReader::from_path("tests/data/test_index.fa").unwrap();
-    file_reader.seek(0).unwrap(); // for record1
-    let record =
-        if let Some(record) = file_reader.reader.next() { record }
-        else { panic!("invalid record!!!!") };
-    let rec_seq = record.expect("invalid record");
-    let id = rec_seq.id();
-    let id_str = str::from_utf8(&*id).unwrap();
-    let seq = &rec_seq.seq()[2..4];
+    let seq = file_reader.test_fetch("xxx", 2, 8);
     let seq_str = str::from_utf8(&*seq).unwrap();
-    println!("Read Record1: {}:{}", id_str,seq_str);
-    file_reader.seek(33).unwrap(); // for record2
-    let record =
-        if let Some(record) = file_reader.reader.next() { record }
-        else { panic!("invalid record!!!!") };
-    let rec_seq = record.expect("invalid record");
-    let id = rec_seq.id();
-    let id_str = str::from_utf8(&*id).unwrap();
-    let seq = rec_seq.seq();
-    let seq_str = str::from_utf8(&*seq).unwrap();
-    println!("Read Record2: {}:{}", id_str,seq_str);
+    println!("Read Seq: \n{}", seq_str);
+
+    // let rec_seq = file_reader.fetch(&"yyy".to_string()).unwrap(); // for record1
+    // let id = rec_seq.id();
+    // let id_str = str::from_utf8(&*id).unwrap();
+    // let seq = &rec_seq.seq();
+    // let seq_str = str::from_utf8(&*seq).unwrap();
+    // println!("Read Record1: {}:{}", id_str,seq_str);
+    // let rec_seq = file_reader.fetch(&"zzz".to_string()); // for record1
+    // let id = rec_seq.id();
+    // let id_str = str::from_utf8(&*id).unwrap();
+    // let seq = rec_seq.seq();
+    // let seq_str = str::from_utf8(&*seq).unwrap();
+    // println!("Read Record2: {}:{}", id_str,seq_str);
 }
