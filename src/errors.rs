@@ -2,8 +2,9 @@
 
 use crate::parser::Format;
 use std::error::Error as StdError;
-use std::fmt;
+use std::{fmt, num};
 use std::io;
+use std::path::Display;
 
 /// Represents where we were in a file when an error occurred.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -23,7 +24,7 @@ impl fmt::Display for ErrorPosition {
     }
 }
 
-/// The type of error that occured during file parsing
+/// The type of error that occurred during file parsing
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseErrorKind {
     /// An error happened during file/stream input/output
@@ -40,6 +41,70 @@ pub enum ParseErrorKind {
     UnexpectedEnd,
     /// The file appears to be empty
     EmptyFile,
+}
+
+/// The error type of Index/IndexReader operations
+#[derive(Clone, Debug, PartialEq)]
+pub enum IndexErrorKind {
+    /// The fai file IO error
+    FaiIo,
+    /// The fai file is not correct format
+    FaiFormatError,
+    /// Unknown sequence name in fai file
+    UnknownSeqName,
+    /// Region is not valid
+    InvalidRegion,
+    /// Seek IO error
+    Io,
+    /// Inner Reader error
+    InnerReader,
+}
+
+/// The error type of Index/IndexReader operations
+#[derive(Clone, Debug, PartialEq)]
+pub struct IndexError {
+    /// A description of what went wrong
+    pub msg: String,
+    /// The type of error that occurred
+    pub kind: IndexErrorKind,
+}
+
+impl IndexError {
+
+    pub fn new_fai_format_err() -> Self {
+        IndexError {
+            msg: String::from("Fai index format parse error, please check the format."),
+            kind:IndexErrorKind::FaiFormatError,
+        }
+    }
+
+    pub fn new_fai_io_err(path: Display) -> Self {
+        IndexError {
+            msg: format!("Fai index file of `{}` read error.", path),
+            kind:IndexErrorKind::FaiIo,
+        }
+    }
+
+    pub fn new_seq_name_err(seq_name: &str) -> Self {
+        IndexError {
+            msg: format!("Unknown sequence name `{}` in fasta file.", seq_name),
+            kind:IndexErrorKind::UnknownSeqName,
+        }
+    }
+
+    pub fn new_invalid_region_err() -> Self {
+        IndexError {
+            msg: String::from("Invalid query region."),
+            kind:IndexErrorKind::InvalidRegion,
+        }
+    }
+
+    pub fn new_io_err() -> Self {
+        IndexError {
+            msg: String::from("IO error."),
+            kind:IndexErrorKind::Io,
+        }
+    }
 }
 
 /// The only error type that needletail returns
@@ -151,6 +216,34 @@ impl From<io::Error> for ParseError {
             kind: ParseErrorKind::Io,
             position: ErrorPosition::default(),
             format: None,
+        }
+    }
+}
+
+
+impl From<num::ParseIntError> for IndexError {
+    fn from(err: num::ParseIntError) -> IndexError {
+        IndexError {
+            msg: err.to_string(),
+            kind: IndexErrorKind::FaiFormatError,
+        }
+    }
+}
+
+impl From<io::Error> for IndexError {
+    fn from(err: io::Error) -> IndexError {
+        IndexError {
+            msg: err.to_string(),
+            kind: IndexErrorKind::FaiIo,
+        }
+    }
+}
+
+impl From<ParseError> for IndexError {
+    fn from(err: ParseError) -> Self {
+        IndexError {
+            msg: err.msg,
+            kind: IndexErrorKind::InnerReader,
         }
     }
 }
