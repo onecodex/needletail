@@ -1,6 +1,6 @@
 //! The vast majority of the code is taken from https://github.com/markschl/seq_io/blob/master/src/fasta.rs
 
-use crate::errors::{ErrorPosition, ParseError};
+use crate::errors::{ErrorPosition, ParseError, IndexError};
 use crate::parser::record::SequenceRecord;
 use crate::parser::utils::{
     fill_buf, find_line_ending, grow_to, trim_cr, FastxReader, Format, LineEnding, Position,
@@ -9,10 +9,13 @@ use crate::parser::utils::{
 use memchr::{memchr2, Memchr};
 use std::borrow::Cow;
 use std::fs::File;
-use std::{collections, io};
+use std::{collections, fmt, io};
 use std::cmp::min;
 use std::io::{BufRead, Seek, SeekFrom};
 use std::path::Path;
+use buffer_redux::BufReader;
+use std::str;
+
 
 #[derive(Clone, Debug)]
 pub struct BufferPosition {
@@ -331,7 +334,6 @@ impl<R: io::Read + Send> FastxReader for Reader<R> {
 
         // Can we identify the start of the next record ?
         let complete = self.find();
-        println!("complete: {}", complete);
 
         if !complete {
             // Did we get a record?
@@ -384,11 +386,52 @@ struct Index {
     name_to_rid: collections::HashMap<String, usize>,
 }
 
+
+
+impl Index
+{
+    /// Create a new index from a faidx file.
+    fn new<R:io::Read>(fai: R) -> Result<Index, IndexError> {
+        let mut inner = Vec::new();
+        let mut name_to_rid = collections::HashMap::new();
+        for (rid, line) in BufReader::new(fai).lines().flatten().enumerate() {
+            let values: Vec<&str> = line.split(char::is_whitespace).collect();
+            if values.len() != 5 {
+                return Err(IndexError::new_fai_format_err())
+            }
+            let name = values[0].to_owned();
+            let indexrecord = IndexRecord {
+                name,
+                len: values[1].parse::<u64>()?, // convert intErr to ParseError
+                offset: values[2].parse::<u64>()?,
+                line_bases: values[3].parse::<u64>()?,
+                line_bytes: values[4].parse::<u64>()?,
+            };
+            name_to_rid.insert(indexrecord.name.clone(),rid);
+            inner.push(indexrecord);
+        };
+        Ok(Index{inner, name_to_rid})
+    }
+
+    /// Open a FASTA index file from a given path.
+    pub fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Result<Index, IndexError>> {
+        File::open(path).map(Index::new)
+    }
+
+    /// Infer the path to the index file from the path to the given FASTA file.
+    pub fn from_fasta_path<P: AsRef<Path>>(path: P) -> io::Result<Result<Index, IndexError>> {
+        let mut path = path.as_ref().as_os_str().to_owned();
+        path.push(".fai");
+        Index::from_path(path)
+    }
+}
+
+
 /// Record of a FASTA index.
 #[derive(Clone, Eq, PartialEq, Debug)]
-struct IndexRecord {
-    name: String,
-    len: u64,
+pub struct IndexRecord {
+    pub name: String,
+    pub len: u64,
     offset: u64,
     line_bases: u64,
     line_bytes: u64,
@@ -400,151 +443,158 @@ pub struct IndexedReader<R: io::Read> {
     index: Index,
     start: Option<u64>,
     end: Option<u64>,
-    fetched_id: Option<IndexRecord>,
+    pub fetched_id: Option<IndexRecord>,
 }
 
 impl IndexedReader<File> {
-    // TODO!!
-    pub fn from_path<P: AsRef<Path>>(path: P) -> io::Result<IndexedReader<File>> {
-        let reader = File::open(path).map(Reader::new).unwrap();
-        let mut _inner = Vec::new();
-        _inner.push(IndexRecord {
-            name: String::from("xxx"),
-            len: 10,
-            offset: 5,
-            line_bases: 5,
-            line_bytes: 6,
-        });
-        _inner.push(IndexRecord {
-            name: String::from("yyy"),
-            len: 10,
-            offset: 22,
-            line_bases: 10,
-            line_bytes: 11,
-        });
-        _inner.push(IndexRecord {
-            name: String::from("zzz"),
-            len: 2,
-            offset: 38,
-            line_bases: 2,
-            line_bytes: 3,
-        });
-        let mut _name_map = collections::HashMap::new();
-        _name_map.insert(String::from("xxx"), 0);
-        _name_map.insert(String::from("yyy"), 1);
-        _name_map.insert(String::from("zzz"), 2);
-        let index = Index{ // just a dummy index
-            inner: _inner,
-            name_to_rid: _name_map,
+    /// Read a FASTA file and its index from a given path.
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<IndexedReader<File>, IndexError> {
+        // Judge fai file exist firstly
+        let index = match Index::from_fasta_path(path.as_ref()) {
+            Ok(Ok(index)) => index,
+            Ok(Err(e)) => return Err(e),
+            _ => return Err(IndexError::new_fai_io_err(path.as_ref().display())),
         };
-        Ok(IndexedReader{reader, index, start: None, end: None, fetched_id: None })
-        }
+        let reader = Reader::from_path(path)?;
+        Ok(IndexedReader {
+            reader,
+            index,
+            start: None,
+            end: None,
+            fetched_id: None,
+        })
+    }
 }
 
 impl<R: io::Read + Seek> IndexedReader<R> {
 
-    pub fn fetch(&mut self, seq_name: &str, start: u64, end: u64) -> io::Result<()> {
-        let rid = self.index.name_to_rid.get(seq_name).unwrap();
-        let id = self.index.inner[*rid].clone();
+    /// fetch to a given region
+    fn fetch(&mut self, seq_name: &str, start: Option<u64>, end: Option<u64>) -> Result<(), IndexError> {
+        let rid = match self.index.name_to_rid.get(seq_name) {
+            Some(rid) => rid,
+            None => return Err(IndexError::new_seq_name_err(seq_name)),
+        };
+        let id = self.index.inner[*rid].clone(); // rid should be in inner
         self.fetched_id = Some(id);
-        self.start = Some(start);
-        self.end = Some(end);
+        self.start = start;
+        self.end = end;
         Ok(())
     }
 
+    /// seek to the position of the given record and start
     fn seek_to(&mut self, rid: &IndexRecord, start: u64) -> io::Result<u64> {
-        let crt_line_offset = start % rid.line_bases;
-        println!("crt_line_offset: {}", crt_line_offset);
-        let crt_line_start = start / rid.line_bases * rid.line_bytes;
-        println!("crt_line_start: {}", crt_line_start);
-        let crt_offset = rid.offset + crt_line_start + crt_line_offset;
-        println!("crt_offset: {}", crt_offset);
+        let crt_line_offset = start % rid.line_bases; // current line offset
+        let crt_line_start = start / rid.line_bases * rid.line_bytes; // current line start
+        let crt_offset = rid.offset + crt_line_start + crt_line_offset; // current offset
         self.reader.buf_reader.seek(SeekFrom::Start(crt_offset))?;
         Ok(crt_line_offset)
     }
 
+    /// read sub sequence into a buffer
     fn read_into_buffer(
         &mut self,
-        rid: IndexRecord,
+        rid: &IndexRecord,
         start: u64,
         end: u64,
         seq: &mut Vec<u8>
-    ) -> io::Result<()>
+    ) -> Result<(), IndexError>
     {
-        let mut bases_left = end - start;
-        let mut line_offset = self.seek_to(&rid, start).unwrap();
+        // initialize
+        let mut bases_rest = end - start;
+        let mut line_offset = self.seek_to(rid, start)?;
         seq.clear();
-        while bases_left > 0 {
-            println!("bases_left: {}", bases_left);
-            let bases_read = self.read_line(&rid, &mut line_offset, bases_left, seq).unwrap();
-            println!("bases_read: {}", bases_read);
-            bases_left -= bases_read;
+        // start reading
+        while bases_rest > 0 {
+            let bases_read = self.read_line(rid, &mut line_offset, bases_rest, seq)?;
+            bases_rest -= bases_read;
         }
         Ok(())
     }
+
+    /// read a line into a buffer
     fn read_line(
         &mut self,
         rid: &IndexRecord,
         line_offset: &mut u64,
-        bases_left: u64,
-        seq: &mut Vec<u8>) -> io::Result<u64>
+        bases_rest: u64,
+        seq: &mut Vec<u8>) -> Result<u64, IndexError>
     {
-        match fill_buf(&mut self.reader.buf_reader) {
-            Ok(n) => {
-                if n == 0 {
-                    self.reader.finished = true;
-                    // return None;
-                }
-            }
-            Err(e) => {
-                // return Some(Err(e.into()));
-            }
-        };
-        let src = self.reader.get_buf();
-        println!("src: {:?}", src);
+        // fill buffer and get buffer
+        let src = self.reader.buf_reader.fill_buf()?;
+
+        // get rest bases on current line
         let rest_bases_on_crt_line = rid.line_bases - min(*line_offset, rid.line_bases);
-        println!("rest_bases_on_crt_line: {}", rest_bases_on_crt_line);
-        let rest_bases_in_crt_buffer = min(rest_bases_on_crt_line, src.len() as u64);
-        println!("rest_bases_in_crt_buffer: {}", rest_bases_in_crt_buffer);
-        let (bytes_to_read, bytes_to_keep) = if rest_bases_in_crt_buffer <= bases_left {
+        // get rest bases on current buffer
+        let rest_bases_on_crt_buffer = min(rest_bases_on_crt_line, src.len() as u64);
+
+        // compute bytes to read and bytes to keep
+        let (bytes_to_read, bytes_to_keep) = if rest_bases_on_crt_buffer <= bases_rest {
             let bytes_to_read = min(src.len() as u64, rid.line_bytes - *line_offset);
 
-            (bytes_to_read, rest_bases_in_crt_buffer)
+            (bytes_to_read, rest_bases_on_crt_buffer)
         } else {
-            (bases_left, bases_left)
+            (bases_rest, bases_rest)
         };
-        println!("bytes_to_read: {}, bytes_to_keep: {}", bytes_to_read, bytes_to_keep);
+
+        // extend seq from src slice
         seq.extend_from_slice(&src[..bytes_to_keep as usize]);
 
+        // consume bytes_to_read in buffer
         self.reader.buf_reader.consume(bytes_to_read as usize);
+
+        // move line_offset
         *line_offset += bytes_to_read;
-        println!("line_offset: {}", line_offset);
+        // stop at the end of line
         if *line_offset >= rid.line_bytes {
             *line_offset = 0;
         }
-        Ok(bytes_to_keep)
 
+        Ok(bytes_to_keep)
     }
 
-    pub fn test_fetch(&mut self, seq_name: &str, start: u64, end: u64) -> Vec<u8> {
-        self.fetch(seq_name, start, end).unwrap();
+    pub fn subseq(&mut self, seq_name: &str, start: Option<u64>, end: Option<u64>) -> Result<SubSequence, IndexError> {
+        // fetch to the given region
+        self.fetch(seq_name, start, end)?;
+
+        // get the rid and the true start and end
+        let rid = self.fetched_id.clone().unwrap(); // a safe unwrap
+        let start = self.start.unwrap_or(0); // None -> 0
+        let end = self.end.unwrap_or(rid.len); // None -> length
+
+        // check if the region is valid
+        if start > end || end > rid.len { // don't judge if start < 0 due to u64
+            return Err(IndexError::new_invalid_region_err());
+        }
+
+        // prepare the buffer
         let mut seq = Vec::new();
-        let rid = self.fetched_id.clone().unwrap();
-        self.read_into_buffer(rid, start, end, &mut seq).unwrap();
-        // println!("seq: {:?}", seq);
-        seq
+
+        // read into the buffer
+        self.read_into_buffer(&rid, start, end, &mut seq)?;
+
+        // return the subsequence
+        Ok(SubSequence {
+            seq,
+            name: rid.name,
+            start,
+            end,
+        })
     }
 }
 
 /// A sub sequence of a FASTA record
-#[derive(Debug)]
-struct SubSequence<'a> {
-    record: &'a [u8],
-    name: &'a String,
-    start: usize,
-    end: usize,
-    reverse: bool,
-    complement: bool,
+pub struct SubSequence {
+    pub seq: Vec<u8>,
+    pub name: String,
+    pub start: u64,
+    pub end: u64,
+}
+
+impl fmt::Display for SubSequence {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let seq_str = str::from_utf8(&self.seq).unwrap();
+        write!(f, ">{}:{}-{}\n{}", self.name, self.start, self.end, seq_str)
+    }
 }
 
 #[cfg(test)]
