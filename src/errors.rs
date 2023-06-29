@@ -2,9 +2,9 @@
 
 use crate::parser::Format;
 use std::error::Error as StdError;
-use std::{fmt, num};
 use std::io;
 use std::path::Display;
+use std::{fmt, num};
 
 /// Represents where we were in a file when an error occurred.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -70,39 +70,38 @@ pub struct IndexError {
 }
 
 impl IndexError {
-
     pub fn new_fai_format_err() -> Self {
         IndexError {
             msg: String::from("Fai index format parse error, please check the format."),
-            kind:IndexErrorKind::FaiFormatError,
+            kind: IndexErrorKind::FaiFormatError,
         }
     }
 
     pub fn new_fai_io_err(path: Display) -> Self {
         IndexError {
             msg: format!("Fai index file of `{}` read error.", path),
-            kind:IndexErrorKind::FaiIo,
+            kind: IndexErrorKind::FaiIo,
         }
     }
 
     pub fn new_seq_name_err(seq_name: &str) -> Self {
         IndexError {
             msg: format!("Unknown sequence name `{}` in fasta file.", seq_name),
-            kind:IndexErrorKind::UnknownSeqName,
+            kind: IndexErrorKind::UnknownSeqName,
         }
     }
 
     pub fn new_invalid_region_err() -> Self {
         IndexError {
             msg: String::from("Invalid query region."),
-            kind:IndexErrorKind::InvalidRegion,
+            kind: IndexErrorKind::InvalidRegion,
         }
     }
 
     pub fn new_io_err() -> Self {
         IndexError {
             msg: String::from("IO error."),
-            kind:IndexErrorKind::Io,
+            kind: IndexErrorKind::Io,
         }
     }
 }
@@ -219,7 +218,6 @@ impl From<io::Error> for ParseError {
         }
     }
 }
-
 
 impl From<num::ParseIntError> for IndexError {
     fn from(err: num::ParseIntError) -> IndexError {

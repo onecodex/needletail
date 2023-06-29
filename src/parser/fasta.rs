@@ -1,21 +1,20 @@
 //! The vast majority of the code is taken from https://github.com/markschl/seq_io/blob/master/src/fasta.rs
 
-use crate::errors::{ErrorPosition, ParseError, IndexError};
+use crate::errors::{ErrorPosition, IndexError, ParseError};
 use crate::parser::record::SequenceRecord;
 use crate::parser::utils::{
     fill_buf, find_line_ending, grow_to, trim_cr, FastxReader, Format, LineEnding, Position,
     BUFSIZE,
 };
+use buffer_redux::BufReader;
 use memchr::{memchr2, Memchr};
 use std::borrow::Cow;
-use std::fs::File;
-use std::{collections, fmt, io};
 use std::cmp::min;
+use std::fs::File;
 use std::io::{BufRead, Seek, SeekFrom};
 use std::path::Path;
-use buffer_redux::BufReader;
 use std::str;
-
+use std::{collections, fmt, io};
 
 #[derive(Clone, Debug)]
 pub struct BufferPosition {
@@ -386,18 +385,15 @@ struct Index {
     name_to_rid: collections::HashMap<String, usize>,
 }
 
-
-
-impl Index
-{
+impl Index {
     /// Create a new index from a faidx file.
-    fn new<R:io::Read>(fai: R) -> Result<Index, IndexError> {
+    fn new<R: io::Read>(fai: R) -> Result<Index, IndexError> {
         let mut inner = Vec::new();
         let mut name_to_rid = collections::HashMap::new();
         for (rid, line) in BufReader::new(fai).lines().flatten().enumerate() {
             let values: Vec<&str> = line.split(char::is_whitespace).collect();
             if values.len() != 5 {
-                return Err(IndexError::new_fai_format_err())
+                return Err(IndexError::new_fai_format_err());
             }
             let name = values[0].to_owned();
             let indexrecord = IndexRecord {
@@ -407,10 +403,10 @@ impl Index
                 line_bases: values[3].parse::<u64>()?,
                 line_bytes: values[4].parse::<u64>()?,
             };
-            name_to_rid.insert(indexrecord.name.clone(),rid);
+            name_to_rid.insert(indexrecord.name.clone(), rid);
             inner.push(indexrecord);
-        };
-        Ok(Index{inner, name_to_rid})
+        }
+        Ok(Index { inner, name_to_rid })
     }
 
     /// Open a FASTA index file from a given path.
@@ -425,7 +421,6 @@ impl Index
         Index::from_path(path)
     }
 }
-
 
 /// Record of a FASTA index.
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -467,9 +462,13 @@ impl IndexedReader<File> {
 }
 
 impl<R: io::Read + Seek> IndexedReader<R> {
-
     /// fetch to a given region
-    fn fetch(&mut self, seq_name: &str, start: Option<u64>, end: Option<u64>) -> Result<(), IndexError> {
+    fn fetch(
+        &mut self,
+        seq_name: &str,
+        start: Option<u64>,
+        end: Option<u64>,
+    ) -> Result<(), IndexError> {
         let rid = match self.index.name_to_rid.get(seq_name) {
             Some(rid) => rid,
             None => return Err(IndexError::new_seq_name_err(seq_name)),
@@ -496,9 +495,8 @@ impl<R: io::Read + Seek> IndexedReader<R> {
         rid: &IndexRecord,
         start: u64,
         end: u64,
-        seq: &mut Vec<u8>
-    ) -> Result<(), IndexError>
-    {
+        seq: &mut Vec<u8>,
+    ) -> Result<(), IndexError> {
         // initialize
         let mut bases_rest = end - start;
         let mut line_offset = self.seek_to(rid, start)?;
@@ -517,8 +515,8 @@ impl<R: io::Read + Seek> IndexedReader<R> {
         rid: &IndexRecord,
         line_offset: &mut u64,
         bases_rest: u64,
-        seq: &mut Vec<u8>) -> Result<u64, IndexError>
-    {
+        seq: &mut Vec<u8>,
+    ) -> Result<u64, IndexError> {
         // fill buffer and get buffer
         let src = self.reader.buf_reader.fill_buf()?;
 
@@ -552,7 +550,12 @@ impl<R: io::Read + Seek> IndexedReader<R> {
         Ok(bytes_to_keep)
     }
 
-    pub fn subseq(&mut self, seq_name: &str, start: Option<u64>, end: Option<u64>) -> Result<SubSequence, IndexError> {
+    pub fn subseq(
+        &mut self,
+        seq_name: &str,
+        start: Option<u64>,
+        end: Option<u64>,
+    ) -> Result<SubSequence, IndexError> {
         // fetch to the given region
         self.fetch(seq_name, start, end)?;
 
@@ -562,7 +565,8 @@ impl<R: io::Read + Seek> IndexedReader<R> {
         let end = self.end.unwrap_or(rid.len); // None -> length
 
         // check if the region is valid
-        if start > end || end > rid.len { // don't judge if start < 0 due to u64
+        if start > end || end > rid.len {
+            // don't judge if start < 0 due to u64
             return Err(IndexError::new_invalid_region_err());
         }
 

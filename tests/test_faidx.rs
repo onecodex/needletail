@@ -1,10 +1,8 @@
 use needletail::errors::IndexErrorKind;
 use needletail::parser::IndexedReader;
 
-
 #[test]
 fn test_faidx() {
-
     let mut fai_reader = IndexedReader::from_path("tests/data/test_index.fa").unwrap();
 
     let subseq1 = fai_reader.subseq("xxx", Some(2), Some(8)).unwrap();
@@ -33,13 +31,22 @@ fn test_faidx() {
     println!("{}", subseq4);
 
     let unknown_seq = fai_reader.subseq("unknown", None, None);
-    assert_eq!(unknown_seq.err().unwrap().kind, IndexErrorKind::UnknownSeqName);
+    assert_eq!(
+        unknown_seq.err().unwrap().kind,
+        IndexErrorKind::UnknownSeqName
+    );
 
     let invalid_region1 = fai_reader.subseq("xxx", Some(8), Some(2));
-    assert_eq!(invalid_region1.err().unwrap().kind, IndexErrorKind::InvalidRegion);
+    assert_eq!(
+        invalid_region1.err().unwrap().kind,
+        IndexErrorKind::InvalidRegion
+    );
 
     let invalid_region2 = fai_reader.subseq("xxx", Some(2), Some(6666));
-    assert_eq!(invalid_region2.err().unwrap().kind, IndexErrorKind::InvalidRegion);
+    assert_eq!(
+        invalid_region2.err().unwrap().kind,
+        IndexErrorKind::InvalidRegion
+    );
 
     // fai not exist
     let fai_reader = IndexedReader::from_path("tests/data/fai_no_exist.fa");
@@ -47,5 +54,8 @@ fn test_faidx() {
 
     // fai format error
     let fai_reader = IndexedReader::from_path("tests/data/bad_fai.fa");
-    assert_eq!(fai_reader.err().unwrap().kind, IndexErrorKind::FaiFormatError);
+    assert_eq!(
+        fai_reader.err().unwrap().kind,
+        IndexErrorKind::FaiFormatError
+    );
 }
