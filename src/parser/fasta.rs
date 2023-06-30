@@ -463,7 +463,7 @@ impl IndexedReader<File> {
 
 impl<R: io::Read + Seek> IndexedReader<R> {
     /// fetch to a given region
-    fn fetch(
+    pub fn fetch(
         &mut self,
         seq_name: &str,
         start: Option<u64>,
