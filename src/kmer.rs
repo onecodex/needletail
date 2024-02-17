@@ -177,19 +177,19 @@ mod tests {
             match i {
                 0 => {
                     assert_eq!(k, b"A");
-                    assert_eq!(is_c, false);
+                    assert!(!is_c);
                 }
                 1 => {
                     assert_eq!(k, b"C");
-                    assert_eq!(is_c, true);
+                    assert!(is_c);
                 }
                 2 => {
                     assert_eq!(k, b"C");
-                    assert_eq!(is_c, false);
+                    assert!(!is_c);
                 }
                 3 => {
                     assert_eq!(k, b"A");
-                    assert_eq!(is_c, true);
+                    assert!(is_c);
                 }
                 _ => unreachable!("Too many kmers"),
             }
