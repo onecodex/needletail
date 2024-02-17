@@ -97,10 +97,7 @@ impl ParseError {
     }
 
     pub fn new_unequal_length(seq_len: usize, qual_len: usize, position: ErrorPosition) -> Self {
-        let msg = format!(
-            "Sequence length is {} but quality length is {}",
-            seq_len, qual_len
-        );
+        let msg = format!("Sequence length is {seq_len} but quality length is {qual_len}");
         Self {
             kind: ParseErrorKind::UnequalLengths,
             msg,
