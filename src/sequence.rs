@@ -326,20 +326,32 @@ mod tests {
 
     #[test]
     fn test_normalize() {
-        assert_eq!(normalize(b"ACGTU", false), Some(b"ACGTT".to_vec()));
-        assert_eq!(normalize(b"acgtu", false), Some(b"ACGTT".to_vec()));
-
-        assert_eq!(normalize(b"N.N-N~N N", false), Some(b"N-N-N-NN".to_vec()));
-
-        assert_eq!(normalize(b"BDHVRYSWKM", true), None);
-        assert_eq!(normalize(b"bdhvryswkm", true), Some(b"BDHVRYSWKM".to_vec()));
         assert_eq!(
-            normalize(b"BDHVRYSWKM", false),
-            Some(b"NNNNNNNNNN".to_vec())
+            normalize(b"ACGTU", false).as_deref(),
+            Some(b"ACGTT".as_slice())
         );
         assert_eq!(
-            normalize(b"bdhvryswkm", false),
-            Some(b"NNNNNNNNNN".to_vec())
+            normalize(b"acgtu", false).as_deref(),
+            Some(b"ACGTT".as_slice())
+        );
+
+        assert_eq!(
+            normalize(b"N.N-N~N N", false).as_deref(),
+            Some(b"N-N-N-NN".as_slice())
+        );
+
+        assert_eq!(normalize(b"BDHVRYSWKM", true), None);
+        assert_eq!(
+            normalize(b"bdhvryswkm", true).as_deref(),
+            Some(b"BDHVRYSWKM".as_slice())
+        );
+        assert_eq!(
+            normalize(b"BDHVRYSWKM", false).as_deref(),
+            Some(b"NNNNNNNNNN".as_slice())
+        );
+        assert_eq!(
+            normalize(b"bdhvryswkm", false).as_deref(),
+            Some(b"NNNNNNNNNN".as_slice())
         );
     }
 
@@ -353,11 +365,11 @@ mod tests {
 
     #[test]
     fn can_canonicalize() {
-        assert_eq!(canonical(b"A"), Cow::Borrowed(b"A"));
-        assert_eq!(canonical(b"T"), Cow::Owned::<[u8]>(b"A".to_vec()));
-        assert_eq!(canonical(b"AAGT"), Cow::Borrowed(b"AAGT"));
-        assert_eq!(canonical(b"ACTT"), Cow::Owned::<[u8]>(b"AAGT".to_vec()));
-        assert_eq!(canonical(b"GC"), Cow::Borrowed(b"GC"));
+        assert_eq!(canonical(b"A").as_ref(), b"A");
+        assert_eq!(canonical(b"T").as_ref(), b"A");
+        assert_eq!(canonical(b"AAGT").as_ref(), b"AAGT");
+        assert_eq!(canonical(b"ACTT").as_ref(), b"AAGT");
+        assert_eq!(canonical(b"GC").as_ref(), b"GC");
     }
 
     #[test]
