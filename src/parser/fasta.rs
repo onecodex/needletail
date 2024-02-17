@@ -383,7 +383,7 @@ mod tests {
     use crate::errors::ParseErrorKind;
 
     fn seq(s: &[u8]) -> Cursor<&[u8]> {
-        Cursor::new(&s[..])
+        Cursor::new(s)
     }
 
     #[test]
