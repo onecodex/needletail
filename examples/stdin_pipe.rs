@@ -25,6 +25,6 @@ fn main() {
             }
         }
     }
-    println!("There are {} bases in your file.", n_bases);
-    println!("There are {} AAAAs in your file.", n_valid_kmers);
+    println!("There are {n_bases} bases in your file.");
+    println!("There are {n_valid_kmers} AAAAs in your file.");
 }
