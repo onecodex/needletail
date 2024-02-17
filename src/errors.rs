@@ -24,7 +24,7 @@ impl fmt::Display for ErrorPosition {
 }
 
 /// The type of error that occured during file parsing
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ParseErrorKind {
     /// An error happened during file/stream input/output
     Io,
@@ -43,7 +43,7 @@ pub enum ParseErrorKind {
 }
 
 /// The only error type that needletail returns
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseError {
     /// A description of what went wrong
     pub msg: String,
