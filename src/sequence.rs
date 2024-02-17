@@ -45,7 +45,7 @@ pub fn normalize(seq: &[u8], allow_iupac: bool) -> Option<Vec<u8>> {
             (b'k', true) => (b'K', true),
             (b'm', true) => (b'M', true),
             // remove all whitespace and line endings
-            (b' ', _) | (b'\t', _) | (b'\r', _) | (b'\n', _) => (b' ', true),
+            (b' ' | b'\t' | b'\r' | b'\n', _) => (b' ', true),
             // everything else is an N
             _ => (b'N', true),
         };
