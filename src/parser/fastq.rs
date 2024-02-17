@@ -75,7 +75,7 @@ enum SearchPosition {
 /// Parser for FASTQ files.
 /// Only use this directly if you know your file is FASTQ and that it is not compressed as
 /// it does not handle decompression.
-/// If you are unsure, it's better to use [parse_fastx_file](fn.parse_fastx_file.html).
+/// If you are unsure, it's better to use [`parse_fastx_file`](fn.parse_fastx_file.html).
 pub struct Reader<R: io::Read> {
     buf_reader: buffer_redux::BufReader<R>,
     buf_pos: BufferPosition,
@@ -151,7 +151,7 @@ where
     /// Reads the current record and returns true if found.
     /// Returns false if incomplete because end of buffer reached,
     /// meaning that the last record may be incomplete.
-    /// Updates self.search_pos.
+    /// Updates `self.search_pos`.
     fn find(&mut self) -> Result<bool, ParseError> {
         self.buf_pos.seq = match self.find_line(self.buf_pos.start) {
             Some(p) => p,

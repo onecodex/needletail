@@ -21,7 +21,7 @@ fn nuc2bti_lookup_nocheck(nuc: u8) -> Option<u8> {
     unsafe { *NUC2BIT_LOOKUP.get_unchecked(nuc as usize) }
 }
 
-/// Takes a BitKmer and adds a new base on the end, optionally loping off the
+/// Takes a `BitKmer` and adds a new base on the end, optionally loping off the
 /// first base if the resulting kmer is too long.
 fn extend_kmer(kmer: &mut BitKmer, new_char: u8) -> bool {
     if let Some(new_char_int) = nuc2bti_lookup_nocheck(new_char) {
@@ -35,7 +35,7 @@ fn extend_kmer(kmer: &mut BitKmer, new_char: u8) -> bool {
     }
 }
 
-/// Used for the BitNuclKmer iterator to handle skipping invalid bases.
+/// Used for the `BitNuclKmer` iterator to handle skipping invalid bases.
 fn update_position(
     start_pos: &mut usize,
     kmer: &mut BitKmer,
@@ -108,7 +108,7 @@ impl<'a> Iterator for BitNuclKmer<'a> {
     }
 }
 
-/// Reverse complement a BitKmer (reverses the sequence and swaps A<>T and G<>C)
+/// Reverse complement a `BitKmer` (reverses the sequence and swaps A<>T and G<>C)
 pub fn reverse_complement(kmer: BitKmer) -> BitKmer {
     // FIXME: this is not going to work with BitKmers of u128 or u32
     // inspired from https://www.biostars.org/p/113640/
@@ -126,8 +126,8 @@ pub fn reverse_complement(kmer: BitKmer) -> BitKmer {
     (new_kmer, kmer.1)
 }
 
-/// Return the lexigraphically lowest of the BitKmer and its reverse complement and
-/// whether the returned kmer is the reverse_complement (true) or the original (false)
+/// Return the lexigraphically lowest of the `BitKmer` and its reverse complement and
+/// whether the returned kmer is the `reverse_complement` (true) or the original (false)
 pub fn canonical(kmer: BitKmer) -> (BitKmer, bool) {
     let rc = reverse_complement(kmer);
     if kmer.0 > rc.0 {
@@ -137,7 +137,7 @@ pub fn canonical(kmer: BitKmer) -> (BitKmer, bool) {
     }
 }
 
-/// Find the lexicographically lowest substring of a given length in the BitKmer
+/// Find the lexicographically lowest substring of a given length in the `BitKmer`
 pub fn minimizer(kmer: BitKmer, minmer_size: u8) -> BitKmer {
     let mut new_kmer = kmer.0;
     let mut lowest = !0;

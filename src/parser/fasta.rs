@@ -110,7 +110,7 @@ impl BufferPosition {
 /// Parser for FASTA files.
 /// Only use this directly if you know your file is FASTA and that it is not compressed as
 /// it does not handle decompression.
-/// If you are unsure, it's better to use [parse_fastx_file](fn.parse_fastx_file.html).
+/// If you are unsure, it's better to use [`parse_fastx_file`](fn.parse_fastx_file.html).
 pub struct Reader<R: io::Read> {
     buf_reader: buffer_redux::BufReader<R>,
     buf_pos: BufferPosition,

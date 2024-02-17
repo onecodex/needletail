@@ -274,13 +274,13 @@ impl<'a> Sequence<'a> for Cow<'a, [u8]> {
 /// quality information.
 ///
 /// Will be stabilized once we figure out a good way to handle sequences that
-/// have _optional_ quality information (like SequenceRecord) because the
+/// have _optional_ quality information (like `SequenceRecord`) because the
 /// return trait requires a slice from an immutable reference and
-/// SequenceRecords can't return that without modifying themselves.
+/// `SequenceRecords` can't return that without modifying themselves.
 pub trait QualitySequence<'a>: Sequence<'a> {
     fn quality(&'a self) -> &'a [u8];
 
-    /// Given a SeqRecord and a quality cutoff, mask out low-quality bases with
+    /// Given a `SeqRecord` and a quality cutoff, mask out low-quality bases with
     /// `N` characters.
     fn quality_mask(&'a self, score: u8) -> Cow<'a, [u8]> {
         let qual = self.quality();
