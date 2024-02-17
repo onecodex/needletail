@@ -46,7 +46,7 @@ seq_io = "0.3"
 # for testing with the FormatSpecimens.jl repo samples
 serde = "1.0"
 serde_derive = "1.0"
-toml = "0.7"
+toml = "0.8"
 
 [profile.release]
 lto = true
