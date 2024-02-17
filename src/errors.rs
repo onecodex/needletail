@@ -17,7 +17,7 @@ pub struct ErrorPosition {
 impl fmt::Display for ErrorPosition {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(id) = self.id.as_ref() {
-            write!(f, "record '{}' at ", id)?;
+            write!(f, "record '{id}' at ")?;
         }
         write!(f, "line {}", self.line)
     }
