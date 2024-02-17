@@ -174,7 +174,7 @@ pub fn bitmer_to_bytes(kmer: BitKmer) -> Vec<u8> {
             1 => b'C',
             2 => b'G',
             3 => b'T',
-            _ => panic!("Mathematical impossibility"),
+            _ => unreachable!("Mathematical impossibility"),
         });
     }
     new_kmer_str
