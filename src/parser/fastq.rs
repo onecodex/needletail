@@ -570,7 +570,7 @@ mod test {
                 }
                 _ => unreachable!("Too many records"),
             }
-            i += 1
+            i += 1;
         }
         assert_eq!(i, 2);
     }
