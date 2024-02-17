@@ -200,9 +200,8 @@ mod tests {
         let c_iter = CanonicalKmers::new(seq, &rc_seq, 2);
         for (i, (_, k, _)) in c_iter.enumerate() {
             match i {
-                0 => assert_eq!(k, b"AG"),
+                0 | 2 => assert_eq!(k, b"AG"),
                 1 => assert_eq!(k, b"GC"),
-                2 => assert_eq!(k, b"AG"),
                 3 => assert_eq!(k, b"TA"),
                 _ => unreachable!("Too many kmers"),
             }
