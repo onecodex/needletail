@@ -62,7 +62,7 @@ impl ParseError {
             format.start_char(),
             (byte_found as char).escape_default()
         );
-        ParseError {
+        Self {
             kind: ParseErrorKind::InvalidStart,
             msg,
             position,
@@ -75,7 +75,7 @@ impl ParseError {
             "Expected '+' separator but found '{}",
             (byte_found as char).escape_default()
         );
-        ParseError {
+        Self {
             kind: ParseErrorKind::InvalidSeparator,
             msg,
             position,
@@ -88,7 +88,7 @@ impl ParseError {
             "Expected '@' or '>' at the start of the file but found '{}'.",
             (byte_found as char).escape_default()
         );
-        ParseError {
+        Self {
             kind: ParseErrorKind::UnknownFormat,
             msg,
             position: ErrorPosition::default(),
@@ -101,7 +101,7 @@ impl ParseError {
             "Sequence length is {} but quality length is {}",
             seq_len, qual_len
         );
-        ParseError {
+        Self {
             kind: ParseErrorKind::UnequalLengths,
             msg,
             position,
@@ -110,7 +110,7 @@ impl ParseError {
     }
 
     pub fn new_unexpected_end(position: ErrorPosition, format: Format) -> Self {
-        ParseError {
+        Self {
             msg: String::new(),
             kind: ParseErrorKind::UnexpectedEnd,
             position,
@@ -119,7 +119,7 @@ impl ParseError {
     }
 
     pub fn new_empty_file() -> Self {
-        ParseError {
+        Self {
             msg: String::from("Failed to read the first two bytes. Is the file empty?"),
             kind: ParseErrorKind::EmptyFile,
             position: ErrorPosition::default(),
@@ -145,8 +145,8 @@ impl fmt::Display for ParseError {
 }
 
 impl From<io::Error> for ParseError {
-    fn from(err: io::Error) -> ParseError {
-        ParseError {
+    fn from(err: io::Error) -> Self {
+        Self {
             msg: err.to_string(),
             kind: ParseErrorKind::Io,
             position: ErrorPosition::default(),

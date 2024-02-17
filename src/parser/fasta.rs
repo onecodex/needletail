@@ -137,16 +137,16 @@ where
     /// assert_eq!(record.id(), b"id")
     /// ```
     #[inline]
-    pub fn new(reader: R) -> Reader<R> {
-        Reader::with_capacity(reader, BUFSIZE)
+    pub fn new(reader: R) -> Self {
+        Self::with_capacity(reader, BUFSIZE)
     }
 
     /// Creates a new reader with a given buffer capacity. The minimum allowed
     /// capacity is 3.
     #[inline]
-    pub fn with_capacity(reader: R, capacity: usize) -> Reader<R> {
+    pub fn with_capacity(reader: R, capacity: usize) -> Self {
         assert!(capacity >= 3);
-        Reader {
+        Self {
             buf_reader: buffer_redux::BufReader::with_capacity(capacity, reader),
             buf_pos: BufferPosition {
                 start: 0,
@@ -173,8 +173,8 @@ impl Reader<File> {
     /// // (... do something with the reader)
     /// ```
     #[inline]
-    pub fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Reader<File>> {
-        File::open(path).map(Reader::new)
+    pub fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        File::open(path).map(Self::new)
     }
 }
 
