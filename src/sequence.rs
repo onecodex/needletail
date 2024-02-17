@@ -22,30 +22,18 @@ pub fn normalize(seq: &[u8], allow_iupac: bool) -> Option<Vec<u8>> {
 
     for n in seq.iter() {
         let (new_char, char_changed) = match (*n, allow_iupac) {
-            c @ (b'A', _)
-            | c @ (b'C', _)
-            | c @ (b'G', _)
-            | c @ (b'T', _)
-            | c @ (b'N', _)
-            | c @ (b'-', _) => (c.0, false),
+            c @ (b'A' | b'C' | b'G' | b'T' | b'N' | b'-', _) => (c.0, false),
             (b'a', _) => (b'A', true),
             (b'c', _) => (b'C', true),
             (b'g', _) => (b'G', true),
             // normalize uridine to thymine
-            (b't', _) | (b'u', _) | (b'U', _) => (b'T', true),
+            (b't' | b'u' | b'U', _) => (b'T', true),
             // normalize gaps
-            (b'.', _) | (b'~', _) => (b'-', true),
+            (b'.' | b'~', _) => (b'-', true),
             // logic for IUPAC bases (a little messy)
-            c @ (b'B', true)
-            | c @ (b'D', true)
-            | c @ (b'H', true)
-            | c @ (b'V', true)
-            | c @ (b'R', true)
-            | c @ (b'Y', true)
-            | c @ (b'S', true)
-            | c @ (b'W', true)
-            | c @ (b'K', true)
-            | c @ (b'M', true) => (c.0, false),
+            c @ (b'B' | b'D' | b'H' | b'V' | b'R' | b'Y' | b'S' | b'W' | b'K' | b'M', true) => {
+                (c.0, false)
+            }
             (b'b', true) => (b'B', true),
             (b'd', true) => (b'D', true),
             (b'h', true) => (b'H', true),
