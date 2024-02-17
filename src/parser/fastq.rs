@@ -153,36 +153,32 @@ where
     /// meaning that the last record may be incomplete.
     /// Updates `self.search_pos`.
     fn find(&mut self) -> Result<bool, ParseError> {
-        self.buf_pos.seq = match self.find_line(self.buf_pos.start) {
-            Some(p) => p,
-            None => {
-                self.search_pos = SearchPosition::Id;
-                return Ok(false);
-            }
+        self.buf_pos.seq = if let Some(p) = self.find_line(self.buf_pos.start) {
+            p
+        } else {
+            self.search_pos = SearchPosition::Id;
+            return Ok(false);
         };
 
-        self.buf_pos.sep = match self.find_line(self.buf_pos.seq) {
-            Some(p) => p,
-            None => {
-                self.search_pos = SearchPosition::Sequence;
-                return Ok(false);
-            }
+        self.buf_pos.sep = if let Some(p) = self.find_line(self.buf_pos.seq) {
+            p
+        } else {
+            self.search_pos = SearchPosition::Sequence;
+            return Ok(false);
         };
 
-        self.buf_pos.qual = match self.find_line(self.buf_pos.sep) {
-            Some(p) => p,
-            None => {
-                self.search_pos = SearchPosition::Separator;
-                return Ok(false);
-            }
+        self.buf_pos.qual = if let Some(p) = self.find_line(self.buf_pos.sep) {
+            p
+        } else {
+            self.search_pos = SearchPosition::Separator;
+            return Ok(false);
         };
 
-        self.buf_pos.end = match self.find_line(self.buf_pos.qual) {
-            Some(p) => p - 1,
-            None => {
-                self.search_pos = SearchPosition::Quality;
-                return Ok(false);
-            }
+        self.buf_pos.end = if let Some(p) = self.find_line(self.buf_pos.qual) {
+            p - 1
+        } else {
+            self.search_pos = SearchPosition::Quality;
+            return Ok(false);
         };
 
         self.validate()?;
@@ -195,42 +191,38 @@ where
     // The resulting position may still be incomplete (-> false).
     fn find_incomplete(&mut self) -> Result<bool, ParseError> {
         if self.search_pos == SearchPosition::Id {
-            self.buf_pos.seq = match self.find_line(self.buf_pos.start) {
-                Some(p) => p,
-                None => {
-                    self.search_pos = SearchPosition::Id;
-                    return Ok(false);
-                }
+            self.buf_pos.seq = if let Some(p) = self.find_line(self.buf_pos.start) {
+                p
+            } else {
+                self.search_pos = SearchPosition::Id;
+                return Ok(false);
             };
         }
 
         if self.search_pos <= SearchPosition::Sequence {
-            self.buf_pos.sep = match self.find_line(self.buf_pos.seq) {
-                Some(p) => p,
-                None => {
-                    self.search_pos = SearchPosition::Sequence;
-                    return Ok(false);
-                }
+            self.buf_pos.sep = if let Some(p) = self.find_line(self.buf_pos.seq) {
+                p
+            } else {
+                self.search_pos = SearchPosition::Sequence;
+                return Ok(false);
             };
         }
 
         if self.search_pos <= SearchPosition::Separator {
-            self.buf_pos.qual = match self.find_line(self.buf_pos.sep) {
-                Some(p) => p,
-                None => {
-                    self.search_pos = SearchPosition::Separator;
-                    return Ok(false);
-                }
+            self.buf_pos.qual = if let Some(p) = self.find_line(self.buf_pos.sep) {
+                p
+            } else {
+                self.search_pos = SearchPosition::Separator;
+                return Ok(false);
             };
         }
 
         if self.search_pos <= SearchPosition::Quality {
-            self.buf_pos.end = match self.find_line(self.buf_pos.qual) {
-                Some(p) => p - 1,
-                None => {
-                    self.search_pos = SearchPosition::Quality;
-                    return Ok(false);
-                }
+            self.buf_pos.end = if let Some(p) = self.find_line(self.buf_pos.qual) {
+                p - 1
+            } else {
+                self.search_pos = SearchPosition::Quality;
+                return Ok(false);
             };
         }
 
