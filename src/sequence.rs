@@ -20,7 +20,7 @@ pub fn normalize(seq: &[u8], allow_iupac: bool) -> Option<Vec<u8>> {
     let mut buf: Vec<u8> = Vec::with_capacity(seq.len());
     let mut changed: bool = false;
 
-    for n in seq.iter() {
+    for n in seq {
         let (new_char, char_changed) = match (*n, allow_iupac) {
             c @ (b'A' | b'C' | b'G' | b'T' | b'N' | b'-', _) => (c.0, false),
             (b'a', _) => (b'A', true),
