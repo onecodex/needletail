@@ -467,7 +467,7 @@ mod test {
     use crate::FastxReader;
 
     fn seq(s: &[u8]) -> Cursor<&[u8]> {
-        Cursor::new(&s[..])
+        Cursor::new(s)
     }
 
     #[test]
