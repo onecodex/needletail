@@ -108,9 +108,9 @@ pub fn find_line_ending(bytes: &[u8]) -> Option<LineEnding> {
         if let Some(idx) = memchr(b'\n', bytes) {
             if idx > 0 && bytes[idx - 1] == b'\r' {
                 return Some(LineEnding::Windows);
-            } else {
-                return Some(LineEnding::Unix);
             }
+
+            return Some(LineEnding::Unix);
         }
     }
     None
