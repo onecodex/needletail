@@ -23,7 +23,7 @@ impl fmt::Display for ErrorPosition {
     }
 }
 
-/// The type of error that occured during file parsing
+/// The type of error that occurred during file parsing
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseErrorKind {
     /// An error happened during file/stream input/output
