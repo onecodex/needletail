@@ -275,9 +275,9 @@ mod tests {
 
     #[test]
     fn test_bitmer_to_bytes() {
-        assert_eq!(bitmer_to_bytes((1 as BitKmerSeq, 1)), b"C".to_vec());
-        assert_eq!(bitmer_to_bytes((60 as BitKmerSeq, 3)), b"TTA".to_vec());
-        assert_eq!(bitmer_to_bytes((0 as BitKmerSeq, 3)), b"AAA".to_vec());
+        assert_eq!(bitmer_to_bytes((1 as BitKmerSeq, 1)), b"C");
+        assert_eq!(bitmer_to_bytes((60 as BitKmerSeq, 3)), b"TTA");
+        assert_eq!(bitmer_to_bytes((0 as BitKmerSeq, 3)), b"AAA");
     }
 
     pub fn bytes_to_bitmer(kmer: &[u8]) -> BitKmer {
