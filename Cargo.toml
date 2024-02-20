@@ -12,7 +12,7 @@ edition = "2021"
 include = ["src/**/*", "LICENSE", "README.md", "CHANGELOG.md"]
 
 [lib]
-crate-type=["cdylib", "rlib"]
+crate-type = ["cdylib", "rlib"]
 bench = false
 
 [features]
@@ -22,20 +22,20 @@ python = ["pyo3/extension-module"]
 python_test = ["pyo3"]
 
 [dependencies]
-flate2 = { version="1.0.6", optional=true }
-bzip2 = { version="0.4", optional=true }
-xz2 = { version="0.1.6", optional=true }
-pyo3 = { version = "0.18", optional = true }
-memchr = "2.2.1"
-bytecount = {version = "0.6", features = ["runtime-dispatch-simd"]}
 buffer-redux = { version = "1", default_features = false }
+bytecount = { version = "0.6", features = ["runtime-dispatch-simd"] }
+bzip2 = { version = "0.4", optional = true }
+flate2 = { version = "1.0.6", optional = true }
+memchr = "2.2.1"
+pyo3 = { version = "0.18", optional = true }
+xz2 = { version = "0.1.6", optional = true }
 
 [dev-dependencies]
-criterion = "0.4"
+criterion = "0.5"
 
 # for stdin test
-escargot = "0.5.0"
 assert_cmd = "2"
+escargot = "0.5.0"
 predicates = "3"
 tempfile = "3"
 
@@ -44,13 +44,12 @@ bio = "1"
 seq_io = "0.3"
 
 # for testing with the FormatSpecimens.jl repo samples
-toml = "0.7"
 serde = "1.0"
 serde_derive = "1.0"
+toml = "0.8"
 
 [profile.release]
 lto = true
-
 
 [[bench]]
 name = "benchmark"
