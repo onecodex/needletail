@@ -117,7 +117,7 @@ pub fn complement(n: u8) -> u8 {
 }
 
 /// Taking in a sequence string, return the canonical form of the sequence
-/// (e.g. the lexigraphically lowest of either the original sequence or its
+/// (e.g. the lexicographically lowest of either the original sequence or its
 /// reverse complement)
 pub fn canonical(seq: &[u8]) -> Cow<[u8]> {
     let mut buf: Vec<u8> = Vec::with_capacity(seq.len());
@@ -145,7 +145,7 @@ pub fn canonical(seq: &[u8]) -> Cow<[u8]> {
     }
 }
 
-/// Find the lexigraphically smallest substring of `seq` of length `length`
+/// Find the lexicographically smallest substring of `seq` of length `length`
 ///
 /// There's probably a faster algorithm for this somewhere...
 pub fn minimizer(seq: &[u8], length: usize) -> Cow<[u8]> {
