@@ -110,7 +110,7 @@ impl BufferPosition {
 /// Parser for FASTA files.
 /// Only use this directly if you know your file is FASTA and that it is not compressed as
 /// it does not handle decompression.
-/// If you are unsure, it's better to use [parse_fastx_file](fn.parse_fastx_file.html).
+/// If you are unsure, it's better to use [`parse_fastx_file`](fn.parse_fastx_file.html).
 pub struct Reader<R: io::Read> {
     buf_reader: buffer_redux::BufReader<R>,
     buf_pos: BufferPosition,
@@ -137,16 +137,16 @@ where
     /// assert_eq!(record.id(), b"id")
     /// ```
     #[inline]
-    pub fn new(reader: R) -> Reader<R> {
-        Reader::with_capacity(reader, BUFSIZE)
+    pub fn new(reader: R) -> Self {
+        Self::with_capacity(reader, BUFSIZE)
     }
 
     /// Creates a new reader with a given buffer capacity. The minimum allowed
     /// capacity is 3.
     #[inline]
-    pub fn with_capacity(reader: R, capacity: usize) -> Reader<R> {
+    pub fn with_capacity(reader: R, capacity: usize) -> Self {
         assert!(capacity >= 3);
-        Reader {
+        Self {
             buf_reader: buffer_redux::BufReader::with_capacity(capacity, reader),
             buf_pos: BufferPosition {
                 start: 0,
@@ -173,8 +173,8 @@ impl Reader<File> {
     /// // (... do something with the reader)
     /// ```
     #[inline]
-    pub fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Reader<File>> {
-        File::open(path).map(Reader::new)
+    pub fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        File::open(path).map(Self::new)
     }
 }
 
@@ -383,7 +383,7 @@ mod tests {
     use crate::errors::ParseErrorKind;
 
     fn seq(s: &[u8]) -> Cursor<&[u8]> {
-        Cursor::new(&s[..])
+        Cursor::new(s)
     }
 
     #[test]
