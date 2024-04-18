@@ -8,7 +8,7 @@ use bzip2::read::BzDecoder;
 #[cfg(feature = "flate2")]
 use flate2::read::MultiGzDecoder;
 #[cfg(feature = "xz2")]
-use xz2::read::XzDecoder;
+use liblzma::read::XzDecoder;
 
 use crate::errors::ParseError;
 pub use crate::parser::fasta::Reader as FastaReader;
