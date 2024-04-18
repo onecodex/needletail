@@ -26,9 +26,9 @@ xz2 = ["liblzma"]
 buffer-redux = { version = "1", default_features = false }
 bytecount = { version = "0.6", features = ["runtime-dispatch-simd"] }
 bzip2 = { version = "0.4", optional = true }
-flate2 = { version = "1.0.6", optional = true }
-memchr = "2.2.1"
-pyo3 = { version = "0.18", optional = true }
+flate2 = { version = "1.0.28", optional = true }
+memchr = "2.7.2"
+pyo3 = { version = "0.21.2", optional = true }
 liblzma = { version = "0.3.1", optional = true }
 
 [dev-dependencies]
