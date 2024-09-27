@@ -68,7 +68,7 @@ jobs:
 
 
       - name: Build wheels
-        id: build-wheels
+        id: build_wheels
         run: |
           . venv/bin/activate
           maturin build --features=python --release --strip --manylinux=off
@@ -78,7 +78,6 @@ jobs:
 
       - name: Upload built wheels as artifacts
         uses: actions/upload-artifact@v3
-        needs: build-wheels
         with:
           name: wheels-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.architecture }}
           path: ${{ steps.build_wheels.outputs.wheel_path }}
