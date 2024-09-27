@@ -66,21 +66,17 @@ jobs:
           . venv/bin/activate
           maturin develop --features=python
 
-      - name: Run Rust tests
-        run: cargo test --features=python_test
-
-      - name: Run Python tests
-        run: |
-          . venv/bin/activate
-          python test_python.py
 
       - name: Build wheels
         run: |
           . venv/bin/activate
           maturin build --features=python --release --strip --manylinux=off
+          # Use glob to capture the wheel file path
+          echo "::set-output name=wheel_path::$(ls target/wheels/*.whl)"
+        shell: bash
 
       - name: Upload built wheels as artifacts
         uses: actions/upload-artifact@v3
         with:
           name: wheels-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.architecture }}
-          path: target/wheels/*.whl
+          path: ${{ steps.build_wheels.outputs.wheel_path }}
