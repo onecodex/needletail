@@ -17,7 +17,7 @@ jobs:
             python-version: 3.12.6
             runner: macos-14
           - os: ubuntu-latest
-            architecture: x86
+            architecture: x64
             python-version: 3.12.6
             runner: ubuntu-latest
       fail-fast: false
