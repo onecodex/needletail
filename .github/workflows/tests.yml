@@ -77,4 +77,4 @@ jobs:
       - name: Build wheels
         run: |
           . venv/bin/activate
-          maturin build --features=python --release --strip --manylinux=off --target ${{ matrix.architecture }}
+          maturin build --features=python --release --strip --manylinux=off
