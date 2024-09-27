@@ -76,8 +76,25 @@ jobs:
           echo "::set-output name=wheel_path::$(ls target/wheels/*.whl)"
         shell: bash
 
-      - name: Upload built wheels as artifacts
-        uses: actions/upload-artifact@v3
+      - name: Upload wheel to GitHub release
+        uses: actions/upload-release-asset@v1
         with:
-          name: wheels-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.architecture }}
-          path: ${{ steps.build_wheels.outputs.wheel_path }}
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.build_wheels.outputs.wheel_path }}
+          asset_name: ${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.architecture }}.whl
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  finalize-release:
+    needs: build-wheels
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Publish GitHub release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          draft: false
+          token: ${{ secrets.GITHUB_TOKEN }}
