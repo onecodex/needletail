@@ -14,13 +14,13 @@ jobs:
         include:
           - os: macos-latest
             architecture: arm64
-            python-version: 3.12
+            python-version: 3.11
             runner: macos-14
           - os: ubuntu-latest
             architecture: x86
-            python-version: 3.12
+            python-version: 3.11
             runner: ubuntu-latest
-      fail-fast: true
+      fail-fast: false
 
     steps:
       - name: Checkout
