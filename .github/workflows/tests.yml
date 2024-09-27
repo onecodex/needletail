@@ -8,16 +8,18 @@ on:
 
 jobs:
   build-wheels:
+    runs-on: ${{ matrix.runner }}
     strategy:
-      include:
-        - os: macos-latest
-          architecture: arm64
-          runs-on: macos-14
-          python-version: 3.12
-        - os: ubuntu-latest
-          architecture: x86
-          runs-on: ubuntu-latest
-          python-version: 3.12
+      matrix:
+        include:
+          - os: macos-latest
+            architecture: arm64
+            python-version: 3.12
+            runner: macos-14
+          - os: ubuntu-latest
+            architecture: x86
+            python-version: 3.12
+            runner: ubuntu-latest
       fail-fast: true
 
     steps:
