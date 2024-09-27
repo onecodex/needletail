@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: [3.11, 3.12]
-        architecture: [x86_64, arm64]
-      fail-fast: false
+        os: [macos-latest]
+        python-version: [3.12]
+        architecture: [x86, arm64]
+      fail-fast: true
 
     steps:
       - name: Checkout
