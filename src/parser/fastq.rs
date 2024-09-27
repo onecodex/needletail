@@ -75,7 +75,7 @@ enum SearchPosition {
 /// Parser for FASTQ files.
 /// Only use this directly if you know your file is FASTQ and that it is not compressed as
 /// it does not handle decompression.
-/// If you are unsure, it's better to use [parse_fastx_file](fn.parse_fastx_file.html).
+/// If you are unsure, it's better to use [`parse_fastx_file`](fn.parse_fastx_file.html).
 pub struct Reader<R: io::Read> {
     buf_reader: buffer_redux::BufReader<R>,
     buf_pos: BufferPosition,
@@ -101,15 +101,15 @@ where
     /// let record = reader.next().unwrap().unwrap();
     /// assert_eq!(record.id(), b"id")
     /// ```
-    pub fn new(reader: R) -> Reader<R> {
-        Reader::with_capacity(reader, BUFSIZE)
+    pub fn new(reader: R) -> Self {
+        Self::with_capacity(reader, BUFSIZE)
     }
 
     /// Creates a new reader with a given buffer capacity. The minimum allowed
     /// capacity is 3.
-    pub fn with_capacity(reader: R, capacity: usize) -> Reader<R> {
+    pub fn with_capacity(reader: R, capacity: usize) -> Self {
         assert!(capacity >= 3);
-        Reader {
+        Self {
             buf_reader: buffer_redux::BufReader::with_capacity(capacity, reader),
             buf_pos: BufferPosition::default(),
             search_pos: SearchPosition::Id,
@@ -132,8 +132,8 @@ impl Reader<File> {
     ///
     /// // (... do something with the reader)
     /// ```
-    pub fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Reader<File>> {
-        File::open(path).map(Reader::new)
+    pub fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self> {
+        File::open(path).map(Self::new)
     }
 }
 
@@ -151,38 +151,34 @@ where
     /// Reads the current record and returns true if found.
     /// Returns false if incomplete because end of buffer reached,
     /// meaning that the last record may be incomplete.
-    /// Updates self.search_pos.
+    /// Updates `self.search_pos`.
     fn find(&mut self) -> Result<bool, ParseError> {
-        self.buf_pos.seq = match self.find_line(self.buf_pos.start) {
-            Some(p) => p,
-            None => {
-                self.search_pos = SearchPosition::Id;
-                return Ok(false);
-            }
+        self.buf_pos.seq = if let Some(p) = self.find_line(self.buf_pos.start) {
+            p
+        } else {
+            self.search_pos = SearchPosition::Id;
+            return Ok(false);
         };
 
-        self.buf_pos.sep = match self.find_line(self.buf_pos.seq) {
-            Some(p) => p,
-            None => {
-                self.search_pos = SearchPosition::Sequence;
-                return Ok(false);
-            }
+        self.buf_pos.sep = if let Some(p) = self.find_line(self.buf_pos.seq) {
+            p
+        } else {
+            self.search_pos = SearchPosition::Sequence;
+            return Ok(false);
         };
 
-        self.buf_pos.qual = match self.find_line(self.buf_pos.sep) {
-            Some(p) => p,
-            None => {
-                self.search_pos = SearchPosition::Separator;
-                return Ok(false);
-            }
+        self.buf_pos.qual = if let Some(p) = self.find_line(self.buf_pos.sep) {
+            p
+        } else {
+            self.search_pos = SearchPosition::Separator;
+            return Ok(false);
         };
 
-        self.buf_pos.end = match self.find_line(self.buf_pos.qual) {
-            Some(p) => p - 1,
-            None => {
-                self.search_pos = SearchPosition::Quality;
-                return Ok(false);
-            }
+        self.buf_pos.end = if let Some(p) = self.find_line(self.buf_pos.qual) {
+            p - 1
+        } else {
+            self.search_pos = SearchPosition::Quality;
+            return Ok(false);
         };
 
         self.validate()?;
@@ -195,42 +191,38 @@ where
     // The resulting position may still be incomplete (-> false).
     fn find_incomplete(&mut self) -> Result<bool, ParseError> {
         if self.search_pos == SearchPosition::Id {
-            self.buf_pos.seq = match self.find_line(self.buf_pos.start) {
-                Some(p) => p,
-                None => {
-                    self.search_pos = SearchPosition::Id;
-                    return Ok(false);
-                }
+            self.buf_pos.seq = if let Some(p) = self.find_line(self.buf_pos.start) {
+                p
+            } else {
+                self.search_pos = SearchPosition::Id;
+                return Ok(false);
             };
         }
 
         if self.search_pos <= SearchPosition::Sequence {
-            self.buf_pos.sep = match self.find_line(self.buf_pos.seq) {
-                Some(p) => p,
-                None => {
-                    self.search_pos = SearchPosition::Sequence;
-                    return Ok(false);
-                }
+            self.buf_pos.sep = if let Some(p) = self.find_line(self.buf_pos.seq) {
+                p
+            } else {
+                self.search_pos = SearchPosition::Sequence;
+                return Ok(false);
             };
         }
 
         if self.search_pos <= SearchPosition::Separator {
-            self.buf_pos.qual = match self.find_line(self.buf_pos.sep) {
-                Some(p) => p,
-                None => {
-                    self.search_pos = SearchPosition::Separator;
-                    return Ok(false);
-                }
+            self.buf_pos.qual = if let Some(p) = self.find_line(self.buf_pos.sep) {
+                p
+            } else {
+                self.search_pos = SearchPosition::Separator;
+                return Ok(false);
             };
         }
 
         if self.search_pos <= SearchPosition::Quality {
-            self.buf_pos.end = match self.find_line(self.buf_pos.qual) {
-                Some(p) => p - 1,
-                None => {
-                    self.search_pos = SearchPosition::Quality;
-                    return Ok(false);
-                }
+            self.buf_pos.end = if let Some(p) = self.find_line(self.buf_pos.qual) {
+                p - 1
+            } else {
+                self.search_pos = SearchPosition::Quality;
+                return Ok(false);
             };
         }
 
@@ -475,7 +467,7 @@ mod test {
     use crate::FastxReader;
 
     fn seq(s: &[u8]) -> Cursor<&[u8]> {
-        Cursor::new(&s[..])
+        Cursor::new(s)
     }
 
     #[test]
@@ -578,7 +570,7 @@ mod test {
                 }
                 _ => unreachable!("Too many records"),
             }
-            i += 1
+            i += 1;
         }
         assert_eq!(i, 2);
     }

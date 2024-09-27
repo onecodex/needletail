@@ -3,12 +3,12 @@ use std::fs::File;
 use std::io::{stdin, Cursor, Read};
 use std::path::Path;
 
-#[cfg(feature = "compression")]
+#[cfg(feature = "bzip2")]
 use bzip2::read::BzDecoder;
-#[cfg(feature = "compression")]
+#[cfg(feature = "flate2")]
 use flate2::read::MultiGzDecoder;
-#[cfg(feature = "compression")]
-use xz2::read::XzDecoder;
+#[cfg(feature = "xz2")]
+use liblzma::read::XzDecoder;
 
 use crate::errors::ParseError;
 pub use crate::parser::fasta::Reader as FastaReader;
@@ -23,11 +23,11 @@ mod fastq;
 pub use crate::parser::utils::FastxReader;
 
 // Magic bytes for each compression format
-#[cfg(feature = "compression")]
+#[cfg(feature = "flate2")]
 const GZ_MAGIC: [u8; 2] = [0x1F, 0x8B];
-#[cfg(feature = "compression")]
+#[cfg(feature = "bzip2")]
 const BZ_MAGIC: [u8; 2] = [0x42, 0x5A];
-#[cfg(feature = "compression")]
+#[cfg(feature = "xz2")]
 const XZ_MAGIC: [u8; 2] = [0xFD, 0x37];
 
 fn get_fastx_reader<'a, R: 'a + io::Read + Send>(
@@ -88,7 +88,7 @@ pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
     let new_reader = first_two_cursor.chain(reader);
 
     match first_two_bytes {
-        #[cfg(feature = "compression")]
+        #[cfg(feature = "flate2")]
         GZ_MAGIC => {
             let mut gz_reader = MultiGzDecoder::new(new_reader);
             let mut first = [0; 1];
@@ -96,7 +96,7 @@ pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
             let r = Cursor::new(first).chain(gz_reader);
             get_fastx_reader(r, first[0])
         }
-        #[cfg(feature = "compression")]
+        #[cfg(feature = "bzip2")]
         BZ_MAGIC => {
             let mut bz_reader = BzDecoder::new(new_reader);
             let mut first = [0; 1];
@@ -104,7 +104,7 @@ pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
             let r = Cursor::new(first).chain(bz_reader);
             get_fastx_reader(r, first[0])
         }
-        #[cfg(feature = "compression")]
+        #[cfg(feature = "xz2")]
         XZ_MAGIC => {
             let mut xz_reader = XzDecoder::new(new_reader);
             let mut first = [0; 1];

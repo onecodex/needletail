@@ -56,8 +56,8 @@ pub struct Position {
 }
 
 impl Position {
-    pub fn new(line: u64, byte: u64) -> Position {
-        Position { line, byte }
+    pub fn new(line: u64, byte: u64) -> Self {
+        Self { line, byte }
     }
 
     /// Line number (starting with 1)
@@ -81,8 +81,8 @@ pub enum Format {
 impl Format {
     pub fn start_char(&self) -> char {
         match self {
-            Format::Fasta => '>',
-            Format::Fastq => '@',
+            Self::Fasta => '>',
+            Self::Fastq => '@',
         }
     }
 }
@@ -97,8 +97,8 @@ pub enum LineEnding {
 impl LineEnding {
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
-            LineEnding::Windows => vec![b'\r', b'\n'],
-            LineEnding::Unix => vec![b'\n'],
+            Self::Windows => vec![b'\r', b'\n'],
+            Self::Unix => vec![b'\n'],
         }
     }
 }
@@ -108,9 +108,9 @@ pub fn find_line_ending(bytes: &[u8]) -> Option<LineEnding> {
         if let Some(idx) = memchr(b'\n', bytes) {
             if idx > 0 && bytes[idx - 1] == b'\r' {
                 return Some(LineEnding::Windows);
-            } else {
-                return Some(LineEnding::Unix);
             }
+
+            return Some(LineEnding::Unix);
         }
     }
     None

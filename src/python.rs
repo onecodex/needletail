@@ -128,13 +128,13 @@ pub fn reverse_complement(seq: &str) -> String {
 }
 
 #[pymodule]
-fn needletail(py: Python, m: &PyModule) -> PyResult<()> {
+fn needletail(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyFastxReader>()?;
     m.add_wrapped(wrap_pyfunction!(parse_fastx_file))?;
     m.add_wrapped(wrap_pyfunction!(parse_fastx_string))?;
     m.add_wrapped(wrap_pyfunction!(normalize_seq))?;
     m.add_wrapped(wrap_pyfunction!(reverse_complement))?;
-    m.add("NeedletailError", py.get_type::<NeedletailError>())?;
+    m.add("NeedletailError", py.get_type_bound::<NeedletailError>())?;
 
     Ok(())
 }

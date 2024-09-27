@@ -17,14 +17,15 @@ pub struct ErrorPosition {
 impl fmt::Display for ErrorPosition {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(id) = self.id.as_ref() {
-            write!(f, "record '{}' at ", id)?;
+            write!(f, "record '{id}' at ")?;
         }
         write!(f, "line {}", self.line)
     }
 }
 
+
 /// The type of error that occurred during file parsing
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ParseErrorKind {
     /// An error happened during file/stream input/output
     Io,
@@ -43,7 +44,7 @@ pub enum ParseErrorKind {
 }
 
 /// The only error type that needletail returns
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseError {
     /// A description of what went wrong
     pub msg: String,
@@ -62,7 +63,7 @@ impl ParseError {
             format.start_char(),
             (byte_found as char).escape_default()
         );
-        ParseError {
+        Self {
             kind: ParseErrorKind::InvalidStart,
             msg,
             position,
@@ -75,7 +76,7 @@ impl ParseError {
             "Expected '+' separator but found '{}",
             (byte_found as char).escape_default()
         );
-        ParseError {
+        Self {
             kind: ParseErrorKind::InvalidSeparator,
             msg,
             position,
@@ -88,7 +89,7 @@ impl ParseError {
             "Expected '@' or '>' at the start of the file but found '{}'.",
             (byte_found as char).escape_default()
         );
-        ParseError {
+        Self {
             kind: ParseErrorKind::UnknownFormat,
             msg,
             position: ErrorPosition::default(),
@@ -97,11 +98,8 @@ impl ParseError {
     }
 
     pub fn new_unequal_length(seq_len: usize, qual_len: usize, position: ErrorPosition) -> Self {
-        let msg = format!(
-            "Sequence length is {} but quality length is {}",
-            seq_len, qual_len
-        );
-        ParseError {
+        let msg = format!("Sequence length is {seq_len} but quality length is {qual_len}");
+        Self {
             kind: ParseErrorKind::UnequalLengths,
             msg,
             position,
@@ -110,7 +108,7 @@ impl ParseError {
     }
 
     pub fn new_unexpected_end(position: ErrorPosition, format: Format) -> Self {
-        ParseError {
+        Self {
             msg: String::new(),
             kind: ParseErrorKind::UnexpectedEnd,
             position,
@@ -119,7 +117,7 @@ impl ParseError {
     }
 
     pub fn new_empty_file() -> Self {
-        ParseError {
+        Self {
             msg: String::from("Failed to read the first two bytes. Is the file empty?"),
             kind: ParseErrorKind::EmptyFile,
             position: ErrorPosition::default(),
@@ -145,8 +143,8 @@ impl fmt::Display for ParseError {
 }
 
 impl From<io::Error> for ParseError {
-    fn from(err: io::Error) -> ParseError {
-        ParseError {
+    fn from(err: io::Error) -> Self {
+        Self {
             msg: err.to_string(),
             kind: ParseErrorKind::Io,
             position: ErrorPosition::default(),

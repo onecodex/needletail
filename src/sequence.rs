@@ -20,32 +20,20 @@ pub fn normalize(seq: &[u8], allow_iupac: bool) -> Option<Vec<u8>> {
     let mut buf: Vec<u8> = Vec::with_capacity(seq.len());
     let mut changed: bool = false;
 
-    for n in seq.iter() {
+    for n in seq {
         let (new_char, char_changed) = match (*n, allow_iupac) {
-            c @ (b'A', _)
-            | c @ (b'C', _)
-            | c @ (b'G', _)
-            | c @ (b'T', _)
-            | c @ (b'N', _)
-            | c @ (b'-', _) => (c.0, false),
+            c @ (b'A' | b'C' | b'G' | b'T' | b'N' | b'-', _) => (c.0, false),
             (b'a', _) => (b'A', true),
             (b'c', _) => (b'C', true),
             (b'g', _) => (b'G', true),
             // normalize uridine to thymine
-            (b't', _) | (b'u', _) | (b'U', _) => (b'T', true),
+            (b't' | b'u' | b'U', _) => (b'T', true),
             // normalize gaps
-            (b'.', _) | (b'~', _) => (b'-', true),
+            (b'.' | b'~', _) => (b'-', true),
             // logic for IUPAC bases (a little messy)
-            c @ (b'B', true)
-            | c @ (b'D', true)
-            | c @ (b'H', true)
-            | c @ (b'V', true)
-            | c @ (b'R', true)
-            | c @ (b'Y', true)
-            | c @ (b'S', true)
-            | c @ (b'W', true)
-            | c @ (b'K', true)
-            | c @ (b'M', true) => (c.0, false),
+            c @ (b'B' | b'D' | b'H' | b'V' | b'R' | b'Y' | b'S' | b'W' | b'K' | b'M', true) => {
+                (c.0, false)
+            }
             (b'b', true) => (b'B', true),
             (b'd', true) => (b'D', true),
             (b'h', true) => (b'H', true),
@@ -57,7 +45,7 @@ pub fn normalize(seq: &[u8], allow_iupac: bool) -> Option<Vec<u8>> {
             (b'k', true) => (b'K', true),
             (b'm', true) => (b'M', true),
             // remove all whitespace and line endings
-            (b' ', _) | (b'\t', _) | (b'\r', _) | (b'\n', _) => (b' ', true),
+            (b' ' | b'\t' | b'\r' | b'\n', _) => (b' ', true),
             // everything else is an N
             _ => (b'N', true),
         };
@@ -286,13 +274,13 @@ impl<'a> Sequence<'a> for Cow<'a, [u8]> {
 /// quality information.
 ///
 /// Will be stabilized once we figure out a good way to handle sequences that
-/// have _optional_ quality information (like SequenceRecord) because the
+/// have _optional_ quality information (like `SequenceRecord`) because the
 /// return trait requires a slice from an immutable reference and
-/// SequenceRecords can't return that without modifying themselves.
+/// `SequenceRecords` can't return that without modifying themselves.
 pub trait QualitySequence<'a>: Sequence<'a> {
     fn quality(&'a self) -> &'a [u8];
 
-    /// Given a SeqRecord and a quality cutoff, mask out low-quality bases with
+    /// Given a `SeqRecord` and a quality cutoff, mask out low-quality bases with
     /// `N` characters.
     fn quality_mask(&'a self, score: u8) -> Cow<'a, [u8]> {
         let qual = self.quality();
@@ -326,20 +314,32 @@ mod tests {
 
     #[test]
     fn test_normalize() {
-        assert_eq!(normalize(b"ACGTU", false), Some(b"ACGTT".to_vec()));
-        assert_eq!(normalize(b"acgtu", false), Some(b"ACGTT".to_vec()));
-
-        assert_eq!(normalize(b"N.N-N~N N", false), Some(b"N-N-N-NN".to_vec()));
-
-        assert_eq!(normalize(b"BDHVRYSWKM", true), None);
-        assert_eq!(normalize(b"bdhvryswkm", true), Some(b"BDHVRYSWKM".to_vec()));
         assert_eq!(
-            normalize(b"BDHVRYSWKM", false),
-            Some(b"NNNNNNNNNN".to_vec())
+            normalize(b"ACGTU", false).as_deref(),
+            Some(b"ACGTT".as_slice())
         );
         assert_eq!(
-            normalize(b"bdhvryswkm", false),
-            Some(b"NNNNNNNNNN".to_vec())
+            normalize(b"acgtu", false).as_deref(),
+            Some(b"ACGTT".as_slice())
+        );
+
+        assert_eq!(
+            normalize(b"N.N-N~N N", false).as_deref(),
+            Some(b"N-N-N-NN".as_slice())
+        );
+
+        assert_eq!(normalize(b"BDHVRYSWKM", true), None);
+        assert_eq!(
+            normalize(b"bdhvryswkm", true).as_deref(),
+            Some(b"BDHVRYSWKM".as_slice())
+        );
+        assert_eq!(
+            normalize(b"BDHVRYSWKM", false).as_deref(),
+            Some(b"NNNNNNNNNN".as_slice())
+        );
+        assert_eq!(
+            normalize(b"bdhvryswkm", false).as_deref(),
+            Some(b"NNNNNNNNNN".as_slice())
         );
     }
 
@@ -353,11 +353,11 @@ mod tests {
 
     #[test]
     fn can_canonicalize() {
-        assert_eq!(canonical(b"A"), Cow::Borrowed(b"A"));
-        assert_eq!(canonical(b"T"), Cow::Owned::<[u8]>(b"A".to_vec()));
-        assert_eq!(canonical(b"AAGT"), Cow::Borrowed(b"AAGT"));
-        assert_eq!(canonical(b"ACTT"), Cow::Owned::<[u8]>(b"AAGT".to_vec()));
-        assert_eq!(canonical(b"GC"), Cow::Borrowed(b"GC"));
+        assert_eq!(canonical(b"A").as_ref(), b"A");
+        assert_eq!(canonical(b"T").as_ref(), b"A");
+        assert_eq!(canonical(b"AAGT").as_ref(), b"AAGT");
+        assert_eq!(canonical(b"ACTT").as_ref(), b"AAGT");
+        assert_eq!(canonical(b"GC").as_ref(), b"GC");
     }
 
     #[test]

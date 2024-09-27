@@ -1,6 +1,6 @@
 use needletail::{parse_fastx_stdin, Sequence};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     let mut n_bases = 0;
     let mut n_valid_kmers = 0;
     let mut reader = parse_fastx_stdin().expect("valid path/file");
@@ -25,8 +25,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-    println!("There are {} bases in your file.", n_bases);
-    println!("There are {} AAAAs in your file.", n_valid_kmers);
-
-    Ok(())
+    println!("There are {n_bases} bases in your file.");
+    println!("There are {n_valid_kmers} AAAAs in your file.");
 }
