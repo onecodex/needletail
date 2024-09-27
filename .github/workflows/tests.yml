@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-wheels:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os == 'macos-latest' && matrix.architecture == 'arm64' ? 'macos-14' : matrix.os }}
     strategy:
       matrix:
         os: [macos-latest]
