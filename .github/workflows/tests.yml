@@ -68,6 +68,7 @@ jobs:
 
 
       - name: Build wheels
+        id: build-wheels
         run: |
           . venv/bin/activate
           maturin build --features=python --release --strip --manylinux=off
