@@ -78,3 +78,9 @@ jobs:
         run: |
           . venv/bin/activate
           maturin build --features=python --release --strip --manylinux=off
+
+      - name: Upload built wheels as artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.architecture }}
+          path: target/wheels/*.whl
