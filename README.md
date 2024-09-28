@@ -128,6 +128,11 @@ docker run --rm -v $(pwd):/io ghcr.io/pyo3/maturin:main build --features=python 
 twine upload target/wheels/*
 ```
 
+## Releasing A New Version
+
+There is a Github Workflow that will build Python wheels for macOS (x86 and
+ARM) and Ubuntu (x86). To run, create a new release.
+
 ## Getting Help
 
 Questions are best directed as GitHub issues. We plan to add more documentation soon, but in the meantime "doc" comments are included in the source.
