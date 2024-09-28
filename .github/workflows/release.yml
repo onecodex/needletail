@@ -10,29 +10,25 @@ jobs:
     strategy:
       matrix:
         include:
-          # macos
+          # macos - ARM
           - os: macos-latest
             architecture: arm64
             runner: macos-14 # m1
             python-version: "3.12"
           - os: macos-latest
-            architecture: x64
-            runner: macos-13 # intel
-            python-version: "3.12"
-          # ubuntu
-          - os: ubuntu-latest
-            architecture: x64
-            runner: ubuntu-latest
-            python-version: "3.12"
-          - os: macos-latest
             architecture: arm64
             runner: macos-14 # m1
             python-version: "3.11"
+          # macos - x86
           - os: macos-latest
             architecture: x64
-            runner: macos-13 # intel
+            runner: macos-13 # x86
+            python-version: "3.12"
+          - os: macos-latest
+            architecture: x64
+            runner: macos-13 # x86
             python-version: "3.11"
-          # ubuntu
+          # ubuntu - x86
           - os: ubuntu-latest
             architecture: x64
             runner: ubuntu-latest
