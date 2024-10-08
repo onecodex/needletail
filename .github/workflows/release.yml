@@ -1,0 +1,108 @@
+---
+name: Build Wheels on Release
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-wheels:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          # macos - ARM
+          - os: macos-latest
+            architecture: arm64
+            runner: macos-14 # m1
+            python-version: "3.12"
+          - os: macos-latest
+            architecture: arm64
+            runner: macos-14 # m1
+            python-version: "3.11"
+          # macos - x86
+          - os: macos-latest
+            architecture: x64
+            runner: macos-13 # x86
+            python-version: "3.12"
+          - os: macos-latest
+            architecture: x64
+            runner: macos-13 # x86
+            python-version: "3.11"
+          # ubuntu - x86
+          - os: ubuntu-latest
+            architecture: x64
+            runner: ubuntu-latest
+            python-version: "3.11"
+          - os: ubuntu-latest
+            architecture: x64
+            runner: ubuntu-latest
+            python-version: "3.12"
+      fail-fast: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      # Setup Python for the selected version
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: ${{ matrix.architecture }}
+
+      # Install Rust toolchain
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Install maturin
+        run: |
+          python -m venv venv
+          . venv/bin/activate
+          pip install maturin
+          pip show maturin
+
+      - name: Add library to venv
+        run: |
+          . venv/bin/activate
+          maturin develop --features=python
+
+      - name: Build wheels
+        id: build_wheels
+        run: |
+          . venv/bin/activate
+          maturin build --features=python --release --strip --manylinux=off
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: wheel-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: target/wheels/*.whl
+
+  upload-release:
+     needs: [build-wheels]
+     runs-on: ubuntu-latest
+     steps:
+       - name: Download wheel artifacts
+         uses: actions/download-artifact@v3
+         with:
+           path: ./wheels
+
+       - name: List downloaded wheels
+         run: ls -l wheels/*
+
+       - name: Upload Wheels to Release
+         uses: svenstaro/upload-release-action@v2
+         with:
+           repo_token: ${{ secrets.GITHUB_TOKEN }}
+           file: wheels/**/*.whl
+           tag: ${{ github.event.release.tag_name }}
+           file_glob: true
