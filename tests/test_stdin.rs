@@ -90,6 +90,33 @@ fn test_stdin_bzip() {
         .stdout(contains("There are 0 AAAAs in your file"));
 }
 
+#[cfg(feature = "compression")]
+#[test]
+fn test_stdin_zstd() {
+    // Generated with `echo ">id1\nAGTCGTCA" | zstd -c | xxd  -i`
+    let input: &[u8] = &[
+        0x28, 0xb5, 0x2f, 0xfd, 0x04, 0x58, 0x71, 0x00, 0x00, 0x3e, 0x69, 0x64, 0x31, 0x0a, 0x41,
+        0x47, 0x54, 0x43, 0x47, 0x54, 0x43, 0x41, 0x0a, 0x52, 0x9d, 0x37, 0x8d,
+    ];
+    let mut file = tempfile::NamedTempFile::new().unwrap();
+    file.write_all(input).unwrap();
+    file.flush().unwrap();
+    file.seek(SeekFrom::Start(0)).unwrap();
+
+    escargot::CargoBuild::new()
+        .example("stdin_pipe")
+        .current_release()
+        .current_target()
+        .run()
+        .unwrap()
+        .command()
+        .stdin(file.into_file())
+        .assert()
+        .success()
+        .stdout(contains("There are 8 bases in your file"))
+        .stdout(contains("There are 0 AAAAs in your file"));
+}
+
 #[test]
 fn test_stdin_no_compression() {
     let input: &[u8] = b">id1\nAGTCGTCA";

@@ -47,7 +47,7 @@ fn get_fastx_reader<'a, R: 'a + io::Read + Send>(
 
 /// The main entry point of needletail if you're reading from something that implements [`std::io::Read`].
 /// This automatically detects whether the file is:
-/// 1. compressed: [`gzip`][gzip], [`bz`][bz] and [`xz`][xz] are supported and will use the appropriate decoder
+/// 1. compressed: [`gzip`][gzip], [`bz`][bz], [`xz`][xz], and [`zstd`][zstd] are supported and will use the appropriate decoder
 /// 2. FASTA or FASTQ: the right parser will be automatically instantiated
 ///
 /// Option 1 is only available if the `compression` feature is enabled.
@@ -80,6 +80,7 @@ fn get_fastx_reader<'a, R: 'a + io::Read + Send>(
 /// [gzip]: https://www.gnu.org/software/gzip/
 /// [bz]: https://sourceware.org/bzip2/
 /// [xz]: https://tukaani.org/xz/format.html
+/// [zstd]: https://facebook.github.io/zstd/
 ///
 pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
     mut reader: R,

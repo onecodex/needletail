@@ -1,9 +1,10 @@
 use needletail::parse_fastx_file;
 
-const TEST_FILES: [&str; 3] = [
+const TEST_FILES: [&str; 4] = [
     "./tests/data/test.fa.gz",
     "./tests/data/test.fa.bz2",
     "./tests/data/test.fa.xz",
+    "./tests/data/test.fa.zst",
 ];
 
 #[cfg(feature = "compression")]
