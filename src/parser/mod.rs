@@ -9,6 +9,8 @@ use bzip2::read::BzDecoder;
 use flate2::read::MultiGzDecoder;
 #[cfg(feature = "xz2")]
 use liblzma::read::XzDecoder;
+#[cfg(feature = "zstd")]
+use zstd::stream::read::Decoder as ZstdDecoder;
 
 use crate::errors::ParseError;
 pub use crate::parser::fasta::Reader as FastaReader;
@@ -29,6 +31,8 @@ const GZ_MAGIC: [u8; 2] = [0x1F, 0x8B];
 const BZ_MAGIC: [u8; 2] = [0x42, 0x5A];
 #[cfg(feature = "xz2")]
 const XZ_MAGIC: [u8; 2] = [0xFD, 0x37];
+#[cfg(feature = "zstd")]
+const ZST_MAGIC: [u8; 2] = [0x28, 0xB5];
 
 fn get_fastx_reader<'a, R: 'a + io::Read + Send>(
     reader: R,
@@ -43,7 +47,7 @@ fn get_fastx_reader<'a, R: 'a + io::Read + Send>(
 
 /// The main entry point of needletail if you're reading from something that implements [`std::io::Read`].
 /// This automatically detects whether the file is:
-/// 1. compressed: [`gzip`][gzip], [`bz`][bz] and [`xz`][xz] are supported and will use the appropriate decoder
+/// 1. compressed: [`gzip`][gzip], [`bz`][bz], [`xz`][xz], and [`zstd`][zstd] are supported and will use the appropriate decoder
 /// 2. FASTA or FASTQ: the right parser will be automatically instantiated
 ///
 /// Option 1 is only available if the `compression` feature is enabled.
@@ -76,6 +80,7 @@ fn get_fastx_reader<'a, R: 'a + io::Read + Send>(
 /// [gzip]: https://www.gnu.org/software/gzip/
 /// [bz]: https://sourceware.org/bzip2/
 /// [xz]: https://tukaani.org/xz/format.html
+/// [zstd]: https://facebook.github.io/zstd/
 ///
 pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
     mut reader: R,
@@ -110,6 +115,14 @@ pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
             let mut first = [0; 1];
             xz_reader.read_exact(&mut first)?;
             let r = Cursor::new(first).chain(xz_reader);
+            get_fastx_reader(r, first[0])
+        }
+        #[cfg(feature = "zstd")]
+        ZST_MAGIC => {
+            let mut zst_reader = ZstdDecoder::new(new_reader)?;
+            let mut first = [0; 1];
+            zst_reader.read_exact(&mut first)?;
+            let r = Cursor::new(first).chain(zst_reader);
             get_fastx_reader(r, first[0])
         }
         _ => get_fastx_reader(new_reader, first_two_bytes[0]),

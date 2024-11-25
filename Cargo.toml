@@ -17,19 +17,20 @@ bench = false
 
 [features]
 default = ["compression"]
-compression = ["bzip2", "flate2", "xz2"]
+compression = ["bzip2", "flate2", "xz2", "zstd"]
 python = ["pyo3/extension-module"]
 python_test = ["pyo3"]
 xz2 = ["liblzma"]
 
 [dependencies]
-buffer-redux = { version = "1", default_features = false }
+buffer-redux = { version = "1", default-features = false }
 bytecount = { version = "0.6", features = ["runtime-dispatch-simd"] }
 bzip2 = { version = "0.4", optional = true }
 flate2 = { version = "1.0.30", optional = true }
 memchr = "2.7.2"
 pyo3 = { version = "0.21.2", optional = true }
 liblzma = { version = "0.3.1", optional = true }
+zstd = { version = "0.13.2", optional = true }
 
 [dev-dependencies]
 criterion = "0.5"
