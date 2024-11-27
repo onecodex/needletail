@@ -123,6 +123,11 @@ impl<'a> SequenceRecord<'a> {
         self.position.line
     }
 
+    /// Return the line/byte position of the start of the sequence
+    pub fn position(&self) -> &Position {
+        self.position
+    }
+
     /// Which line ending is this record using?
     pub fn line_ending(&self) -> LineEnding {
         self.line_ending
