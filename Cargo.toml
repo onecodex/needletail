@@ -1,6 +1,6 @@
 [package]
 name = "needletail"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Roderick Bovee <rbovee@gmail.com>", "Vincent Prouillet <vincent@onecodex.com>"]
 description = "FASTX parsing and k-mer methods"
 keywords = ["FASTA", "FASTQ", "kmer", "bioinformatics"]
