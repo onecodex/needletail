@@ -91,7 +91,7 @@ impl<'a> BitNuclKmer<'a> {
     }
 }
 
-impl<'a> Iterator for BitNuclKmer<'a> {
+impl Iterator for BitNuclKmer<'_> {
     type Item = (usize, BitKmer, bool);
 
     fn next(&mut self) -> Option<(usize, BitKmer, bool)> {
