@@ -231,13 +231,14 @@ mod test {
     use std::io::Cursor;
 
     use crate::parse_fastx_reader;
-    fn seq(s: &[u8]) -> Cursor<&[u8]> { Cursor::new(s) }
+    fn seq(s: &[u8]) -> Cursor<&[u8]> {
+        Cursor::new(s)
+    }
 
     #[test]
     fn test_start_line_number() {
-        let mut reader = parse_fastx_reader(seq(
-            b"@test\nACGT\n+\nIIII\n@test2\nACGT\n+\nIIII"
-        )).unwrap();
+        let mut reader =
+            parse_fastx_reader(seq(b"@test\nACGT\n+\nIIII\n@test2\nACGT\n+\nIIII")).unwrap();
 
         let rec = reader.next().unwrap().unwrap();
         assert_eq!(rec.start_line_number(), 1);
@@ -249,8 +250,9 @@ mod test {
     #[test]
     fn test_position() {
         let mut reader = parse_fastx_reader(seq(
-            b"@test1\nACGT\n+\nIIII\n@test222\nACGT\n+\nIIII\n@test3\nACGT\n+\nIIII"
-        )).unwrap();
+            b"@test1\nACGT\n+\nIIII\n@test222\nACGT\n+\nIIII\n@test3\nACGT\n+\nIIII",
+        ))
+        .unwrap();
 
         let rec = reader.next().unwrap().unwrap();
         assert_eq!(rec.position().byte(), 0);
