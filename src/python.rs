@@ -5,6 +5,8 @@ use crate::{
     parse_fastx_file as rs_parse_fastx_file, parse_fastx_reader, parser::SequenceRecord,
     FastxReader,
 };
+
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::{create_exception, wrap_pyfunction};
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -70,6 +72,20 @@ impl Record {
             self.seq = String::from_utf8_lossy(&s).to_string();
         }
         Ok(())
+    }
+
+    #[new]
+    #[pyo3(signature = (id, seq, qual=None))]
+    fn new(id: String, seq: String, qual: Option<String>) -> PyResult<Record> {
+        // If `qual` is not None, check if it has the same length as `seq`
+        if let Some(qual) = &qual {
+            if qual.len() != seq.len() {
+                return Err(PyValueError::new_err(
+                    "Sequence and quality strings must have the same length",
+                ));
+            }
+        }
+        Ok(Record { id, seq, qual })
     }
 
     pub fn __hash__(&self) -> PyResult<u64> {
