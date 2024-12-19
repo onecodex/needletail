@@ -1,5 +1,7 @@
 //! Python bindings for needletail
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::io::Cursor;
 
 use pyo3::prelude::*;
@@ -80,6 +82,59 @@ impl Record {
             self.seq = String::from_utf8_lossy(&s).to_string();
         }
         Ok(())
+    }
+
+    pub fn __hash__(&self) -> PyResult<u64> {
+        let mut hasher = DefaultHasher::new();
+        self.id.hash(&mut hasher);
+        self.seq.hash(&mut hasher);
+        if !self.qual.is_none() {
+            self.qual.hash(&mut hasher);
+        }
+        Ok(hasher.finish())
+    }
+
+    pub fn __eq__(&self, other: &Record) -> PyResult<bool> {
+        Ok(self.id == other.id && self.seq == other.seq && self.qual == other.qual)
+    }
+
+    pub fn __len__(&self) -> PyResult<usize> {
+        Ok(self.seq.len())
+    }
+
+    pub fn __str__(&self) -> PyResult<String> {
+        if self.qual.is_none() {
+            let wrapped_seq = self
+                .seq
+                .as_bytes()
+                .chunks(60)
+                .map(|chunk| String::from_utf8_lossy(chunk).to_string())
+                .collect::<Vec<String>>()
+                .join("\n");
+            Ok(format!(">{}\n{}", self.id, wrapped_seq))
+        } else {
+            Ok(format!(
+                "@{}\n{}\n+\n{}",
+                self.id,
+                self.seq,
+                self.qual.clone().unwrap()
+            ))
+        }
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        let seq_preview = if self.seq.len() > 40 {
+            let start = &self.seq[..34];
+            let end = &self.seq[self.seq.len() - 3..];
+            format!("{}...{}", start, end)
+        } else {
+            self.seq.clone()
+        };
+        let has_quality = self.qual.is_some();
+        Ok(format!(
+            "Record(id={}, sequence={}, has_quality={})",
+            self.id, seq_preview, has_quality
+        ))
     }
 }
 
