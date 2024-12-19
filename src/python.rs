@@ -1,17 +1,14 @@
 //! Python bindings for needletail
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use std::io::Cursor;
-
-use pyo3::prelude::*;
-use pyo3::{create_exception, wrap_pyfunction};
-
 use crate::sequence::{complement, normalize};
 use crate::{
     parse_fastx_file as rs_parse_fastx_file, parse_fastx_reader, parser::SequenceRecord,
     FastxReader,
 };
+use pyo3::prelude::*;
+use pyo3::{create_exception, wrap_pyfunction};
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::io::Cursor;
 
 create_exception!(needletail, NeedletailError, pyo3::exceptions::PyException);
 
@@ -79,8 +76,9 @@ impl Record {
         let mut hasher = DefaultHasher::new();
         self.id.hash(&mut hasher);
         self.seq.hash(&mut hasher);
-        if !self.qual.is_none() {
-            self.qual.hash(&mut hasher);
+        match &self.qual {
+            Some(qual) => qual.hash(&mut hasher),
+            None => {}
         }
         Ok(hasher.finish())
     }
@@ -114,17 +112,28 @@ impl Record {
     }
 
     fn __repr__(&self) -> PyResult<String> {
-        let seq_preview = if self.seq.len() > 40 {
-            let start = &self.seq[..34];
+        let seq_preview = if self.seq.len() > 30 {
+            let start = &self.seq[..26];
             let end = &self.seq[self.seq.len() - 3..];
-            format!("{}...{}", start, end)
+            format!("{}…{}", start, end)
         } else {
             self.seq.clone()
         };
-        let has_quality = self.qual.is_some();
+        let quality_preview = match &self.qual {
+            Some(qual) => {
+                if qual.len() > 30 {
+                    let start = &qual[..26];
+                    let end = &qual[qual.len() - 3..];
+                    format!("{}…{}", start, end)
+                } else {
+                    qual.clone()
+                }
+            }
+            None => "None".to_string(),
+        };
         Ok(format!(
-            "Record(id={}, sequence={}, has_quality={})",
-            self.id, seq_preview, has_quality
+            "Record(id={}, sequence={}, quality={})",
+            self.id, seq_preview, quality_preview
         ))
     }
 }
