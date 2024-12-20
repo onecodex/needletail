@@ -172,13 +172,13 @@ impl Record {
             Ok(name) => name.to_string(),
             Err(_) => self.id.clone(),
         };
-        let seq_snippet = get_seq_snippet(&self.seq, 30);
+        let seq_snippet = get_seq_snippet(&self.seq, 25);
         let quality_snippet = match &self.qual {
-            Some(qual) => get_seq_snippet(qual, 30),
+            Some(qual) => get_seq_snippet(qual, 25),
             None => "None".to_string(),
         };
         Ok(format!(
-            "Record(id={}, sequence={}, quality={})",
+            "Record(id={}, seq={}, qual={})",
             id_snippet, seq_snippet, quality_snippet
         ))
     }
