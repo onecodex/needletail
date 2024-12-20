@@ -26,6 +26,16 @@ pub struct PyFastxReader {
     reader: Box<dyn FastxReader>,
 }
 
+fn get_string_snippet(seq: &str, max_len: usize) -> String {
+    if seq.len() > max_len {
+        let start = &seq[..max_len - 4];
+        let end = &seq[seq.len() - 3..];
+        format!("{}…{}", start, end)
+    } else {
+        seq.to_string()
+    }
+}
+
 #[pymethods]
 impl PyFastxReader {
     fn __repr__(&self) -> PyResult<String> {
@@ -130,28 +140,14 @@ impl Record {
     }
 
     fn __repr__(&self) -> PyResult<String> {
-        let seq_preview = if self.seq.len() > 30 {
-            let start = &self.seq[..26];
-            let end = &self.seq[self.seq.len() - 3..];
-            format!("{}…{}", start, end)
-        } else {
-            self.seq.clone()
-        };
-        let quality_preview = match &self.qual {
-            Some(qual) => {
-                if qual.len() > 30 {
-                    let start = &qual[..26];
-                    let end = &qual[qual.len() - 3..];
-                    format!("{}…{}", start, end)
-                } else {
-                    qual.clone()
-                }
-            }
+        let seq_snippet = get_string_snippet(&self.seq, 30);
+        let quality_snippet = match &self.qual {
+            Some(qual) => get_string_snippet(qual, 30),
             None => "None".to_string(),
         };
         Ok(format!(
             "Record(id={}, sequence={}, quality={})",
-            self.id, seq_preview, quality_preview
+            self.id, seq_snippet, quality_snippet
         ))
     }
 }
