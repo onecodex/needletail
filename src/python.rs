@@ -79,6 +79,24 @@ impl Record {
 #[pymethods]
 impl Record {
     #[getter]
+    pub fn name(&self) -> PyResult<&str> {
+        if let Some(pos) = self.id.find(char::is_whitespace) {
+            Ok(&self.id[..pos])
+        } else {
+            Ok(&self.id)
+        }
+    }
+
+    #[getter]
+    pub fn description(&self) -> PyResult<Option<&str>> {
+        if let Some(pos) = self.id.find(char::is_whitespace) {
+            Ok(Some(&self.id[pos..].trim_start()))
+        } else {
+            Ok(None)
+        }
+    }
+
+    #[getter]
     pub fn is_fasta(&self) -> PyResult<bool> {
         Ok(self.qual.is_none())
     }
