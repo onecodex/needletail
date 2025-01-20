@@ -97,12 +97,12 @@ pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
         GZ_MAGIC => {
             let mut gz_reader = MultiGzDecoder::new(new_reader);
             let mut first = [0; 1];
-            gz_reader.read_exact(&mut first).map_err(|e| {
-                match e.kind() {
+            gz_reader
+                .read_exact(&mut first)
+                .map_err(|e| match e.kind() {
                     io::ErrorKind::UnexpectedEof => ParseError::new_empty_file(),
-                    _ => e.into()
-                }
-            })?;
+                    _ => e.into(),
+                })?;
             let r = Cursor::new(first).chain(gz_reader);
             get_fastx_reader(r, first[0])
         }
@@ -110,12 +110,12 @@ pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
         BZ_MAGIC => {
             let mut bz_reader = BzDecoder::new(new_reader);
             let mut first = [0; 1];
-            bz_reader.read_exact(&mut first).map_err(|e| {
-                match e.kind() {
+            bz_reader
+                .read_exact(&mut first)
+                .map_err(|e| match e.kind() {
                     io::ErrorKind::UnexpectedEof => ParseError::new_empty_file(),
-                    _ => e.into()
-                }
-            })?;
+                    _ => e.into(),
+                })?;
             let r = Cursor::new(first).chain(bz_reader);
             get_fastx_reader(r, first[0])
         }
@@ -123,12 +123,12 @@ pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
         XZ_MAGIC => {
             let mut xz_reader = XzDecoder::new(new_reader);
             let mut first = [0; 1];
-            xz_reader.read_exact(&mut first).map_err(|e| {
-                match e.kind() {
+            xz_reader
+                .read_exact(&mut first)
+                .map_err(|e| match e.kind() {
                     io::ErrorKind::UnexpectedEof => ParseError::new_empty_file(),
-                    _ => e.into()
-                }
-            })?;
+                    _ => e.into(),
+                })?;
             let r = Cursor::new(first).chain(xz_reader);
             get_fastx_reader(r, first[0])
         }
@@ -136,12 +136,12 @@ pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
         ZST_MAGIC => {
             let mut zst_reader = ZstdDecoder::new(new_reader)?;
             let mut first = [0; 1];
-            zst_reader.read_exact(&mut first).map_err(|e| {
-                match e.kind() {
+            zst_reader
+                .read_exact(&mut first)
+                .map_err(|e| match e.kind() {
                     io::ErrorKind::UnexpectedEof => ParseError::new_empty_file(),
-                    _ => e.into()
-                }
-            })?;
+                    _ => e.into(),
+                })?;
             let r = Cursor::new(first).chain(zst_reader);
             get_fastx_reader(r, first[0])
         }
@@ -170,10 +170,10 @@ pub use utils::{Format, LineEnding};
 mod test {
     use crate::errors::ParseErrorKind;
     use crate::parse_fastx_reader;
-    use flate2::write::GzEncoder;
-    use flate2::Compression as GzCompression;
     use bzip2::read::BzEncoder;
     use bzip2::Compression as BzCompressionn;
+    use flate2::write::GzEncoder;
+    use flate2::Compression as GzCompression;
     use liblzma::write::XzEncoder;
     use zstd::stream::write::Encoder as ZstdEncoder;
 
