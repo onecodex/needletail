@@ -96,12 +96,10 @@ impl Record {
         }
     }
 
-    #[getter]
     pub fn is_fasta(&self) -> PyResult<bool> {
         Ok(self.qual.is_none())
     }
 
-    #[getter]
     pub fn is_fastq(&self) -> PyResult<bool> {
         Ok(self.qual.is_some())
     }
