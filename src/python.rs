@@ -148,10 +148,10 @@ impl Record {
 
     pub fn __str__(&self) -> PyResult<String> {
         if self.qual.is_none() {
-            Ok(format!(">{}\n{}", self.id, self.seq))
+            Ok(format!(">{}\n{}\n", self.id, self.seq))
         } else {
             Ok(format!(
-                "@{}\n{}\n+\n{}",
+                "@{}\n{}\n+\n{}\n",
                 self.id,
                 self.seq,
                 self.qual.clone().unwrap()
