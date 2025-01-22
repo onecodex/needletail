@@ -139,14 +139,7 @@ impl Record {
 
     pub fn __str__(&self) -> PyResult<String> {
         if self.qual.is_none() {
-            let wrapped_seq = self
-                .seq
-                .as_bytes()
-                .chunks(60)
-                .map(|chunk| String::from_utf8_lossy(chunk).to_string())
-                .collect::<Vec<String>>()
-                .join("\n");
-            Ok(format!(">{}\n{}", self.id, wrapped_seq))
+            Ok(format!(">{}\n{}", self.id, self.seq))
         } else {
             Ok(format!(
                 "@{}\n{}\n+\n{}",
