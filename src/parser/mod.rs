@@ -170,11 +170,13 @@ pub use utils::{Format, LineEnding};
 mod test {
     use crate::errors::ParseErrorKind;
     use crate::parse_fastx_reader;
-    use bzip2::read::BzEncoder;
-    use bzip2::Compression as BzCompressionn;
-    use flate2::write::GzEncoder;
-    use flate2::Compression as GzCompression;
+    #[cfg(feature = "bzip2")]
+    use bzip2::{read::BzEncoder, Compression as BzCompression};
+    #[cfg(feature = "flate2")]
+    use flate2::{write::GzEncoder, Compression as GzCompression};
+    #[cfg(feature = "xz2")]
     use liblzma::write::XzEncoder;
+    #[cfg(feature = "zstd")]
     use zstd::stream::write::Encoder as ZstdEncoder;
 
     #[test]
@@ -199,6 +201,7 @@ mod test {
         assert_eq!(actual_err, expected_err);
     }
 
+    #[cfg(feature = "flate2")]
     #[test]
     fn test_empty_gz_raises_empty_file_error() {
         let encoder = GzEncoder::new(Vec::new(), GzCompression::default());
@@ -211,9 +214,10 @@ mod test {
         assert_eq!(actual_err, expected_err);
     }
 
+    #[cfg(feature = "bzip2")]
     #[test]
     fn test_empty_bz_raises_empty_file_error() {
-        let encoder = BzEncoder::new("".as_bytes(), BzCompressionn::default());
+        let encoder = BzEncoder::new("".as_bytes(), BzCompression::default());
         let actual = parse_fastx_reader(encoder);
         assert!(actual.is_err());
 
@@ -222,6 +226,7 @@ mod test {
         assert_eq!(actual_err, expected_err);
     }
 
+    #[cfg(feature = "xz2")]
     #[test]
     fn test_empty_xz_raises_empty_file_error() {
         let encoder = XzEncoder::new(Vec::new(), 9);
@@ -234,6 +239,7 @@ mod test {
         assert_eq!(actual_err, expected_err);
     }
 
+    #[cfg(feature = "zstd")]
     #[test]
     fn test_empty_zstd_raises_empty_file_error() {
         let encoder = ZstdEncoder::new(Vec::new(), zstd::DEFAULT_COMPRESSION_LEVEL).unwrap();
