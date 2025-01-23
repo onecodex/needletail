@@ -97,7 +97,12 @@ pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
         GZ_MAGIC => {
             let mut gz_reader = MultiGzDecoder::new(new_reader);
             let mut first = [0; 1];
-            gz_reader.read_exact(&mut first)?;
+            gz_reader
+                .read_exact(&mut first)
+                .map_err(|e| match e.kind() {
+                    io::ErrorKind::UnexpectedEof => ParseError::new_empty_file(),
+                    _ => e.into(),
+                })?;
             let r = Cursor::new(first).chain(gz_reader);
             get_fastx_reader(r, first[0])
         }
@@ -105,7 +110,12 @@ pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
         BZ_MAGIC => {
             let mut bz_reader = BzDecoder::new(new_reader);
             let mut first = [0; 1];
-            bz_reader.read_exact(&mut first)?;
+            bz_reader
+                .read_exact(&mut first)
+                .map_err(|e| match e.kind() {
+                    io::ErrorKind::UnexpectedEof => ParseError::new_empty_file(),
+                    _ => e.into(),
+                })?;
             let r = Cursor::new(first).chain(bz_reader);
             get_fastx_reader(r, first[0])
         }
@@ -113,7 +123,12 @@ pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
         XZ_MAGIC => {
             let mut xz_reader = XzDecoder::new(new_reader);
             let mut first = [0; 1];
-            xz_reader.read_exact(&mut first)?;
+            xz_reader
+                .read_exact(&mut first)
+                .map_err(|e| match e.kind() {
+                    io::ErrorKind::UnexpectedEof => ParseError::new_empty_file(),
+                    _ => e.into(),
+                })?;
             let r = Cursor::new(first).chain(xz_reader);
             get_fastx_reader(r, first[0])
         }
@@ -121,7 +136,12 @@ pub fn parse_fastx_reader<'a, R: 'a + io::Read + Send>(
         ZST_MAGIC => {
             let mut zst_reader = ZstdDecoder::new(new_reader)?;
             let mut first = [0; 1];
-            zst_reader.read_exact(&mut first)?;
+            zst_reader
+                .read_exact(&mut first)
+                .map_err(|e| match e.kind() {
+                    io::ErrorKind::UnexpectedEof => ParseError::new_empty_file(),
+                    _ => e.into(),
+                })?;
             let r = Cursor::new(first).chain(zst_reader);
             get_fastx_reader(r, first[0])
         }
@@ -150,6 +170,14 @@ pub use utils::{Format, LineEnding};
 mod test {
     use crate::errors::ParseErrorKind;
     use crate::parse_fastx_reader;
+    #[cfg(feature = "bzip2")]
+    use bzip2::{read::BzEncoder, Compression as BzCompression};
+    #[cfg(feature = "flate2")]
+    use flate2::{write::GzEncoder, Compression as GzCompression};
+    #[cfg(feature = "xz2")]
+    use liblzma::write::XzEncoder;
+    #[cfg(feature = "zstd")]
+    use zstd::stream::write::Encoder as ZstdEncoder;
 
     #[test]
     fn test_empty_file_raises_parser_error_of_same_kind() {
@@ -166,6 +194,57 @@ mod test {
     fn test_only_one_byte_in_file_raises_empty_file_error() {
         let reader = "@".as_bytes();
         let actual = parse_fastx_reader(reader);
+        assert!(actual.is_err());
+
+        let actual_err = actual.err().unwrap().kind;
+        let expected_err = ParseErrorKind::EmptyFile;
+        assert_eq!(actual_err, expected_err);
+    }
+
+    #[cfg(feature = "flate2")]
+    #[test]
+    fn test_empty_gz_raises_empty_file_error() {
+        let encoder = GzEncoder::new(Vec::new(), GzCompression::default());
+        let compressed_bytes = encoder.finish().unwrap();
+        let actual = parse_fastx_reader(compressed_bytes.as_slice());
+        assert!(actual.is_err());
+
+        let actual_err = actual.err().unwrap().kind;
+        let expected_err = ParseErrorKind::EmptyFile;
+        assert_eq!(actual_err, expected_err);
+    }
+
+    #[cfg(feature = "bzip2")]
+    #[test]
+    fn test_empty_bz_raises_empty_file_error() {
+        let encoder = BzEncoder::new("".as_bytes(), BzCompression::default());
+        let actual = parse_fastx_reader(encoder);
+        assert!(actual.is_err());
+
+        let actual_err = actual.err().unwrap().kind;
+        let expected_err = ParseErrorKind::EmptyFile;
+        assert_eq!(actual_err, expected_err);
+    }
+
+    #[cfg(feature = "xz2")]
+    #[test]
+    fn test_empty_xz_raises_empty_file_error() {
+        let encoder = XzEncoder::new(Vec::new(), 9);
+        let compressed_bytes = encoder.finish().unwrap();
+        let actual = parse_fastx_reader(compressed_bytes.as_slice());
+        assert!(actual.is_err());
+
+        let actual_err = actual.err().unwrap().kind;
+        let expected_err = ParseErrorKind::EmptyFile;
+        assert_eq!(actual_err, expected_err);
+    }
+
+    #[cfg(feature = "zstd")]
+    #[test]
+    fn test_empty_zstd_raises_empty_file_error() {
+        let encoder = ZstdEncoder::new(Vec::new(), zstd::DEFAULT_COMPRESSION_LEVEL).unwrap();
+        let compressed_bytes = encoder.finish().unwrap();
+        let actual = parse_fastx_reader(compressed_bytes.as_slice());
         assert!(actual.is_err());
 
         let actual_err = actual.err().unwrap().kind;

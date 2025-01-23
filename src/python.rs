@@ -39,11 +39,20 @@ fn get_seq_snippet(seq: &str, max_len: usize) -> String {
 #[pymethods]
 impl PyFastxReader {
     fn __repr__(&self) -> PyResult<String> {
-        Ok("<FastxParser>".to_string())
+        Ok("<FastxReader>".to_string())
     }
 
-    fn __iter__(slf: PyRefMut<Self>, py: Python<'_>) -> PyResult<FastxReaderIterator> {
-        Ok(FastxReaderIterator { t: slf.into_py(py) })
+    fn __iter__(slf: PyRefMut<Self>) -> PyRefMut<Self> {
+        slf
+    }
+
+    fn __next__(mut slf: PyRefMut<Self>) -> PyResult<Option<Record>> {
+        if let Some(rec) = slf.reader.next() {
+            let record = py_try!(rec);
+            Ok(Some(Record::from_sequence_record(&record)))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -163,24 +172,6 @@ impl Record {
             "Record(id={}, seq={}, qual={})",
             id_snippet, seq_snippet, quality_snippet
         ))
-    }
-}
-
-#[pyclass]
-pub struct FastxReaderIterator {
-    t: PyObject,
-}
-
-#[pymethods]
-impl FastxReaderIterator {
-    fn __next__(slf: PyRef<Self>, py: Python<'_>) -> PyResult<Option<Record>> {
-        let mut parser: PyRefMut<PyFastxReader> = slf.t.extract(py)?;
-        if let Some(rec) = parser.reader.next() {
-            let record = py_try!(rec);
-            Ok(Some(Record::from_sequence_record(&record)))
-        } else {
-            Ok(None)
-        }
     }
 }
 
