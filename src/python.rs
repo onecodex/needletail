@@ -1,6 +1,7 @@
 //! Python bindings for needletail
 
 // TODO:
+// - Make the return values of `__repr__` and `__str__` show up as raw strings.
 // - Add support for `pathlib.Path` objects in `parse_fastx_file`.
 // - Make `normalize_seq` and `reverse_complement` functions able to handle
 //  `Record` objects as input.
