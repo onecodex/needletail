@@ -21,11 +21,6 @@ macro_rules! py_try {
     };
 }
 
-#[pyclass]
-pub struct PyFastxReader {
-    reader: Box<dyn FastxReader>,
-}
-
 fn get_seq_snippet(seq: &str, max_len: usize) -> String {
     if seq.len() > max_len {
         let start = &seq[..max_len - 4];
@@ -34,6 +29,26 @@ fn get_seq_snippet(seq: &str, max_len: usize) -> String {
     } else {
         seq.to_string()
     }
+}
+
+/// An iterator that yields sequence records.
+///
+/// Yields
+/// ------
+/// Record
+///     A `Record` object representing a sequence record.
+///
+/// See also
+/// --------
+/// parse_fastx_file:
+///     A function to parse sequence records from a FASTA/FASTQ file.
+/// parse_fastx_string:
+///     A function to parse sequence records from a FASTA/FASTQ string.
+/// Record:
+///     A class representing a FASTA/FASTQ sequence record.
+#[pyclass]
+pub struct PyFastxReader {
+    reader: Box<dyn FastxReader>,
 }
 
 #[pymethods]
@@ -56,6 +71,43 @@ impl PyFastxReader {
     }
 }
 
+/// A record representing a biological sequence.
+///
+/// Parameters
+/// ----------
+/// id : str
+///     The identifier of the sequence record.
+/// seq : str
+///     A string representing the sequence.
+///
+/// Attributes
+/// ----------
+/// id : str
+///     The identifier of the sequence record. In a FASTA file, this is the
+///     string containing all characters (including whitespaces) after the
+///     leading '>' character. In a FASTQ file, this is the string containing
+///     all characters (including whitespaces) after the leading '@' character.
+/// seq : str
+///     A string representing the sequence.
+/// qual : str, optional
+///     A string representing the quality scores of the sequence. If the object
+///     represents a FASTA record, this attribute will be `None`.
+/// name : str
+///     The name of the sequence record. This is the string before the first
+///     whitespace character in the `id` attribute.
+/// description : str, optional
+///     The description of the sequence record. This is the string after the
+///     first whitespace character in the `id` attribute. If the `id` attribute
+///     contains no whitespace characters, this attribute will be `None`.
+///
+/// Methods
+/// -------
+/// is_fasta
+///     Check if the object represents a FASTA record.
+/// is_fastq
+///     Check if the object represents a FASTQ record.
+/// normalize(iupac)
+///     Normalize the sequence stored in the `seq` attribute of the object.
 #[pyclass]
 pub struct Record {
     #[pyo3(get)]
@@ -96,14 +148,31 @@ impl Record {
         }
     }
 
+    /// Check if the object represents a FASTA record.
+    ///
+    /// Returns
+    /// -------
+    /// bool
+    ///     `True` if the record lacks quality information, otherwise `False`.
     pub fn is_fasta(&self) -> PyResult<bool> {
         Ok(self.qual.is_none())
     }
 
+    /// Check if the object represents a FASTQ record.
+    ///
+    /// Returns
+    /// -------
+    /// bool
+    ///     `True` if the record has quality information, otherwise `False`.
     pub fn is_fastq(&self) -> PyResult<bool> {
         Ok(self.qual.is_some())
     }
 
+    /// Normalize the sequence stored in the `seq` attribute of the object.
+    ///
+    /// See also
+    /// --------
+    /// normalize_seq: A function to normalize nucleotide sequence strings.
     pub fn normalize(&mut self, iupac: bool) -> PyResult<()> {
         if let Some(s) = normalize(self.seq.as_bytes(), iupac) {
             self.seq = String::from_utf8_lossy(&s).to_string();
@@ -178,18 +247,93 @@ impl Record {
 // TODO: what would be really nice is to detect the type of pyobject so it would on file object etc
 // not for initial release though
 
+/// An iterator that reads sequence records from a FASTA/FASTQ file.
+///
+/// Parameters
+/// ----------
+/// path : str
+///     The path to a FASTA/FASTQ file.
+///
+/// Returns
+/// -------
+/// PyFastxReader
+///     A `PyFastxReader` iterator that yields `Record` objects representing
+///     sequences from the input file.
+///
+/// Raises
+/// ------
+/// NeedletailError
+///     If an error occurs while reading and parsing the input file.
+///
+/// See also
+/// --------
+/// parse_fastx_string:
+///     A function to parse sequence records from a FASTA/FASTQ string.
+/// PyFastxReader:
+///     A class with instances that are iterators that yield `Record` objects.
 #[pyfunction]
 fn parse_fastx_file(path: &str) -> PyResult<PyFastxReader> {
     let reader = py_try!(rs_parse_fastx_file(path));
     Ok(PyFastxReader { reader })
 }
 
+/// Parse sequence records from a FASTA/FASTQ string.
+///
+/// Parameters
+/// ----------
+/// content : str
+///     A string containing FASTA/FASTQ-formatted sequence records.
+///
+/// Returns
+/// -------
+/// PyFastxReader
+///     A `PyFastxReader` iterator that yields `Record` objects representing
+///     sequences from the input string.
+///
+/// Raises
+/// ------
+/// NeedletailError
+///     If an error occurs while parsing the input string.
+///
+/// See also
+/// --------
+/// parse_fastx_file:
+///     A function to parse sequence records from a FASTA/FASTQ file.
+/// PyFastxReader:
+///     A class with instances that are iterators that yield `Record` objects.
 #[pyfunction]
 fn parse_fastx_string(content: &str) -> PyResult<PyFastxReader> {
     let reader = py_try!(parse_fastx_reader(Cursor::new(content.to_owned())));
     Ok(PyFastxReader { reader })
 }
 
+/// Normalize the sequence string of nucleotide records by:
+/// - Converting lowercase characters to uppercase.
+/// - Removing whitespace and newline characters.
+/// - Replacing 'U' with 'T'.
+/// - Replacing '.' and '~' with '-'.
+/// - Replacing characters not in 'ACGTN-' with 'N'.
+///
+/// Parameters
+/// ----------
+/// seq : str
+///     A string representing a nucleotide sequence.
+/// iupac : bool
+///     If `True`, characters representing nucleotide ambiguity ('B', 'D',
+///     'H', 'V', 'R', 'Y', 'S', 'W', 'K', and 'M', and their lowercase
+///     forms) will not be converted to 'N'. Lowercase characters will still
+///     be converted to uppercase.
+///
+/// Returns
+/// -------
+/// str
+///     The normalized sequence string.
+///
+/// Notes
+/// -----
+///     The `normalize` method is designed for nucleotide sequences only. If
+///     used with protein sequences, it will incorrectly process amino acid
+///     characters as if they were nucleotides.
 #[pyfunction]
 pub fn normalize_seq(seq: &str, iupac: bool) -> PyResult<String> {
     if let Some(s) = normalize(seq.as_bytes(), iupac) {
@@ -199,6 +343,17 @@ pub fn normalize_seq(seq: &str, iupac: bool) -> PyResult<String> {
     }
 }
 
+/// Compute the reverse complement of a nucleotide sequence.
+///
+/// Parameters:
+/// -----------
+/// seq : str
+///     A string representing a nucleotide sequence.
+///
+/// Returns:
+/// --------
+/// str
+///     The reverse complement of the input nucleotide sequence.
 #[pyfunction]
 pub fn reverse_complement(seq: &str) -> String {
     let comp: Vec<u8> = seq
