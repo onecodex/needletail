@@ -1,5 +1,10 @@
 //! Python bindings for needletail
 
+// TODO:
+// - Add support for `pathlib.Path` objects in `parse_fastx_file`.
+// - Make `normalize_seq` and `reverse_complement` functions able to handle
+//  `Record` objects as input.
+
 use crate::sequence::{complement, normalize};
 use crate::{
     parse_fastx_file as rs_parse_fastx_file, parse_fastx_reader, parser::SequenceRecord,
@@ -243,9 +248,6 @@ impl Record {
         ))
     }
 }
-
-// TODO: what would be really nice is to detect the type of pyobject so it would on file object etc
-// not for initial release though
 
 /// An iterator that reads sequence records from a FASTA/FASTQ file.
 ///
