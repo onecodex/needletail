@@ -179,6 +179,7 @@ impl Record {
     /// See also
     /// --------
     /// normalize_seq: A function to normalize nucleotide sequence strings.
+    #[pyo3(signature = (iupac=false))]
     pub fn normalize(&mut self, iupac: bool) -> PyResult<()> {
         if let Some(s) = normalize(self.seq.as_bytes(), iupac) {
             self.seq = String::from_utf8_lossy(&s).to_string();
@@ -311,17 +312,20 @@ fn parse_fastx_string(content: &str) -> PyResult<PyFastxReader> {
 }
 
 /// Normalize the sequence string of nucleotide records by:
-/// - Converting lowercase characters to uppercase.
-/// - Removing whitespace and newline characters.
-/// - Replacing 'U' with 'T'.
-/// - Replacing '.' and '~' with '-'.
-/// - Replacing characters not in 'ACGTN-' with 'N'.
+///
+///     - Converting lowercase characters to uppercase.
+///     - Removing whitespace and newline characters.
+///     - Replacing 'U' with 'T'.
+///     - Replacing '.' and '~' with '-'.
+///     - Replacing characters not in 'ACGTN-' with 'N', unless `iupac` is set
+///       to `True`, in which case characters representing nucleotide ambiguity
+///       are not replaced.
 ///
 /// Parameters
 /// ----------
 /// seq : str
 ///     A string representing a nucleotide sequence.
-/// iupac : bool
+/// iupac : bool, default: False
 ///     If `True`, characters representing nucleotide ambiguity ('B', 'D',
 ///     'H', 'V', 'R', 'Y', 'S', 'W', 'K', and 'M', and their lowercase
 ///     forms) will not be converted to 'N'. Lowercase characters will still
@@ -338,6 +342,7 @@ fn parse_fastx_string(content: &str) -> PyResult<PyFastxReader> {
 /// used with protein sequences, it will incorrectly process amino acid
 /// characters as if they were nucleotides.
 #[pyfunction]
+#[pyo3(signature = (seq, iupac=false))]
 pub fn normalize_seq(seq: &str, iupac: bool) -> PyResult<String> {
     if let Some(s) = normalize(seq.as_bytes(), iupac) {
         Ok(String::from_utf8_lossy(&s).to_string())
