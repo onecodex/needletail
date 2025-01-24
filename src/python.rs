@@ -334,9 +334,9 @@ fn parse_fastx_string(content: &str) -> PyResult<PyFastxReader> {
 ///
 /// Notes
 /// -----
-///     The `normalize` method is designed for nucleotide sequences only. If
-///     used with protein sequences, it will incorrectly process amino acid
-///     characters as if they were nucleotides.
+/// The `normalize` method is designed for nucleotide sequences only. If
+/// used with protein sequences, it will incorrectly process amino acid
+/// characters as if they were nucleotides.
 #[pyfunction]
 pub fn normalize_seq(seq: &str, iupac: bool) -> PyResult<String> {
     if let Some(s) = normalize(seq.as_bytes(), iupac) {
