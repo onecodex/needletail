@@ -315,13 +315,13 @@ fn parse_fastx_string(content: &str) -> PyResult<PyFastxReader> {
 
 /// Normalize the sequence string of nucleotide records by:
 ///
-///     - Converting lowercase characters to uppercase.
-///     - Removing whitespace and newline characters.
-///     - Replacing 'U' with 'T'.
-///     - Replacing '.' and '~' with '-'.
-///     - Replacing characters not in 'ACGTN-' with 'N', unless `iupac` is set
-///       to `True`, in which case characters representing nucleotide ambiguity
-///       are not replaced.
+/// - Converting lowercase characters to uppercase.
+/// - Removing whitespace and newline characters.
+/// - Replacing 'U' with 'T'.
+/// - Replacing '.' and '~' with '-'.
+/// - Replacing characters not in 'ACGTN-' with 'N', unless `iupac` is `True`,
+///   in which case characters representing nucleotide ambiguity are not
+///   replaced.
 ///
 /// Parameters
 /// ----------
