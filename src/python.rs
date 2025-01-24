@@ -1,6 +1,8 @@
 //! Python bindings for needletail
 
 // TODO:
+// - Add a property to the `Record` class that returns the quality scores as a
+//   list of integers.
 // - Make the return values of `__repr__` and `__str__` show up as raw strings.
 // - Make `normalize_seq` and `reverse_complement` functions able to handle
 //  `Record` objects as input.
