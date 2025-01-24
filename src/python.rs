@@ -2,7 +2,6 @@
 
 // TODO:
 // - Make the return values of `__repr__` and `__str__` show up as raw strings.
-// - Add support for `pathlib.Path` objects in `parse_fastx_file`.
 // - Make `normalize_seq` and `reverse_complement` functions able to handle
 //  `Record` objects as input.
 
@@ -17,6 +16,7 @@ use pyo3::prelude::*;
 use pyo3::{create_exception, wrap_pyfunction};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::Cursor;
+use std::path::PathBuf;
 
 create_exception!(needletail, NeedletailError, pyo3::exceptions::PyException);
 
@@ -254,7 +254,7 @@ impl Record {
 ///
 /// Parameters
 /// ----------
-/// path : str
+/// path : str or pathlib.Path
 ///     The path to a FASTA/FASTQ file.
 ///
 /// Returns
@@ -275,7 +275,7 @@ impl Record {
 /// PyFastxReader:
 ///     A class with instances that are iterators that yield `Record` objects.
 #[pyfunction]
-fn parse_fastx_file(path: &str) -> PyResult<PyFastxReader> {
+fn parse_fastx_file(path: PathBuf) -> PyResult<PyFastxReader> {
     let reader = py_try!(rs_parse_fastx_file(path));
     Ok(PyFastxReader { reader })
 }
