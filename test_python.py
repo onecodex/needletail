@@ -3,7 +3,6 @@ from pathlib import Path
 
 from needletail import (
     NeedletailError,
-    PyFastxReader,
     Record,
     normalize_seq,
     parse_fastx_file,
@@ -148,12 +147,16 @@ class ReverseComplementTestCase(unittest.TestCase):
         self.assertEqual(reverse_complement("atcg"), "cgat")
 
 
-class FileParsingTestCase(unittest.TestCase):
+class StrParsingTestCase(unittest.TestCase):
     def get_fasta_reader(self):
-        return parse_fastx_file(FASTA_FILE)
+        with open(FASTA_FILE) as f:
+            content = f.read()
+            return parse_fastx_string(content)
 
     def get_fastq_reader(self):
-        return parse_fastx_file(FASTQ_FILE)
+        with open(FASTQ_FILE) as f:
+            content = f.read()
+            return parse_fastx_string(content)
 
     def test_can_parse_fasta_file(self):
         for i, record in enumerate(self.get_fasta_reader()):
@@ -179,23 +182,16 @@ class FileParsingTestCase(unittest.TestCase):
                 self.assertEqual(record.qual, ";;;;;;;;;;;7;;;;;-;;;3;83")
             self.assertTrue(i <= 2)
 
-    def test_pathlib_path_input(self):
-        self.assertIsInstance(parse_fastx_file(Path(FASTA_FILE)), PyFastxReader)
 
-
-class StrParsingTestCase(FileParsingTestCase):
+class FileParsingTestCase(StrParsingTestCase):
     def get_fasta_reader(self):
-        with open(FASTA_FILE) as f:
-            content = f.read()
-            return parse_fastx_string(content)
+        return parse_fastx_file(FASTA_FILE)
 
     def get_fastq_reader(self):
-        with open(FASTQ_FILE) as f:
-            content = f.read()
-            return parse_fastx_string(content)
+        return parse_fastx_file(FASTQ_FILE)
 
     def test_pathlib_path_input(self):
-        pass
+        parse_fastx_file(Path(FASTA_FILE))
 
 
 class ErroringTestCase(unittest.TestCase):
