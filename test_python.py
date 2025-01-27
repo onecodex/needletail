@@ -3,6 +3,7 @@ from pathlib import Path
 
 from needletail import (
     NeedletailError,
+    PyFastxReader,
     Record,
     normalize_seq,
     parse_fastx_file,
@@ -179,7 +180,7 @@ class FileParsingTestCase(unittest.TestCase):
             self.assertTrue(i <= 2)
 
     def test_pathlib_path_input(self):
-        parse_fastx_file(Path(FASTA_FILE))
+        self.assertIsInstance(parse_fastx_file(Path(FASTA_FILE)), PyFastxReader)
 
 
 class StrParsingTestCase(FileParsingTestCase):
