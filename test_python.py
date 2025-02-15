@@ -39,13 +39,22 @@ class RecordClassTestCase(unittest.TestCase):
         record.normalize()
         self.assertEqual(record.seq, "AGCTGNNTCGA")
 
-    def test_format_record_method(self):
+    def test_record_format_method(self):
         record = Record("test", "AGCTGATCGA")
         self.assertTrue(record.is_fasta())
         self.assertFalse(record.is_fastq())
         record = Record("test", "AGCTGATCGA", ";**9;;????")
         self.assertFalse(record.is_fasta())
         self.assertTrue(record.is_fastq())
+
+    def test_record_phred_quality_score_method(self):
+        record = Record("test", "AGCTGATCGA", "@AKKK@CATG")
+        self.assertEqual(
+            record.phred_quality_score(), (31, 32, 42, 42, 42, 31, 34, 32, 51, 38)
+        )
+        self.assertEqual(
+            record.phred_quality_score(base_64=True), (0, 1, 11, 11, 11, 0, 3, 1, 20, 7)
+        )
 
     def test_record_eq(self):
         record1 = Record("test", "AGCTGATCGA", ";**9;;????")
