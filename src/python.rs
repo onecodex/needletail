@@ -1,8 +1,6 @@
 //! Python bindings for needletail
 
 // TODO:
-// - Add a property to the `Record` class that returns the quality scores as a
-//   list of integers.
 // - Make the return values of `__repr__` and `__str__` show up as raw strings.
 // - Make `normalize_seq` and `reverse_complement` functions able to handle
 //  `Record` objects as input.
@@ -15,6 +13,7 @@ use crate::{
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyTuple;
 use pyo3::{create_exception, wrap_pyfunction};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::Cursor;
@@ -174,6 +173,57 @@ impl Record {
     ///     `True` if the record has quality information, otherwise `False`.
     pub fn is_fastq(&self) -> PyResult<bool> {
         Ok(self.qual.is_some())
+    }
+
+    /// Returns the numerical representation of the quality scores.
+    ///
+    /// Parameters
+    /// ----------
+    /// base_64 : bool, default=False
+    ///     If `True`, return the quality using the Phred+64 encoding, otherwise
+    ///     the Phred+33 encoding will be used.
+    ///
+    /// Returns
+    /// -------
+    /// tuple of int, optional
+    ///     The numerical representation of the quality scores. Returns `None`
+    ///     if quality scores are not available.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If an invalid quality score character is encountered.
+    #[pyo3(signature = (base_64=false))]
+    pub fn phred_quality_score<'py>(
+        &self,
+        py: Python<'py>,
+        base_64: bool,
+    ) -> PyResult<Option<Bound<'py, PyTuple>>> {
+        match &self.qual {
+            Some(qual) => {
+                let offset = if base_64 { b'@' } else { b'!' };
+                let scores: Result<Vec<_>, _> = qual
+                    .as_bytes()
+                    .iter()
+                    .map(|&c| {
+                        if c < offset {
+                            Err(PyValueError::new_err(format!(
+                                "Invalid quality score character: '{}' (ASCII {})",
+                                c as char, c as u8
+                            )))
+                        } else {
+                            Ok(c - offset)
+                        }
+                    })
+                    .collect();
+
+                match scores {
+                    Ok(valid_scores) => Ok(Some(PyTuple::new_bound(py, valid_scores))),
+                    Err(e) => Err(e.into()),
+                }
+            }
+            None => Ok(None),
+        }
     }
 
     /// Normalize the sequence stored in the `seq` attribute of the object.
@@ -365,14 +415,14 @@ pub fn normalize_seq(seq: &str, iupac: bool) -> PyResult<String> {
 /// str
 ///     The reverse complement of the input nucleotide sequence.
 #[pyfunction]
-pub fn reverse_complement(seq: &str) -> String {
+pub fn reverse_complement(seq: &str) -> PyResult<String> {
     let comp: Vec<u8> = seq
         .as_bytes()
         .iter()
         .rev()
         .map(|n| complement(*n))
         .collect();
-    String::from_utf8_lossy(&comp).to_string()
+    Ok(String::from_utf8_lossy(&comp).to_string())
 }
 
 #[pymodule]
