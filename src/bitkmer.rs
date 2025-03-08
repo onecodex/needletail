@@ -114,11 +114,16 @@ pub fn reverse_complement(kmer: BitKmer) -> BitKmer {
     // inspired from https://www.biostars.org/p/113640/
     let mut new_kmer = kmer.0;
     // reverse it
-    new_kmer = (new_kmer >> 2 & 0x3333_3333_3333_3333) | (new_kmer & 0x3333_3333_3333_3333) << 2;
-    new_kmer = (new_kmer >> 4 & 0x0F0F_0F0F_0F0F_0F0F) | (new_kmer & 0x0F0F_0F0F_0F0F_0F0F) << 4;
-    new_kmer = (new_kmer >> 8 & 0x00FF_00FF_00FF_00FF) | (new_kmer & 0x00FF_00FF_00FF_00FF) << 8;
-    new_kmer = (new_kmer >> 16 & 0x0000_FFFF_0000_FFFF) | (new_kmer & 0x0000_FFFF_0000_FFFF) << 16;
-    new_kmer = (new_kmer >> 32 & 0x0000_0000_FFFF_FFFF) | (new_kmer & 0x0000_0000_FFFF_FFFF) << 32;
+    new_kmer =
+        ((new_kmer >> 2) & 0x3333_3333_3333_3333) | ((new_kmer & 0x3333_3333_3333_3333) << 2);
+    new_kmer =
+        ((new_kmer >> 4) & 0x0F0F_0F0F_0F0F_0F0F) | ((new_kmer & 0x0F0F_0F0F_0F0F_0F0F) << 4);
+    new_kmer =
+        ((new_kmer >> 8) & 0x00FF_00FF_00FF_00FF) | ((new_kmer & 0x00FF_00FF_00FF_00FF) << 8);
+    new_kmer =
+        ((new_kmer >> 16) & 0x0000_FFFF_0000_FFFF) | ((new_kmer & 0x0000_FFFF_0000_FFFF) << 16);
+    new_kmer =
+        ((new_kmer >> 32) & 0x0000_0000_FFFF_FFFF) | ((new_kmer & 0x0000_0000_FFFF_FFFF) << 32);
     // complement it
     new_kmer ^= 0xFFFF_FFFF_FFFF_FFFF;
     // shift it to the right size

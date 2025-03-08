@@ -3,7 +3,6 @@ use std::fs;
 use needletail::errors::ParseError;
 use needletail::parser::parse_fastx_file;
 use serde_derive::Deserialize;
-use toml;
 
 #[derive(Debug, Deserialize)]
 struct TestCase {
@@ -69,7 +68,7 @@ fn test_specimen_fastq() {
         );
     }
 
-    for test in index.invalid.unwrap_or_else(Vec::new) {
+    for test in index.invalid.unwrap_or_default() {
         if test.filename == "error_diff_ids.fastq" {
             // we don't care if the sequence ID doesn't match the quality id?
             continue;
