@@ -45,6 +45,7 @@ extern crate pyo3;
 pub mod bitkmer;
 pub mod kmer;
 pub mod parser;
+pub mod quality;
 pub mod sequence;
 
 pub mod errors;
