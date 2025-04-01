@@ -104,7 +104,7 @@ impl<'a> SequenceRecord<'a> {
     /// Decodes Phred quality data to quality scores. See documentation for
     /// `needletail::quality::decode_phred`. This returns a `Result` containing
     /// an `Option<Cow<'a, [u8]>>` of the decoded quality scores, which may be
-    /// coerced to a `Vec<u8>` or `&[u8]`. In case the Phred quality data is
+    /// coerced to `Vec<u8>` or `&[u8]`. In case the Phred quality data is
     /// incompatible with the specified source encoding, an error is returned.
     pub fn decode_phred(
         &self,
@@ -250,7 +250,7 @@ pub fn write_fastq(
 mod test {
     use std::io::Cursor;
 
-    use crate::parse_fastx_reader;
+    use crate::{parse_fastx_reader, quality::PhredEncoding};
     fn seq(s: &[u8]) -> Cursor<&[u8]> {
         Cursor::new(s)
     }
@@ -282,5 +282,13 @@ mod test {
 
         let rec = reader.next().unwrap().unwrap();
         assert_eq!(rec.position().byte(), 40);
+    }
+
+    #[test]
+    fn test_record_decode_phred() {
+        let mut reader = parse_fastx_reader(seq(b"@test1\nACGT\n+\nIIII")).unwrap();
+        let rec = reader.next().unwrap().unwrap();
+        let decoded_qual = rec.decode_phred(PhredEncoding::Phred33).unwrap().unwrap();
+        assert_eq!(decoded_qual.as_ref(), &[40, 40, 40, 40]);
     }
 }
