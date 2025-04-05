@@ -1,13 +1,14 @@
 [build-system]
-requires = ["maturin>=1.7,<2.0"]
+requires = ["maturin>=1.8,<2.0"]
 build-backend = "maturin"
 
 [project]
 name = "needletail"
+requires-python = ">=3.8"
 dynamic = ["version"]
 classifier = [
     "Intended Audience :: Science/Research",
-    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
     "License :: OSI Approved :: MIT License",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
 ]

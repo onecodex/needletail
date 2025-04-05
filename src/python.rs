@@ -19,6 +19,7 @@ use pyo3::{create_exception, wrap_pyfunction};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::Cursor;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 create_exception!(needletail, NeedletailError, pyo3::exceptions::PyException);
 
@@ -56,7 +57,7 @@ fn get_seq_snippet(seq: &str, max_len: usize) -> String {
 ///     A class representing a FASTA/FASTQ sequence record.
 #[pyclass]
 pub struct PyFastxReader {
-    reader: Box<dyn FastxReader>,
+    reader: Mutex<Box<dyn FastxReader>>,
 }
 
 #[pymethods]
@@ -69,8 +70,8 @@ impl PyFastxReader {
         slf
     }
 
-    fn __next__(mut slf: PyRefMut<Self>) -> PyResult<Option<Record>> {
-        if let Some(rec) = slf.reader.next() {
+    fn __next__(slf: PyRefMut<Self>) -> PyResult<Option<Record>> {
+        if let Some(rec) = slf.reader.lock().unwrap().next() {
             let record = py_try!(rec);
             Ok(Some(Record::from_sequence_record(&record)))
         } else {
@@ -280,7 +281,9 @@ impl Record {
 #[pyfunction]
 fn parse_fastx_file(path: PathBuf) -> PyResult<PyFastxReader> {
     let reader = py_try!(rs_parse_fastx_file(path));
-    Ok(PyFastxReader { reader })
+    Ok(PyFastxReader {
+        reader: reader.into(),
+    })
 }
 
 /// Parse sequence records from a FASTA/FASTQ string.
@@ -310,7 +313,9 @@ fn parse_fastx_file(path: PathBuf) -> PyResult<PyFastxReader> {
 #[pyfunction]
 fn parse_fastx_string(content: &str) -> PyResult<PyFastxReader> {
     let reader = py_try!(parse_fastx_reader(Cursor::new(content.to_owned())));
-    Ok(PyFastxReader { reader })
+    Ok(PyFastxReader {
+        reader: reader.into(),
+    })
 }
 
 /// Normalize the sequence string of nucleotide records by:
@@ -383,6 +388,6 @@ fn needletail(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(parse_fastx_string))?;
     m.add_wrapped(wrap_pyfunction!(normalize_seq))?;
     m.add_wrapped(wrap_pyfunction!(reverse_complement))?;
-    m.add("NeedletailError", py.get_type_bound::<NeedletailError>())?;
+    m.add("NeedletailError", py.get_type::<NeedletailError>())?;
     Ok(())
 }
