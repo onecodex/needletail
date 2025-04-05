@@ -12,6 +12,7 @@ use crate::{parse_fastx_file, parse_fastx_reader, FastxReader};
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyTuple;
 use pyo3::{create_exception, wrap_pyfunction};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::Cursor;
@@ -372,7 +373,7 @@ pub fn reverse_complement(seq: &str) -> PyResult<String> {
         .collect();
     Ok(String::from_utf8_lossy(&comp).to_string())
 }
-use pyo3::types::PyTuple;
+
 /// Decode Phred quality data to quality scores.
 ///
 /// Parameters:
