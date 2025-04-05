@@ -2,8 +2,8 @@
 
 // TODO:
 // - Make the return values of `__repr__` and `__str__` show up as raw strings.
-// - Make `normalize_seq` and `reverse_complement` functions able to handle
-//  `Record` objects as input.
+// - Make `normalize_seq`, `reverse_complement`, and `decode_phred` functions
+//   able to handle `Record` objects as input.
 
 use crate::parser::SequenceRecord;
 use crate::quality::{decode_phred, PhredEncoding};
