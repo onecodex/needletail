@@ -174,8 +174,8 @@ impl fmt::Display for PhredOffsetError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "quality value '{}' cannot be decoded with offset '{}'",
-            self.q, self.offset
+            "character '{}' cannot be decoded with offset '{}'",
+            self.q as char, self.offset
         )
     }
 }

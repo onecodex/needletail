@@ -4,6 +4,7 @@ from pathlib import Path
 from needletail import (
     NeedletailError,
     Record,
+    decode_phred,
     normalize_seq,
     parse_fastx_file,
     parse_fastx_string,
@@ -39,7 +40,7 @@ class RecordClassTestCase(unittest.TestCase):
         record.normalize()
         self.assertEqual(record.seq, "AGCTGNNTCGA")
 
-    def test_format_record_method(self):
+    def test_record_format_method(self):
         record = Record("test", "AGCTGATCGA")
         self.assertTrue(record.is_fasta())
         self.assertFalse(record.is_fastq())
@@ -145,6 +146,26 @@ class ReverseComplementTestCase(unittest.TestCase):
         self.assertEqual(reverse_complement("g"), "c")
         self.assertEqual(reverse_complement("n"), "n")
         self.assertEqual(reverse_complement("atcg"), "cgat")
+        self.assertEqual(reverse_complement("ATCG"), "CGAT")
+
+
+class DecodePhredTestCase(unittest.TestCase):
+    def test_decode_phred(self):
+        self.assertEqual(
+            decode_phred("#</</BBFFFBF<"),
+            (2, 27, 14, 27, 14, 33, 33, 37, 37, 37, 33, 37, 27),
+        )
+        self.assertEqual(
+            decode_phred("B[N[Naaeeeae[", base_64=True),
+            (2, 27, 14, 27, 14, 33, 33, 37, 37, 37, 33, 37, 27),
+        )
+        self.assertEqual(decode_phred(""), ())
+
+    def test_decode_phred_invalid_encoding(self):
+        with self.assertRaises(ValueError):
+            decode_phred("#</</BBFFFBF ")
+        with self.assertRaises(ValueError):
+            decode_phred("B[N[Naaeeeae?", base_64=True)
 
 
 class StrParsingTestCase(unittest.TestCase):
