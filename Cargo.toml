@@ -28,7 +28,7 @@ bytecount = { version = "0.6", features = ["runtime-dispatch-simd"] }
 bzip2 = { version = "0.4", optional = true }
 flate2 = { version = "1.0.30", optional = true }
 memchr = "2.7.2"
-pyo3 = { version = "0.21.2", optional = true }
+pyo3 = { version = "0.24.1", optional = true }
 liblzma = { version = "0.3.1", optional = true }
 zstd = { version = "0.13.2", optional = true }
 
