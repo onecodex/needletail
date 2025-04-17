@@ -1,20 +1,18 @@
 //! Python bindings for needletail
 
 // TODO:
-// - Add a property to the `Record` class that returns the quality scores as a
-//   list of integers.
 // - Make the return values of `__repr__` and `__str__` show up as raw strings.
-// - Make `normalize_seq` and `reverse_complement` functions able to handle
-//  `Record` objects as input.
+// - Make `normalize_seq`, `reverse_complement`, and `decode_phred` functions
+//   able to handle `Record` objects as input.
 
+use crate::parser::SequenceRecord;
+use crate::quality::{decode_phred, PhredEncoding};
 use crate::sequence::{complement, normalize};
-use crate::{
-    parse_fastx_file as rs_parse_fastx_file, parse_fastx_reader, parser::SequenceRecord,
-    FastxReader,
-};
+use crate::{parse_fastx_file, parse_fastx_reader, FastxReader};
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyTuple;
 use pyo3::{create_exception, wrap_pyfunction};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::Cursor;
@@ -279,8 +277,9 @@ impl Record {
 /// PyFastxReader:
 ///     A class with instances that are iterators that yield `Record` objects.
 #[pyfunction]
-fn parse_fastx_file(path: PathBuf) -> PyResult<PyFastxReader> {
-    let reader = py_try!(rs_parse_fastx_file(path));
+#[pyo3(name = "parse_fastx_file")]
+fn py_parse_fastx_file(path: PathBuf) -> PyResult<PyFastxReader> {
+    let reader = py_try!(parse_fastx_file(path));
     Ok(PyFastxReader {
         reader: reader.into(),
     })
@@ -370,24 +369,53 @@ pub fn normalize_seq(seq: &str, iupac: bool) -> PyResult<String> {
 /// str
 ///     The reverse complement of the input nucleotide sequence.
 #[pyfunction]
-pub fn reverse_complement(seq: &str) -> String {
+pub fn reverse_complement(seq: &str) -> PyResult<String> {
     let comp: Vec<u8> = seq
         .as_bytes()
         .iter()
         .rev()
         .map(|n| complement(*n))
         .collect();
-    String::from_utf8_lossy(&comp).to_string()
+    Ok(String::from_utf8_lossy(&comp).to_string())
+}
+
+/// Decode Phred quality data to quality scores.
+///
+/// Parameters:
+/// -----------
+/// phred : str
+///     A string representing Phred-encoded quality data.
+/// base_64 : bool, default=False
+///     If `True`, return the quality using the Phred+64 encoding, otherwise
+///     the Phred+33 encoding will be used.
+///
+/// Returns:
+/// --------
+/// tuple of int
+///     A list of integers representing quality scores derived from the
+///     probability of a base-calling error using a logarithmic transformation.
+#[pyfunction]
+#[pyo3(name = "decode_phred", signature = (qual, base_64=false))]
+pub fn py_decode_phred(qual: &str, base_64: bool, py: Python<'_>) -> PyResult<Py<PyTuple>> {
+    let encoding = if base_64 {
+        PhredEncoding::Phred64
+    } else {
+        PhredEncoding::Phred33
+    };
+    decode_phred(qual.as_bytes(), encoding)
+        .map(|vec| PyTuple::new_bound(py, &vec).into())
+        .map_err(|e| PyValueError::new_err(format!("Invalid Phred quality: {}", e)))
 }
 
 #[pymodule]
 fn needletail(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyFastxReader>()?;
     m.add_class::<Record>()?;
-    m.add_wrapped(wrap_pyfunction!(parse_fastx_file))?;
+    m.add_wrapped(wrap_pyfunction!(py_parse_fastx_file))?;
     m.add_wrapped(wrap_pyfunction!(parse_fastx_string))?;
     m.add_wrapped(wrap_pyfunction!(normalize_seq))?;
     m.add_wrapped(wrap_pyfunction!(reverse_complement))?;
+    m.add_wrapped(wrap_pyfunction!(py_decode_phred))?;
     m.add("NeedletailError", py.get_type::<NeedletailError>())?;
     Ok(())
 }

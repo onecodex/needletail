@@ -160,3 +160,22 @@ impl StdError for ParseError {
         None
     }
 }
+
+/// Represents an error during decoding of FASTQ quality data
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PhredOffsetError {
+    /// Quality value that failed to convert
+    pub q: u8,
+    /// Offset used to convert to the target encoding
+    pub offset: u8,
+}
+
+impl fmt::Display for PhredOffsetError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "character '{}' cannot be decoded with offset '{}'",
+            self.q as char, self.offset
+        )
+    }
+}

@@ -3,10 +3,11 @@ use std::io::Write;
 
 use memchr::memchr;
 
-use crate::errors::ParseError;
+use crate::errors::{ParseError, PhredOffsetError};
 use crate::parser::fasta::BufferPosition as FastaBufferPosition;
 use crate::parser::fastq::BufferPosition as FastqBufferPosition;
 use crate::parser::utils::{Format, LineEnding, Position};
+use crate::quality::{decode_phred, PhredEncoding};
 use crate::Sequence;
 
 #[derive(Debug, Clone)]
@@ -90,13 +91,32 @@ impl<'a> SequenceRecord<'a> {
         }
     }
 
-    /// Returns the quality line if there is one.
-    /// Always `None` for FASTA and `Some` for FASTQ, even if the quality line is empty.
+    /// Returns the Phred-encoded quality line if there is one. Always `None`
+    /// for FASTA and `Some` for FASTQ, even if the quality line is empty.
     #[inline]
     pub fn qual(&self) -> Option<&[u8]> {
         match self.buf_pos {
             BufferPositionKind::Fasta(_) => None,
             BufferPositionKind::Fastq(bp) => Some(bp.qual(self.buffer)),
+        }
+    }
+
+    /// Decodes Phred quality data to quality scores. See documentation for
+    /// `needletail::quality::decode_phred`. This returns a `Result` containing
+    /// an `Option<Cow<'a, [u8]>>` of the decoded quality scores, which may be
+    /// coerced to `Vec<u8>` or `&[u8]`. In case the Phred quality data is
+    /// incompatible with the specified source encoding, an error is returned.
+    pub fn decode_phred(
+        &self,
+        encoding: PhredEncoding,
+    ) -> Result<Option<Cow<'a, [u8]>>, PhredOffsetError> {
+        match self.qual() {
+            Some(qual) => {
+                // Try to encode the quality scores.
+                let encoded = decode_phred(qual, encoding)?; // Propagate error if any.
+                Ok(Some(encoded.into()))
+            }
+            None => Ok(None),
         }
     }
 
@@ -230,7 +250,7 @@ pub fn write_fastq(
 mod test {
     use std::io::Cursor;
 
-    use crate::parse_fastx_reader;
+    use crate::{parse_fastx_reader, quality::PhredEncoding};
     fn seq(s: &[u8]) -> Cursor<&[u8]> {
         Cursor::new(s)
     }
@@ -262,5 +282,13 @@ mod test {
 
         let rec = reader.next().unwrap().unwrap();
         assert_eq!(rec.position().byte(), 40);
+    }
+
+    #[test]
+    fn test_record_decode_phred() {
+        let mut reader = parse_fastx_reader(seq(b"@test1\nACGT\n+\nIIII")).unwrap();
+        let rec = reader.next().unwrap().unwrap();
+        let decoded_qual = rec.decode_phred(PhredEncoding::Phred33).unwrap().unwrap();
+        assert_eq!(decoded_qual.as_ref(), &[40, 40, 40, 40]);
     }
 }
