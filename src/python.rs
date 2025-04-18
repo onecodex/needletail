@@ -1,6 +1,7 @@
 //! Python bindings for needletail
 
 // TODO:
+// - Enable reading FASTA and FASTQ files from stdin
 // - The `normalize` method of the `Record` class should return a new `Record`
 //   object with the normalized sequence.
 // - Add a `reverse_complement` method to the `Record` class that returns a new
