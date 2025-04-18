@@ -379,12 +379,12 @@ pub fn reverse_complement(seq: &str) -> PyResult<String> {
     Ok(String::from_utf8_lossy(&comp).to_string())
 }
 
-/// Decode Phred quality data to quality scores.
+/// Decode Phred quality strings to quality scores.
 ///
 /// Parameters:
 /// -----------
 /// phred : str
-///     A string representing Phred-encoded quality data.
+///     A string representing Phred-encoded quality strings.
 /// base_64 : bool, default=False
 ///     If `True`, return the quality using the Phred+64 encoding, otherwise
 ///     the Phred+33 encoding will be used.
@@ -402,9 +402,9 @@ pub fn py_decode_phred(qual: &str, base_64: bool, py: Python<'_>) -> PyResult<Py
     } else {
         PhredEncoding::Phred33
     };
-    decode_phred(qual.as_bytes(), encoding)
-        .map(|vec| PyTuple::new_bound(py, &vec).into())
-        .map_err(|e| PyValueError::new_err(format!("Invalid Phred quality: {}", e)))
+    let scores = decode_phred(qual.as_bytes(), encoding)
+        .map_err(|e| PyValueError::new_err(format!("Invalid Phred quality: {}", e)))?;
+    Ok(PyTuple::new(py, &scores)?.into())
 }
 
 #[pymodule]
