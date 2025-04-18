@@ -1,6 +1,11 @@
 //! Python bindings for needletail
 
 // TODO:
+// - The `normalize` method of the `Record` class should return a new `Record`
+//   object with the normalized sequence.
+// - Add a `reverse_complement` method to the `Record` class that returns a new
+//   `Record` object with the reverse complement of the sequence.
+// - Turn `is_fasta` and `is_fastq` into properties.
 // - Make the return values of `__repr__` and `__str__` show up as raw strings.
 // - Make `normalize_seq`, `reverse_complement`, and `decode_phred` functions
 //   able to handle `Record` objects as input.
@@ -54,6 +59,7 @@ fn get_seq_snippet(seq: &str, max_len: usize) -> String {
 /// Record:
 ///     A class representing a FASTA/FASTQ sequence record.
 #[pyclass]
+#[pyo3(name = "FastxReader")]
 pub struct PyFastxReader {
     reader: Mutex<Box<dyn FastxReader>>,
 }
@@ -180,6 +186,12 @@ impl Record {
     /// See also
     /// --------
     /// normalize_seq: A function to normalize nucleotide sequence strings.
+    ///
+    // Notes
+    // -----
+    // The `normalize` method is designed for nucleotide sequences only. If
+    // used with protein sequences, it will incorrectly process amino acid
+    // characters as if they were nucleotides.
     #[pyo3(signature = (iupac=false))]
     pub fn normalize(&mut self, iupac: bool) -> PyResult<()> {
         if let Some(s) = normalize(self.seq.as_bytes(), iupac) {
@@ -261,8 +273,8 @@ impl Record {
 ///
 /// Returns
 /// -------
-/// PyFastxReader
-///     A `PyFastxReader` iterator that yields `Record` objects representing
+/// FastxReader
+///     A `FastxReader` iterator that yields `Record` objects representing
 ///     sequences from the input file.
 ///
 /// Raises
@@ -274,7 +286,7 @@ impl Record {
 /// --------
 /// parse_fastx_string:
 ///     A function to parse sequence records from a FASTA/FASTQ string.
-/// PyFastxReader:
+/// FastxReader:
 ///     A class with instances that are iterators that yield `Record` objects.
 #[pyfunction]
 #[pyo3(name = "parse_fastx_file")]
@@ -294,8 +306,8 @@ fn py_parse_fastx_file(path: PathBuf) -> PyResult<PyFastxReader> {
 ///
 /// Returns
 /// -------
-/// PyFastxReader
-///     A `PyFastxReader` iterator that yields `Record` objects representing
+/// FastxReader
+///     A `FastxReader` iterator that yields `Record` objects representing
 ///     sequences from the input string.
 ///
 /// Raises
@@ -307,11 +319,11 @@ fn py_parse_fastx_file(path: PathBuf) -> PyResult<PyFastxReader> {
 /// --------
 /// parse_fastx_file:
 ///     A function to parse sequence records from a FASTA/FASTQ file.
-/// PyFastxReader:
+/// FastxReader:
 ///     A class with instances that are iterators that yield `Record` objects.
 #[pyfunction]
-fn parse_fastx_string(content: &str) -> PyResult<PyFastxReader> {
-    let reader = py_try!(parse_fastx_reader(Cursor::new(content.to_owned())));
+fn parse_fastx_string(fastx_string: &str) -> PyResult<PyFastxReader> {
+    let reader = py_try!(parse_fastx_reader(Cursor::new(fastx_string.to_owned())));
     Ok(PyFastxReader {
         reader: reader.into(),
     })
@@ -344,7 +356,7 @@ fn parse_fastx_string(content: &str) -> PyResult<PyFastxReader> {
 ///
 /// Notes
 /// -----
-/// The `normalize` method is designed for nucleotide sequences only. If
+/// The `normalize_seq` function is designed for nucleotide sequences only. If
 /// used with protein sequences, it will incorrectly process amino acid
 /// characters as if they were nucleotides.
 #[pyfunction]
@@ -368,6 +380,12 @@ pub fn normalize_seq(seq: &str, iupac: bool) -> PyResult<String> {
 /// --------
 /// str
 ///     The reverse complement of the input nucleotide sequence.
+///
+/// Notes
+/// -----
+/// The `reverse_complement` function is designed for nucleotide sequences
+/// only. If used with protein sequences, it will incorrectly process
+/// amino acid characters as if they were nucleotides.
 #[pyfunction]
 pub fn reverse_complement(seq: &str) -> PyResult<String> {
     let comp: Vec<u8> = seq
