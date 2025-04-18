@@ -1,6 +1,11 @@
 //! Python bindings for needletail
 
 // TODO:
+// - The `normalize` method of the `Record` class should return a new `Record`
+//   object with the normalized sequence.
+// - Add a `reverse_complement` method to the `Record` class that returns a new
+//   `Record` object with the reverse complement of the sequence.
+// - Turn `is_fasta` and `is_fastq` into properties.
 // - Make the return values of `__repr__` and `__str__` show up as raw strings.
 // - Make `normalize_seq`, `reverse_complement`, and `decode_phred` functions
 //   able to handle `Record` objects as input.
@@ -17,6 +22,7 @@ use pyo3::{create_exception, wrap_pyfunction};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::Cursor;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 create_exception!(needletail, NeedletailError, pyo3::exceptions::PyException);
 
@@ -53,8 +59,9 @@ fn get_seq_snippet(seq: &str, max_len: usize) -> String {
 /// Record:
 ///     A class representing a FASTA/FASTQ sequence record.
 #[pyclass]
+#[pyo3(name = "FastxReader")]
 pub struct PyFastxReader {
-    reader: Box<dyn FastxReader>,
+    reader: Mutex<Box<dyn FastxReader>>,
 }
 
 #[pymethods]
@@ -67,8 +74,8 @@ impl PyFastxReader {
         slf
     }
 
-    fn __next__(mut slf: PyRefMut<Self>) -> PyResult<Option<Record>> {
-        if let Some(rec) = slf.reader.next() {
+    fn __next__(slf: PyRefMut<Self>) -> PyResult<Option<Record>> {
+        if let Some(rec) = slf.reader.lock().unwrap().next() {
             let record = py_try!(rec);
             Ok(Some(Record::from_sequence_record(&record)))
         } else {
@@ -179,6 +186,12 @@ impl Record {
     /// See also
     /// --------
     /// normalize_seq: A function to normalize nucleotide sequence strings.
+    ///
+    // Notes
+    // -----
+    // The `normalize` method is designed for nucleotide sequences only. If
+    // used with protein sequences, it will incorrectly process amino acid
+    // characters as if they were nucleotides.
     #[pyo3(signature = (iupac=false))]
     pub fn normalize(&mut self, iupac: bool) -> PyResult<()> {
         if let Some(s) = normalize(self.seq.as_bytes(), iupac) {
@@ -251,7 +264,8 @@ impl Record {
     }
 }
 
-/// An iterator that reads sequence records from a FASTA/FASTQ file.
+/// Returns an iterator that parses a FASTA/FASTQ file and yields sequence
+/// records.
 ///
 /// Parameters
 /// ----------
@@ -260,8 +274,8 @@ impl Record {
 ///
 /// Returns
 /// -------
-/// PyFastxReader
-///     A `PyFastxReader` iterator that yields `Record` objects representing
+/// FastxReader
+///     A `FastxReader` iterator that yields `Record` objects representing
 ///     sequences from the input file.
 ///
 /// Raises
@@ -273,16 +287,19 @@ impl Record {
 /// --------
 /// parse_fastx_string:
 ///     A function to parse sequence records from a FASTA/FASTQ string.
-/// PyFastxReader:
+/// FastxReader:
 ///     A class with instances that are iterators that yield `Record` objects.
 #[pyfunction]
 #[pyo3(name = "parse_fastx_file")]
 fn py_parse_fastx_file(path: PathBuf) -> PyResult<PyFastxReader> {
     let reader = py_try!(parse_fastx_file(path));
-    Ok(PyFastxReader { reader })
+    Ok(PyFastxReader {
+        reader: reader.into(),
+    })
 }
 
-/// Parse sequence records from a FASTA/FASTQ string.
+/// Returns an iterator that parses a FASTA/FASTQ string and yields sequence
+/// records.
 ///
 /// Parameters
 /// ----------
@@ -291,8 +308,8 @@ fn py_parse_fastx_file(path: PathBuf) -> PyResult<PyFastxReader> {
 ///
 /// Returns
 /// -------
-/// PyFastxReader
-///     A `PyFastxReader` iterator that yields `Record` objects representing
+/// FastxReader
+///     A `FastxReader` iterator that yields `Record` objects representing
 ///     sequences from the input string.
 ///
 /// Raises
@@ -304,12 +321,14 @@ fn py_parse_fastx_file(path: PathBuf) -> PyResult<PyFastxReader> {
 /// --------
 /// parse_fastx_file:
 ///     A function to parse sequence records from a FASTA/FASTQ file.
-/// PyFastxReader:
+/// FastxReader:
 ///     A class with instances that are iterators that yield `Record` objects.
 #[pyfunction]
-fn parse_fastx_string(content: &str) -> PyResult<PyFastxReader> {
-    let reader = py_try!(parse_fastx_reader(Cursor::new(content.to_owned())));
-    Ok(PyFastxReader { reader })
+fn parse_fastx_string(fastx_string: &str) -> PyResult<PyFastxReader> {
+    let reader = py_try!(parse_fastx_reader(Cursor::new(fastx_string.to_owned())));
+    Ok(PyFastxReader {
+        reader: reader.into(),
+    })
 }
 
 /// Normalize the sequence string of nucleotide records by:
@@ -339,7 +358,7 @@ fn parse_fastx_string(content: &str) -> PyResult<PyFastxReader> {
 ///
 /// Notes
 /// -----
-/// The `normalize` method is designed for nucleotide sequences only. If
+/// The `normalize_seq` function is designed for nucleotide sequences only. If
 /// used with protein sequences, it will incorrectly process amino acid
 /// characters as if they were nucleotides.
 #[pyfunction]
@@ -363,6 +382,12 @@ pub fn normalize_seq(seq: &str, iupac: bool) -> PyResult<String> {
 /// --------
 /// str
 ///     The reverse complement of the input nucleotide sequence.
+///
+/// Notes
+/// -----
+/// The `reverse_complement` function is designed for nucleotide sequences
+/// only. If used with protein sequences, it will incorrectly process
+/// amino acid characters as if they were nucleotides.
 #[pyfunction]
 pub fn reverse_complement(seq: &str) -> PyResult<String> {
     let comp: Vec<u8> = seq
@@ -374,12 +399,12 @@ pub fn reverse_complement(seq: &str) -> PyResult<String> {
     Ok(String::from_utf8_lossy(&comp).to_string())
 }
 
-/// Decode Phred quality data to quality scores.
+/// Decode Phred quality strings to quality scores.
 ///
 /// Parameters:
 /// -----------
 /// phred : str
-///     A string representing Phred-encoded quality data.
+///     A string representing Phred-encoded quality strings.
 /// base_64 : bool, default=False
 ///     If `True`, return the quality using the Phred+64 encoding, otherwise
 ///     the Phred+33 encoding will be used.
@@ -397,9 +422,9 @@ pub fn py_decode_phred(qual: &str, base_64: bool, py: Python<'_>) -> PyResult<Py
     } else {
         PhredEncoding::Phred33
     };
-    decode_phred(qual.as_bytes(), encoding)
-        .map(|vec| PyTuple::new_bound(py, &vec).into())
-        .map_err(|e| PyValueError::new_err(format!("Invalid Phred quality: {}", e)))
+    let scores = decode_phred(qual.as_bytes(), encoding)
+        .map_err(|e| PyValueError::new_err(format!("Invalid Phred quality: {}", e)))?;
+    Ok(PyTuple::new(py, &scores)?.into())
 }
 
 #[pymodule]
@@ -411,6 +436,6 @@ fn needletail(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(normalize_seq))?;
     m.add_wrapped(wrap_pyfunction!(reverse_complement))?;
     m.add_wrapped(wrap_pyfunction!(py_decode_phred))?;
-    m.add("NeedletailError", py.get_type_bound::<NeedletailError>())?;
+    m.add("NeedletailError", py.get_type::<NeedletailError>())?;
     Ok(())
 }

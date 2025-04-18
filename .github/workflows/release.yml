@@ -25,9 +25,14 @@ jobs:
         platform:
           - runner: ubuntu-22.04
             target: x86_64
+          - runner: ubuntu-22.04
+            target: aarch64
         python-version:
+          - "3.9"
+          - "3.10"
           - "3.11"
           - "3.12"
+          - "3.13"
     steps:
       - uses: actions/checkout@v4
       - name: Build wheels
@@ -53,8 +58,11 @@ jobs:
           - runner: macos-14
             target: aarch64
         python-version:
+          - "3.9"
+          - "3.10"
           - "3.11"
           - "3.12"
+          - "3.13"
     steps:
       - uses: actions/checkout@v4
       - name: Build wheels
