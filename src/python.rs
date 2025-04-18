@@ -264,7 +264,8 @@ impl Record {
     }
 }
 
-/// An iterator that reads sequence records from a FASTA/FASTQ file.
+/// Returns an iterator that parses a FASTA/FASTQ file and yields sequence
+/// records.
 ///
 /// Parameters
 /// ----------
@@ -297,7 +298,8 @@ fn py_parse_fastx_file(path: PathBuf) -> PyResult<PyFastxReader> {
     })
 }
 
-/// Parse sequence records from a FASTA/FASTQ string.
+/// Returns an iterator that parses a FASTA/FASTQ string and yields sequence
+/// records.
 ///
 /// Parameters
 /// ----------

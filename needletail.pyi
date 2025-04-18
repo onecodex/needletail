@@ -99,7 +99,8 @@ class Record:
 
 def parse_fastx_file(path: Union[str, Path]) -> FastxReader:
     """
-    An iterator that reads sequence records from a FASTA/FASTQ file.
+    Returns an iterator that parses a FASTA/FASTQ file and yields sequence
+    records.
 
     Parameters
     ----------
@@ -128,7 +129,8 @@ def parse_fastx_file(path: Union[str, Path]) -> FastxReader:
 
 def parse_fastx_string(fastx_string: str) -> FastxReader:
     """
-    Parse sequence records from a FASTA/FASTQ string.
+    Returns an iterator that parses a FASTA/FASTQ string and yields sequence
+    records.
 
     Parameters
     ----------
