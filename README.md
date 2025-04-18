@@ -85,7 +85,7 @@ try:
         print(record.seq)
         print(record.qual)
 except NeedletailError:
-    print("Invalid Fastq file")
+    print("Invalid FASTQ file")
 ```
 
 A record has the following shape:
@@ -95,14 +95,23 @@ class Record:
     id: str
     seq: str
     qual: Optional[str]
-
-    def is_fasta(self) -> bool
-    def is_fastq(self) -> bool
-    def normalize(self, iupac: bool)
+    def __init__(self, id: str, seq: str, qual: Optional[str]) -> None: ...
+    @property
+    def name(self) -> str: ...
+    @property
+    def description(self) -> str: ...
+    def is_fasta(self) -> bool: ...
+    def is_fastq(self) -> bool: ...
+    def normalize(self, iupac: bool = False) -> None: ...
+    def __hash__(self) -> int: ...
+    def __eq__(self, other: Record) -> bool: ...
+    def __len__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __repr__(self) -> str: ...
 ```
 
-Note that `normalize` (see <https://docs.rs/needletail/0.4.1/needletail/sequence/fn.normalize.html> for what it does) will mutate `self.seq`.
-It is also available as the `normalize_seq(seq: str, iupac: bool)` function which will return the normalized sequence in this case.
+Note that `normalize` (see <https://docs.rs/needletail/0.6.1/needletail/sequence/fn.normalize.html> for what it does) will mutate `self.seq`.
+It is also available as the `normalize_seq(seq: str, iupac: bool = False)` function which will return the normalized sequence in this case.
 
 Lastly, there is also a `reverse_complement(seq: str)` that will do exactly what it says. This will not raise an error if you pass some invalid
 characters.
