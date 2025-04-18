@@ -1,8 +1,9 @@
 from pathlib import Path
-from typing import Iterator, Union
+from typing import Iterator, Optional, Union
 
 class FastxReader(Iterator[Record]):
-    """An iterator that yields sequence records.
+    """
+    An iterator that yields sequence records.
 
     Yields
     ------
@@ -59,6 +60,11 @@ class Record:
     normalize(iupac)
         Normalize the sequence stored in the `seq` attribute of the object.
     """
+
+    id: str
+    seq: str
+    qual: Optional[str]
+
     def is_fasta(self) -> bool:
         """
         Check if the object represents a FASTA record.
