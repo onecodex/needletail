@@ -188,11 +188,11 @@ impl Record {
     /// --------
     /// normalize_seq: A function to normalize nucleotide sequence strings.
     ///
-    // Notes
-    // -----
-    // The `normalize` method is designed for nucleotide sequences only. If
-    // used with protein sequences, it will incorrectly process amino acid
-    // characters as if they were nucleotides.
+    /// Notes
+    /// -----
+    /// The `normalize` method is designed for nucleotide sequences only. If
+    /// used with protein sequences, it will incorrectly process amino acid
+    /// characters as if they were nucleotides.
     #[pyo3(signature = (iupac=false))]
     pub fn normalize(&mut self, iupac: bool) -> PyResult<()> {
         if let Some(s) = normalize(self.seq.as_bytes(), iupac) {
