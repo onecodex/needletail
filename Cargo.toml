@@ -1,6 +1,6 @@
 [package]
 name = "needletail"
-version = "0.7.0"
+version = "0.7.1"
 authors = [
     "Roderick Bovee <rbovee@gmail.com>",
     "Vincent Prouillet <vincent@onecodex.com>",
