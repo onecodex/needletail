@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2025-12-10
+
+### Added
+- Build Python 3.14 wheels (#109)
+
+### Fixed
+- Add missing `id`, `seq`, and `qual` attributes of the `Record` class to the Python stub file (#106)
+- Fix multiline comment in `python.rs` module (#107)
+
 ## [0.7.0] - 2025-04-18
 
 ### Added
