@@ -38,7 +38,7 @@ fn get_seq_snippet(seq: &str, max_len: usize) -> String {
     if seq.len() > max_len {
         let start = &seq[..max_len - 4];
         let end = &seq[seq.len() - 3..];
-        format!("{}…{}", start, end)
+        format!("{start}…{end}")
     } else {
         seq.to_string()
     }
@@ -156,7 +156,7 @@ impl Record {
     #[getter]
     pub fn description(&self) -> PyResult<Option<&str>> {
         if let Some(pos) = self.id.find(char::is_whitespace) {
-            Ok(Some(&self.id[pos..].trim_start()))
+            Ok(Some(self.id[pos..].trim_start()))
         } else {
             Ok(None)
         }
@@ -219,9 +219,8 @@ impl Record {
         let mut hasher = DefaultHasher::new();
         self.id.hash(&mut hasher);
         self.seq.hash(&mut hasher);
-        match &self.qual {
-            Some(qual) => qual.hash(&mut hasher),
-            None => {}
+        if let Some(qual) = &self.qual {
+            qual.hash(&mut hasher);
         }
         Ok(hasher.finish())
     }
@@ -249,7 +248,7 @@ impl Record {
 
     fn __repr__(&self) -> PyResult<String> {
         let id_snippet = match self.name() {
-            Ok(name) if name != self.id => format!("{}…", name),
+            Ok(name) if name != self.id => format!("{name}…"),
             Ok(name) => name.to_string(),
             Err(_) => self.id.clone(),
         };
@@ -259,8 +258,7 @@ impl Record {
             None => "None".to_string(),
         };
         Ok(format!(
-            "Record(id={}, seq={}, qual={})",
-            id_snippet, seq_snippet, quality_snippet
+            "Record(id={id_snippet}, seq={seq_snippet}, qual={quality_snippet})"
         ))
     }
 }
@@ -424,7 +422,7 @@ pub fn py_decode_phred(qual: &str, base_64: bool, py: Python<'_>) -> PyResult<Py
         PhredEncoding::Phred33
     };
     let scores = decode_phred(qual.as_bytes(), encoding)
-        .map_err(|e| PyValueError::new_err(format!("Invalid Phred quality: {}", e)))?;
+        .map_err(|e| PyValueError::new_err(format!("Invalid Phred quality: {e}")))?;
     Ok(PyTuple::new(py, &scores)?.into())
 }
 
