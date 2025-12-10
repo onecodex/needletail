@@ -84,7 +84,7 @@ impl<'a> SequenceRecord<'a> {
 
     /// Returns the cleaned up sequence of the record. For FASTQ it is the same as `raw_seq` but
     /// for FASTA it is `raw_seq` minus all the `\r\n`
-    pub fn seq(&self) -> Cow<[u8]> {
+    pub fn seq(&self) -> Cow<'_, [u8]> {
         match self.buf_pos {
             BufferPositionKind::Fasta(bp) => bp.seq(self.buffer),
             BufferPositionKind::Fastq(bp) => bp.seq(self.buffer).into(),

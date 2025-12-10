@@ -120,7 +120,7 @@ pub trait FastxReader: Send {
     /// Gets the next record in the stream.
     /// This imitates the Iterator API but does not support any iterator functions.
     /// This returns None once we reached the EOF.
-    fn next(&mut self) -> Option<Result<SequenceRecord, ParseError>>;
+    fn next(&mut self) -> Option<Result<SequenceRecord<'_>, ParseError>>;
     /// Returns the current line/byte in the stream we are reading from
     fn position(&self) -> &Position;
     /// Returns whether the current stream uses Windows or Unix style line endings

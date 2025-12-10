@@ -288,7 +288,7 @@ where
 }
 
 impl<R: io::Read + Send> FastxReader for Reader<R> {
-    fn next(&mut self) -> Option<Result<SequenceRecord, ParseError>> {
+    fn next(&mut self) -> Option<Result<SequenceRecord<'_>, ParseError>> {
         if self.finished {
             return None;
         }
