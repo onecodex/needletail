@@ -103,9 +103,6 @@ impl PyFastxReader {
 ///     all characters (including whitespaces) after the leading '@' character.
 /// seq : str
 ///     A string representing the sequence.
-/// qual : str, optional
-///     A string representing the quality scores of the sequence. If the object
-///     represents a FASTA record, this attribute will be `None`.
 /// name : str
 ///     The name of the sequence record. This is the string before the first
 ///     whitespace character in the `id` attribute.
@@ -113,6 +110,9 @@ impl PyFastxReader {
 ///     The description of the sequence record. This is the string after the
 ///     first whitespace character in the `id` attribute. If the `id` attribute
 ///     contains no whitespace characters, this attribute will be `None`.
+/// qual : str, optional
+///     A string representing the quality scores of the sequence. If the object
+///     represents a FASTA record, this attribute will be `None`.
 ///
 /// Methods
 /// -------
