@@ -63,6 +63,8 @@ class Record:
 
     id: str
     seq: str
+    name: str
+    description: Optional[str]
     qual: Optional[str]
 
     def is_fasta(self) -> bool:
