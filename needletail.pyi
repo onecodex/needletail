@@ -1,6 +1,11 @@
 from pathlib import Path
 from typing import Iterator, Optional, Union
 
+class NeedletailError(Exception):
+    """
+    Raised when parsing invalid fastx data with parse_fastx_file or parse_fastx_string
+    """
+
 class FastxReader(Iterator[Record]):
     """
     An iterator that yields sequence records.
