@@ -20,6 +20,7 @@ mod record;
 mod utils;
 
 mod fasta;
+pub mod fai;
 mod fastq;
 
 pub use crate::parser::utils::FastxReader;

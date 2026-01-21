@@ -40,6 +40,8 @@ pub enum ParseErrorKind {
     UnexpectedEnd,
     /// The file appears to be empty
     EmptyFile,
+    /// Invalid line in FAI index file
+    InvalidFaiLine,
 }
 
 /// The only error type that needletail returns
@@ -123,6 +125,15 @@ impl ParseError {
             format: None,
         }
     }
+
+    pub fn new_invalid_fai_line(line: String) -> Self {
+        Self {
+            msg: format!("Invalid FAI index line: '{}'", line),
+            kind: ParseErrorKind::InvalidFaiLine,
+            position: ErrorPosition::default(),
+            format: None,
+        }
+    }
 }
 
 impl fmt::Display for ParseError {
@@ -137,6 +148,7 @@ impl fmt::Display for ParseError {
             ParseErrorKind::UnexpectedEnd => {
                 write!(f, "Unexpected end of input ({}).", self.position)
             }
+            ParseErrorKind::InvalidFaiLine => write!(f, "{}", self.msg),
         }
     }
 }
