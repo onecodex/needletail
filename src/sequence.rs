@@ -246,7 +246,8 @@ pub trait Sequence<'a> {
         Kmers::new(self.sequence(), k)
     }
 
-    /// Return an iterator that returns valid kmers in 4-bit form
+    /// Return an iterator over 2-bit encoded kmers, skipping any kmer that
+    /// contains a non-ACGT base (including N and IUPAC ambiguity codes).
     fn bit_kmers(&'a self, k: u8, canonical: bool) -> BitNuclKmer<'a> {
         BitNuclKmer::new(self.sequence(), k, canonical)
     }
