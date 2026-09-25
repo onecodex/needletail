@@ -144,21 +144,28 @@ pub fn canonical(kmer: BitKmer) -> (BitKmer, bool) {
 
 /// Find the lexicographically lowest substring of a given length in the `BitKmer`
 pub fn minimizer(kmer: BitKmer, minmer_size: u8) -> BitKmer {
+    if minmer_size == 0 || minmer_size > kmer.1 {
+        return (0, minmer_size);
+    }
     let mut new_kmer = kmer.0;
     let mut lowest = !0;
-    let bitmask = (BitKmerSeq::pow(2, u32::from(2 * minmer_size)) - 1) as BitKmerSeq;
+    let bitmask = if minmer_size >= 32 {
+        BitKmerSeq::MAX
+    } else {
+        (1u64 << (2 * minmer_size)) - 1
+    };
     for _ in 0..=(kmer.1 - minmer_size) {
         let cur = bitmask & new_kmer;
         if cur < lowest {
             lowest = cur;
         }
-        let cur_rev = reverse_complement((bitmask & new_kmer, kmer.1));
+        let cur_rev = reverse_complement((bitmask & new_kmer, minmer_size));
         if cur_rev.0 < lowest {
             lowest = cur_rev.0;
         }
         new_kmer >>= 2;
     }
-    (lowest, kmer.1)
+    (lowest, minmer_size)
 }
 
 pub fn bitmer_to_bytes(kmer: BitKmer) -> Vec<u8> {
@@ -260,10 +267,24 @@ mod tests {
 
     #[test]
     fn test_minimizer() {
-        assert_eq!(minimizer((0b00_1011, 3), 2).0, 0b0010);
-        assert_eq!(minimizer((0b00_1011, 3), 1).0, 0b00);
-        assert_eq!(minimizer((0b1100_0011, 4), 2).0, 0b0000);
-        assert_eq!(minimizer((0b11_0001, 3), 2).0, 0b0001);
+        // "AGT" has 2-mers "AG" (2) and "GT" (11).
+        // The reverse complement of "GT" is "AC" (1), which is the canonical minimizer.
+        assert_eq!(minimizer((0b00_1011, 3), 2), (0b0001, 2));
+        assert_eq!(minimizer((0b00_1011, 3), 1), (0b00, 1));
+        assert_eq!(minimizer((0b1100_0011, 4), 2), (0b0000, 2));
+        assert_eq!(minimizer((0b11_0001, 3), 2), (0b0001, 2));
+    }
+
+    #[test]
+    fn test_minimizer_matches_sequence_minimizer() {
+        let seq = b"AGTCAGTCAGT";
+        let kmer = bytes_to_bitmer(seq);
+        for minmer_size in 1..=seq.len() as u8 {
+            let bit_min = minimizer(kmer, minmer_size);
+            let seq_min = crate::sequence::minimizer(seq, minmer_size as usize);
+            assert_eq!(bit_min.1, minmer_size);
+            assert_eq!(bitmer_to_bytes(bit_min), seq_min.as_ref());
+        }
     }
 
     #[test]
