@@ -28,7 +28,12 @@ fn extend_kmer(kmer: &mut BitKmer, new_char: u8) -> bool {
         let new_kmer = (kmer.0 << 2) + new_char_int as BitKmerSeq;
 
         // mask out any overflowed bits
-        kmer.0 = new_kmer & (BitKmerSeq::pow(2, u32::from(2 * kmer.1)) - 1) as BitKmerSeq;
+        let mask = if kmer.1 >= 32 {
+            BitKmerSeq::MAX
+        } else {
+            (1u64 << (2 * kmer.1)) - 1
+        };
+        kmer.0 = new_kmer & mask;
         true
     } else {
         false
@@ -42,6 +47,9 @@ fn update_position(
     buffer: &[u8],
     initial: bool,
 ) -> bool {
+    if kmer.1 == 0 {
+        return false;
+    }
     // check if we have enough "physical" space for one more kmer
     if *start_pos + kmer.1 as usize > buffer.len() {
         return false;
@@ -58,9 +66,9 @@ fn update_position(
         if extend_kmer(cur_kmer, buffer[*start_pos + kmer_len]) {
             kmer_len += 1;
         } else {
-            kmer_len = 0;
             *cur_kmer = (0u64, cur_kmer.1);
             *start_pos += kmer_len + 1;
+            kmer_len = 0;
             if *start_pos + cur_kmer.1 as usize > buffer.len() {
                 return false;
             }
@@ -144,9 +152,16 @@ pub fn canonical(kmer: BitKmer) -> (BitKmer, bool) {
 
 /// Find the lexicographically lowest substring of a given length in the `BitKmer`
 pub fn minimizer(kmer: BitKmer, minmer_size: u8) -> BitKmer {
+    if minmer_size == 0 || minmer_size > kmer.1 {
+        return (0, kmer.1);
+    }
     let mut new_kmer = kmer.0;
     let mut lowest = !0;
-    let bitmask = (BitKmerSeq::pow(2, u32::from(2 * minmer_size)) - 1) as BitKmerSeq;
+    let bitmask = if minmer_size >= 32 {
+        BitKmerSeq::MAX
+    } else {
+        (1u64 << (2 * minmer_size)) - 1
+    };
     for _ in 0..=(kmer.1 - minmer_size) {
         let cur = bitmask & new_kmer;
         if cur < lowest {
@@ -162,14 +177,21 @@ pub fn minimizer(kmer: BitKmer, minmer_size: u8) -> BitKmer {
 }
 
 pub fn bitmer_to_bytes(kmer: BitKmer) -> Vec<u8> {
+    if kmer.1 == 0 {
+        return Vec::new();
+    }
+    assert!(kmer.1 <= 32, "kmer length must be <= 32");
     let mut new_kmer = kmer.0;
-    let mut new_kmer_str = Vec::new();
+    let mut new_kmer_str = Vec::with_capacity(kmer.1 as usize);
     // we're reading the bases off from the "high" end of the integer so we need to do some
     // math to figure out where they start (this helps us just pop the bases on the end
     // of the working buffer as we read them off "left to right")
     let offset = (kmer.1 - 1) * 2;
-    let bitmask = BitKmerSeq::pow(2, u32::from(2 * kmer.1 - 1))
-        + BitKmerSeq::pow(2, u32::from(2 * kmer.1 - 2));
+    let bitmask = if kmer.1 == 32 {
+        0xC000_0000_0000_0000u64
+    } else {
+        (1u64 << (2 * kmer.1 - 1)) + (1u64 << (2 * kmer.1 - 2))
+    };
 
     for _ in 0..kmer.1 {
         let new_char = (new_kmer & bitmask) >> offset;
@@ -293,5 +315,34 @@ mod tests {
             extend_kmer(&mut bit_kmer, kmer[i as usize]);
         }
         bit_kmer
+    }
+
+    #[test]
+    fn test_32mer_support() {
+        let seq = b"ACGTACGTACGTACGTACGTACGTACGTACGT"; // 32 bases
+        let mut iter = BitNuclKmer::new(seq, 32, false);
+        let res = iter.next();
+        assert!(res.is_some());
+        let (_, kmer, _) = res.unwrap();
+        assert_eq!(kmer.1, 32);
+        assert_eq!(bitmer_to_bytes(kmer), seq);
+    }
+
+    #[test]
+    fn test_zero_kmer_safety() {
+        assert_eq!(bitmer_to_bytes((0, 0)), Vec::<u8>::new());
+        assert_eq!(minimizer((10, 5), 0), (0, 5));
+        assert_eq!(minimizer((10, 5), 6), (0, 5));
+        let mut iter = BitNuclKmer::new(b"ACGT", 0, false);
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_minimizer_32mer() {
+        let seq = b"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        let kmer = bytes_to_bitmer(seq);
+        let min = minimizer(kmer, 32);
+        assert_eq!(min.1, 32);
+        assert_eq!(min.0, 0);
     }
 }

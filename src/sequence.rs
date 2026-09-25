@@ -137,6 +137,9 @@ pub fn canonical(seq: &[u8]) -> Cow<'_, [u8]> {
 ///
 /// There's probably a faster algorithm for this somewhere...
 pub fn minimizer(seq: &[u8], length: usize) -> Cow<'_, [u8]> {
+    if length == 0 || seq.len() < length {
+        return Cow::Borrowed(seq);
+    }
     let reverse_complement: Vec<u8> = seq.iter().rev().map(|n| complement(*n)).collect();
     let mut minmer = Cow::Borrowed(&seq[..length]);
 
@@ -365,6 +368,12 @@ mod tests {
     fn can_minimize() {
         let minmer = minimizer(&b"ATTTCG"[..], 3);
         assert_eq!(&minmer[..], b"AAA");
+
+        let short = minimizer(&b"AC"[..], 5);
+        assert_eq!(&short[..], b"AC");
+
+        let empty = minimizer(&b""[..], 3);
+        assert_eq!(&empty[..], b"");
     }
 
     #[test]

@@ -82,6 +82,9 @@ impl<'a> CanonicalKmers<'a> {
     }
 
     fn update_position(&mut self, initial: bool) -> bool {
+        if self.k == 0 {
+            return false;
+        }
         // check if we have enough "physical" space for one more kmer
         if self.start_pos + self.k as usize > self.buffer.len() {
             return false;
@@ -97,8 +100,8 @@ impl<'a> CanonicalKmers<'a> {
             if is_good_base(self.buffer[self.start_pos + kmer_len]) {
                 kmer_len += 1;
             } else {
-                kmer_len = 0;
                 self.start_pos += kmer_len + 1;
+                kmer_len = 0;
                 if self.start_pos + self.k as usize > self.buffer.len() {
                     return false;
                 }
@@ -223,5 +226,13 @@ mod tests {
                 _ => unreachable!("Too many kmers"),
             }
         }
+    }
+
+    #[test]
+    fn test_canonical_kmers_zero_k() {
+        let seq = b"ACGT";
+        let rc_seq = seq.reverse_complement();
+        let mut c_iter = CanonicalKmers::new(seq, &rc_seq, 0);
+        assert_eq!(c_iter.next(), None);
     }
 }
