@@ -144,9 +144,10 @@ pub fn canonical(kmer: BitKmer) -> (BitKmer, bool) {
 
 /// Find the lexicographically lowest substring of a given length in the `BitKmer`
 pub fn minimizer(kmer: BitKmer, minmer_size: u8) -> BitKmer {
-    if minmer_size == 0 || minmer_size > kmer.1 {
-        return (0, minmer_size);
-    }
+    assert!(
+        minmer_size > 0 && minmer_size <= kmer.1,
+        "minmer_size must be between 1 and the kmer length"
+    );
     let mut new_kmer = kmer.0;
     let mut lowest = !0;
     let bitmask = if minmer_size >= 32 {
@@ -285,6 +286,18 @@ mod tests {
             assert_eq!(bit_min.1, minmer_size);
             assert_eq!(bitmer_to_bytes(bit_min), seq_min.as_ref());
         }
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_minimizer_zero_size() {
+        minimizer((0b00_1011, 3), 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_minimizer_size_greater_than_kmer() {
+        minimizer((0b00_1011, 3), 4);
     }
 
     #[test]
