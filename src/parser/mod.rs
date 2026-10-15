@@ -41,7 +41,29 @@ fn get_fastx_reader<'a, R: 'a + io::Read + Send>(
     match first_byte {
         b'>' => Ok(Box::new(FastaReader::new(reader))),
         b'@' => Ok(Box::new(FastqReader::new(reader))),
+        b';' => skip_fasta_comments(reader),
         _ => Err(ParseError::new_unknown_format(first_byte)),
+    }
+}
+
+/// Skips comment lines starting with `;` (the original FASTA comment convention) at the start of
+/// a FASTA file, then returns a FASTA reader for the rest. Comment lines are only allowed before
+/// the first record, and not before a FASTQ record.
+fn skip_fasta_comments<'a, R: 'a + io::Read + Send>(
+    reader: R,
+) -> Result<Box<dyn FastxReader + 'a>, ParseError> {
+    let mut reader = io::BufReader::new(reader);
+    let mut line = Vec::new();
+    loop {
+        match io::BufRead::fill_buf(&mut reader)?.first() {
+            Some(b';') => {
+                line.clear();
+                io::BufRead::read_until(&mut reader, b'\n', &mut line)?;
+            }
+            Some(b'>') => return Ok(Box::new(FastaReader::new(reader))),
+            Some(&byte) => return Err(ParseError::new_unknown_format(byte)),
+            None => return Err(ParseError::new_empty_file()),
+        }
     }
 }
 
@@ -250,5 +272,44 @@ mod test {
         let actual_err = actual.err().unwrap().kind;
         let expected_err = ParseErrorKind::EmptyFile;
         assert_eq!(actual_err, expected_err);
+    }
+
+    #[test]
+    fn test_comment_lines_before_the_first_fasta_record_are_skipped() {
+        let reader =
+            ";comment line\n;~key: value\n;\n>chr1 first\nACGT\nAC\n>chr2\nGGCC\n".as_bytes();
+        let mut parser = parse_fastx_reader(reader).unwrap();
+        let first = parser.next().unwrap().unwrap();
+        assert_eq!(first.id(), b"chr1 first");
+        assert_eq!(&*first.seq(), b"ACGTAC");
+        let second = parser.next().unwrap().unwrap();
+        assert_eq!(second.id(), b"chr2");
+        assert_eq!(&*second.seq(), b"GGCC");
+        assert!(parser.next().is_none());
+    }
+
+    #[cfg(feature = "flate2")]
+    #[test]
+    fn test_comment_lines_in_a_gzipped_fasta_file_are_skipped() {
+        use std::io::Write;
+        let mut encoder = GzEncoder::new(Vec::new(), GzCompression::default());
+        encoder.write_all(b";comment\n>chr1\nACGT\n").unwrap();
+        let compressed_bytes = encoder.finish().unwrap();
+        let mut parser = parse_fastx_reader(compressed_bytes.as_slice()).unwrap();
+        assert_eq!(&*parser.next().unwrap().unwrap().seq(), b"ACGT");
+    }
+
+    #[test]
+    fn test_comment_lines_before_a_fastq_record_are_an_error() {
+        let reader = ";comment\n@read\nACGT\n+\nIIII\n".as_bytes();
+        let actual_err = parse_fastx_reader(reader).err().unwrap().kind;
+        assert_eq!(actual_err, ParseErrorKind::UnknownFormat);
+    }
+
+    #[test]
+    fn test_comment_lines_only_raise_empty_file_error() {
+        let reader = ";comment\n;another\n".as_bytes();
+        let actual_err = parse_fastx_reader(reader).err().unwrap().kind;
+        assert_eq!(actual_err, ParseErrorKind::EmptyFile);
     }
 }
