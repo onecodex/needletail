@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Bump `zstd` to 0.14.3 and `liblzma` to 0.4. zstd 0.14.3 (zstd-safe 8.2.0,
+  zstd-sys 2.1.2) resolves RUSTSEC-2026-0391, -0398, -0403 and -0410; liblzma
+  0.4 matches what other crates in the ecosystem (e.g. niffler >= 3.0.1) link.
+
 ## [0.7.1] - 2025-12-10
 
 ### Added
