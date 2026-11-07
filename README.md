@@ -99,6 +99,9 @@ class Record:
     def is_fasta(self) -> bool
     def is_fastq(self) -> bool
     def normalize(self, iupac: bool)
+    def kmers(self, k: int) -> Iterator[str]
+    def canonical_kmers(self, k: int) -> Iterator[tuple[int, str, bool]]
+    def bit_kmers(self, k: int, canonical: bool = False) -> Iterator[tuple[int, int, bool]]
 ```
 
 Note that `normalize` (see <https://docs.rs/needletail/0.4.1/needletail/sequence/fn.normalize.html> for what it does) will mutate `self.seq`.
@@ -106,6 +109,11 @@ It is also available as the `normalize_seq(seq: str, iupac: bool)` function whic
 
 Lastly, there is also a `reverse_complement(seq: str)` that will do exactly what it says. This will not raise an error if you pass some invalid
 characters.
+
+The k-mer methods are also available as the `kmers(seq: str, k: int)`, `canonical_kmers(seq: str, k: int)` and
+`bit_kmers(seq: str, k: int, canonical: bool = False)` functions. `canonical_kmers` and `bit_kmers` are designed for nucleotide
+sequences only and skip k-mers containing characters other than ACGT. `bit_kmers` returns k-mers as 2-bit packed integers, so `k`
+must be at most 32. All three return lazy iterators, so wrap them in `list()` if you need a list.
 
 #### Building
 
