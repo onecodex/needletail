@@ -4,6 +4,7 @@ from pathlib import Path
 from needletail import (
     NeedletailError,
     Record,
+    bit_kmers,
     canonical_kmers,
     decode_phred,
     kmers,
@@ -179,10 +180,34 @@ class KmersTestCase(unittest.TestCase):
         )
         self.assertEqual(list(canonical_kmers("AC", 3)), [])
 
+    def test_bit_kmers(self):
+        # A=0, C=1, G=2, T=3
+        self.assertEqual(
+            list(bit_kmers("ACGT", 1)),
+            [(0, 0, False), (1, 1, False), (2, 2, False), (3, 3, False)],
+        )
+        self.assertEqual(
+            list(bit_kmers("ACGT", 2)),
+            [(0, 1, False), (1, 6, False), (2, 11, False)],
+        )
+        self.assertEqual(list(bit_kmers("acgt", 2)), list(bit_kmers("ACGT", 2)))
+        self.assertEqual(
+            list(bit_kmers("ACNGT", 2)), [(0, 1, False), (3, 11, False)]
+        )
+        self.assertEqual(list(bit_kmers("AC", 3)), [])
+
+    def test_bit_kmers_canonical(self):
+        # TT (15) -> AA (0); TC (13) -> GA (8); CA (4) < TG (14) so CA is kept
+        self.assertEqual(
+            list(bit_kmers("TTCA", 2, canonical=True)),
+            [(0, 0, True), (1, 8, True), (2, 4, False)],
+        )
+
     def test_iterators_are_lazy_and_single_pass(self):
         for it, first in [
             (kmers("AGCT", 2), "AG"),
             (canonical_kmers("AGCT", 2), (0, "AG", False)),
+            (bit_kmers("AGCT", 2), (0, 2, False)),
         ]:
             self.assertIs(iter(it), it)
             self.assertEqual(next(it), first)
@@ -201,6 +226,10 @@ class KmersTestCase(unittest.TestCase):
             kmers("ACGT", 0)
         with self.assertRaises(ValueError):
             canonical_kmers("ACGT", 0)
+        with self.assertRaises(ValueError):
+            bit_kmers("ACGT", 0)
+        with self.assertRaises(ValueError):
+            bit_kmers("ACGT", 33)
         with self.assertRaises(OverflowError):
             kmers("ACGT", 256)
 
@@ -209,6 +238,11 @@ class KmersTestCase(unittest.TestCase):
         self.assertEqual(list(record.kmers(2)), list(kmers("AGCTA", 2)))
         self.assertEqual(
             list(record.canonical_kmers(2)), list(canonical_kmers("AGCTA", 2))
+        )
+        self.assertEqual(list(record.bit_kmers(2)), list(bit_kmers("AGCTA", 2)))
+        self.assertEqual(
+            list(record.bit_kmers(2, canonical=True)),
+            list(bit_kmers("AGCTA", 2, canonical=True)),
         )
 
 

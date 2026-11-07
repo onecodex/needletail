@@ -70,6 +70,9 @@ class Record:
     canonical_kmers(k)
         Return an iterator over the canonical k-mers of the sequence stored in
         the `seq` attribute.
+    bit_kmers(k, canonical)
+        Return an iterator over the k-mers of the sequence stored in the `seq`
+        attribute as 2-bit packed integers.
     """
 
     id: str
@@ -137,6 +140,21 @@ class Record:
         canonical_kmers:
             A function to split a nucleotide sequence string into canonical
             k-mers.
+        """
+        pass
+
+    def bit_kmers(
+        self, k: int, canonical: bool = False
+    ) -> Iterator[tuple[int, int, bool]]:
+        """
+        Return an iterator over the k-mers of the sequence stored in the `seq`
+        attribute as 2-bit packed integers.
+
+        See also
+        --------
+        bit_kmers:
+            A function to split a nucleotide sequence string into 2-bit packed
+            integer k-mers.
         """
         pass
 
@@ -300,6 +318,42 @@ def canonical_kmers(seq: str, k: int) -> Iterator[tuple[int, str, bool]]:
     Notes
     -----
     The `canonical_kmers` function is designed for nucleotide sequences only. The
+    input is not validated. With protein sequences, windows consisting only of
+    the amino acids 'A', 'C', 'G', and 'T' are treated as nucleotides and the
+    rest are skipped, so the result is meaningless rather than an error.
+    """
+    pass
+
+def bit_kmers(
+    seq: str, k: int, canonical: bool = False
+) -> Iterator[tuple[int, int, bool]]:
+    """
+    Split a nucleotide sequence into overlapping k-mers encoded as 2-bit
+    packed integers.
+
+    Each base is encoded as two bits (A=0, C=1, G=2, T=3), with the first base
+    in the most significant position. K-mers containing bases other than
+    'ACGT' (in either case) are skipped.
+
+    Parameters
+    ----------
+    seq : str
+        A string representing a nucleotide sequence.
+    k : int
+        The length of each k-mer (1-32).
+    canonical : bool, default=False
+        If `True`, return the smaller of each k-mer and its reverse complement.
+
+    Returns
+    -------
+    iterator of tuple of (int, int, bool)
+        For each k-mer, its start position in `seq`, the packed integer, and
+        whether the returned k-mer is the reverse complement of the original
+        (always `False` unless `canonical` is `True`).
+
+    Notes
+    -----
+    The `bit_kmers` function is designed for nucleotide sequences only. The
     input is not validated. With protein sequences, windows consisting only of
     the amino acids 'A', 'C', 'G', and 'T' are treated as nucleotides and the
     rest are skipped, so the result is meaningless rather than an error.

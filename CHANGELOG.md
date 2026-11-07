@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Expose k-mer iteration in the Python bindings: `kmers(seq, k)` and
   `canonical_kmers(seq, k)` functions, plus `Record.kmers(k)` and
-  `Record.canonical_kmers(k)` methods. All of these return lazy iterators.
+  `Record.canonical_kmers(k)` methods. Also `bit_kmers(seq, k, canonical)`
+  and `Record.bit_kmers(k, canonical)` returning 2-bit packed integer k-mers.
+  All of these return lazy iterators.
 
 ## [0.7.4] - 2026-10-30
 
