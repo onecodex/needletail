@@ -4,7 +4,9 @@ from pathlib import Path
 from needletail import (
     NeedletailError,
     Record,
+    canonical_kmers,
     decode_phred,
+    kmers,
     normalize_seq,
     parse_fastx_file,
     parse_fastx_string,
@@ -147,6 +149,67 @@ class ReverseComplementTestCase(unittest.TestCase):
         self.assertEqual(reverse_complement("n"), "n")
         self.assertEqual(reverse_complement("atcg"), "cgat")
         self.assertEqual(reverse_complement("ATCG"), "CGAT")
+
+
+class KmersTestCase(unittest.TestCase):
+    def test_kmers(self):
+        self.assertEqual(list(kmers("AGCT", 1)), ["A", "G", "C", "T"])
+        self.assertEqual(list(kmers("AGNCT", 2)), ["AG", "GN", "NC", "CT"])
+        self.assertEqual(list(kmers("AC", 2)), ["AC"])
+        self.assertEqual(list(kmers("AC", 3)), [])
+        self.assertEqual(list(kmers("", 1)), [])
+
+    def test_canonical_kmers(self):
+        self.assertEqual(
+            list(canonical_kmers("AGCT", 1)),
+            [(0, "A", False), (1, "C", True), (2, "C", False), (3, "A", True)],
+        )
+        self.assertEqual(
+            list(canonical_kmers("AGCTA", 2)),
+            [
+                (0, "AG", False),
+                (1, "GC", True),
+                (2, "AG", True),
+                (3, "TA", True),
+            ],
+        )
+        self.assertEqual(
+            list(canonical_kmers("AGNTA", 2)),
+            [(0, "AG", False), (3, "TA", True)],
+        )
+        self.assertEqual(list(canonical_kmers("AC", 3)), [])
+
+    def test_iterators_are_lazy_and_single_pass(self):
+        for it, first in [
+            (kmers("AGCT", 2), "AG"),
+            (canonical_kmers("AGCT", 2), (0, "AG", False)),
+        ]:
+            self.assertIs(iter(it), it)
+            self.assertEqual(next(it), first)
+            self.assertEqual(len(list(it)), 2)
+            with self.assertRaises(StopIteration):
+                next(it)
+
+    def test_iterators_outlive_record(self):
+        record = Record("test", "AGCTA")
+        it = record.kmers(2)
+        del record
+        self.assertEqual(list(it), ["AG", "GC", "CT", "TA"])
+
+    def test_invalid_k(self):
+        with self.assertRaises(ValueError):
+            kmers("ACGT", 0)
+        with self.assertRaises(ValueError):
+            canonical_kmers("ACGT", 0)
+        with self.assertRaises(OverflowError):
+            kmers("ACGT", 256)
+
+    def test_record_methods(self):
+        record = Record("test", "AGCTA")
+        self.assertEqual(list(record.kmers(2)), list(kmers("AGCTA", 2)))
+        self.assertEqual(
+            list(record.canonical_kmers(2)), list(canonical_kmers("AGCTA", 2))
+        )
 
 
 class DecodePhredTestCase(unittest.TestCase):

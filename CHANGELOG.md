@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Expose k-mer iteration in the Python bindings: `kmers(seq, k)` and
+  `canonical_kmers(seq, k)` functions, plus `Record.kmers(k)` and
+  `Record.canonical_kmers(k)` methods. All of these return lazy iterators.
+
 ## [0.7.4] - 2026-10-30
 
 ### Changed

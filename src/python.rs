@@ -11,15 +11,17 @@
 // - Make `normalize_seq`, `reverse_complement`, and `decode_phred` functions
 //   able to handle `Record` objects as input.
 
+use crate::kmer::{CanonicalKmers, Kmers};
 use crate::parser::SequenceRecord;
 use crate::quality::{decode_phred, PhredEncoding};
-use crate::sequence::{complement, normalize};
+use crate::sequence::{complement, normalize, Sequence};
 use crate::{parse_fastx_file, parse_fastx_reader, FastxReader};
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyTuple;
 use pyo3::{create_exception, wrap_pyfunction};
+use self_cell::self_cell;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::Cursor;
 use std::path::PathBuf;
@@ -199,6 +201,28 @@ impl Record {
             self.seq = String::from_utf8_lossy(&s).to_string();
         }
         Ok(())
+    }
+
+    /// Return an iterator over the k-mers of the sequence stored in the `seq`
+    /// attribute.
+    ///
+    /// See also
+    /// --------
+    /// kmers: A function to split a sequence string into k-mers.
+    pub fn kmers(&self, k: u8) -> PyResult<PyKmers> {
+        kmers(&self.seq, k)
+    }
+
+    /// Return an iterator over the canonical k-mers of the sequence stored in
+    /// the `seq` attribute.
+    ///
+    /// See also
+    /// --------
+    /// canonical_kmers:
+    ///     A function to split a nucleotide sequence string into canonical
+    ///     k-mers.
+    pub fn canonical_kmers(&self, k: u8) -> PyResult<PyCanonicalKmers> {
+        canonical_kmers(&self.seq, k)
     }
 
     #[new]
@@ -398,6 +422,128 @@ pub fn reverse_complement(seq: &str) -> PyResult<String> {
     Ok(String::from_utf8_lossy(&comp).to_string())
 }
 
+self_cell!(
+    struct KmersCell {
+        owner: Vec<u8>,
+        #[covariant]
+        dependent: Kmers,
+    }
+);
+
+self_cell!(
+    struct CanonicalKmersCell {
+        owner: (Vec<u8>, Vec<u8>),
+        #[covariant]
+        dependent: CanonicalKmers,
+    }
+);
+
+/// An iterator that yields k-mers.
+#[pyclass(name = "KmersIterator")]
+pub struct PyKmers {
+    cell: KmersCell,
+}
+
+#[pymethods]
+impl PyKmers {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self) -> Option<String> {
+        self.cell.with_dependent_mut(|_, iter| {
+            iter.next()
+                .map(|kmer| String::from_utf8_lossy(kmer).to_string())
+        })
+    }
+}
+
+/// An iterator that yields canonical k-mers.
+#[pyclass(name = "CanonicalKmersIterator")]
+pub struct PyCanonicalKmers {
+    cell: CanonicalKmersCell,
+}
+
+#[pymethods]
+impl PyCanonicalKmers {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self) -> Option<(usize, String, bool)> {
+        self.cell.with_dependent_mut(|_, iter| {
+            iter.next()
+                .map(|(pos, kmer, is_rc)| (pos, String::from_utf8_lossy(kmer).to_string(), is_rc))
+        })
+    }
+}
+
+fn check_k(k: u8) -> PyResult<()> {
+    if k == 0 {
+        return Err(PyValueError::new_err("k must be greater than 0"));
+    }
+    Ok(())
+}
+
+/// Split a sequence into overlapping k-mers.
+///
+/// Parameters:
+/// -----------
+/// seq : str
+///     A string representing a nucleotide or amino acid sequence.
+/// k : int
+///     The length of each k-mer (1-255).
+///
+/// Returns:
+/// --------
+/// iterator of str
+///     Every window of length `k` in the sequence, in order. Ambiguous bases
+///     such as 'N' are not skipped.
+#[pyfunction]
+pub fn kmers(seq: &str, k: u8) -> PyResult<PyKmers> {
+    check_k(k)?;
+    Ok(PyKmers {
+        cell: KmersCell::new(seq.as_bytes().to_vec(), |seq| Kmers::new(seq, k)),
+    })
+}
+
+/// Split a nucleotide sequence into overlapping canonical k-mers.
+///
+/// A canonical k-mer is the lexicographically smaller of a k-mer and its
+/// reverse complement. K-mers containing bases other than 'ACGT' (in either
+/// case) are skipped.
+///
+/// Parameters:
+/// -----------
+/// seq : str
+///     A string representing a nucleotide sequence.
+/// k : int
+///     The length of each k-mer (1-255).
+///
+/// Returns:
+/// --------
+/// iterator of tuple of (int, str, bool)
+///     For each k-mer, its start position in `seq`, the canonical k-mer, and
+///     whether the canonical k-mer is the reverse complement of the original.
+///
+/// Notes
+/// -----
+/// The `canonical_kmers` function is designed for nucleotide sequences only. The
+/// input is not validated. With protein sequences, windows consisting only of
+/// the amino acids 'A', 'C', 'G', and 'T' are treated as nucleotides and the
+/// rest are skipped, so the result is meaningless rather than an error.
+#[pyfunction]
+pub fn canonical_kmers(seq: &str, k: u8) -> PyResult<PyCanonicalKmers> {
+    check_k(k)?;
+    let seq = seq.as_bytes();
+    let rc = seq.reverse_complement();
+    Ok(PyCanonicalKmers {
+        cell: CanonicalKmersCell::new((seq.to_vec(), rc), |(seq, rc)| {
+            CanonicalKmers::new(seq, rc, k)
+        }),
+    })
+}
+
 /// Decode Phred quality strings to quality scores.
 ///
 /// Parameters:
@@ -434,6 +580,8 @@ fn needletail(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(parse_fastx_string))?;
     m.add_wrapped(wrap_pyfunction!(normalize_seq))?;
     m.add_wrapped(wrap_pyfunction!(reverse_complement))?;
+    m.add_wrapped(wrap_pyfunction!(kmers))?;
+    m.add_wrapped(wrap_pyfunction!(canonical_kmers))?;
     m.add_wrapped(wrap_pyfunction!(py_decode_phred))?;
     m.add("NeedletailError", py.get_type::<NeedletailError>())?;
     Ok(())
